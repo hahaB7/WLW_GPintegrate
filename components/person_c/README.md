@@ -139,8 +139,8 @@ out_w, out_h = roi["main_info"]["roi_wh"]         # 影像最終尺寸
 | 鍵 | 說明 |
 |---|---|
 | `stain_types` | 要處理的染色類型,`null` 代表全部。其他 stain 保留,`roi_list=[]` |
-| `region.conch_checkpoint` | 唯一的外部資產,必須在 `reference/person_c/` 之下;執行前檢查 SHA-256 |
-| `region.conch_lib_path`、`vocab_json` | 隨元件發佈(`third_party/CONCH`、`region/vocab/bcss_vocab.json`,相對於 `components/person_c/`);同樣檢查 SHA-256 |
+| `region.conch_checkpoint`、`vocab_json` | 外部資產(權重、BCSS 類別描述),必須在 `reference/person_c/` 之下;執行前檢查 SHA-256 |
+| `region.conch_lib_path` | 隨元件發佈(`third_party/CONCH`,相對於 `components/person_c/`);同樣檢查 SHA-256 |
 | `region.vocab`、`proposal_categories` | zero-shot 詞表(`BCSS`)與保留的類別,`[]` 代表詞表預設 |
 | `region.fields`、`mag`、`overlap` | CONCH 視野(level-0 px)、倍率、重疊比例 |
 | `region.K`、`radius`、`pca_dim`、`use_patch`、`seed`、`zs_temp` | 分群與 zero-shot 參數 |
@@ -201,8 +201,8 @@ SLIDE=/path/to/slide.svs PYTHON=python bash components/person_c/examples/e2e/run
 | 主要套件 | torch 2.14.0+cu130(CUDA 13.0)、torchvision 0.29.0、timm 1.0.29、openslide-python 1.4.6、scipy 1.18.1、numpy 2.5.3(完整版本見 `requirements.txt`) |
 | CONCH 程式庫 | 隨元件發佈於 `third_party/CONCH/`:上游 `mahmoodlab/CONCH` commit `141cc09c7d4ff33d8eda562bd75169b457f71a62` 的 `conch/open_clip_custom/` 與 `LICENSE`,逐檔未修改(CC-BY-NC-ND 4.0);目錄 tree SHA-256 `9e6419e1c78f79406acf635529bfde1c4029f15acb97221d11e76345d187febd` |
 | 資產 SHA-256 | 權重 `pytorch_model.bin`:`40a9644b9ba0e83a74576e0a5e5f7313599fa9c9cdaf3c20f8a3e271b0e9ae7c`;`bcss_vocab.json`:`47ea2b920bb73dfd43e9f3b9892fab20b80e6812902a9b914b6986f13166aa62`。數值固定在 `assets.py`,執行時連同 `third_party/CONCH` 一併比對,不符即 `AssetError` 並非零結束,不寫出 E |
-| 外部資產位置 | 只有權重:`reference/person_c/checkpoint/conch/pytorch_model.bin` |
-| 資產準備 | 在 https://huggingface.co/MahmoodLab/CONCH 接受條款後下載 `pytorch_model.bin`(CC-BY-NC-ND,gated,不可轉散布),放到上述位置;SHA-256 與上表不符會直接失敗。其餘(CONCH 程式庫、詞表)已在 repository 內,不需準備 |
+| 外部資產位置 | 權重:`reference/person_c/checkpoint/conch/pytorch_model.bin`;類別描述:`reference/person_c/template_ref/bcss_vocab.json` |
+| 資產準備 | 1) 在 https://huggingface.co/MahmoodLab/CONCH 接受條款後下載 `pytorch_model.bin`(CC-BY-NC-ND,gated,不可轉散布)。2) `bcss_vocab.json`(專案自有、無使用限制)由 Drive 的 `WLW_GPintegrate Reference Assets` 提供,放在上述位置。兩者 SHA-256 與上表不符會直接失敗。CONCH 程式庫已在 repository 內,不需準備 |
 | GPU | 必要,至少 1 張;沒有 CPU fallback(`device: cuda` 但 CUDA 不可用會直接失敗)。**主機 NVIDIA driver 須 ≥ 580**(CUDA 13.0 的最低要求;低於此版本容器會在啟動階段被 `cuda>=13.0` 條件拒絕,例如 driver 535 的 RTX 4090 主機)。Docker 基底為 `nvidia/cuda:13.0.3-cudnn-runtime-ubuntu24.04`(沿用 person_e 的做法)。若目標環境 driver < 580,需改用 CUDA 12.x 基底(如 `nvidia/cuda:12.8.1-cudnn-runtime-ubuntu24.04`,driver ≥ 570)並改用對應 `cu128` 的 torch wheel;**此組合未 build、未驗證**。 |
 
 ## 8. 實測(初版,單張 slide)
@@ -252,7 +252,6 @@ components/person_c/
 ├── interest_pattern.py       入口:CLI、stain 迴圈、組裝 E.ROIs
 ├── rois.py                   polygon -> ROI 矩形、座標與 MPP 換算
 ├── region/
-│   ├── vocab/bcss_vocab.json BCSS zero-shot 詞表(隨元件發佈)
 │   ├── proposal.py           一張 WSI -> proposal polygon(GPU)
 │   ├── preprocess.py         CONCH dense 特徵抽取(複製自 PIPELINE/ROI/utils)
 │   ├── partition.py          vMF 分群、polygon 輸出(同上)

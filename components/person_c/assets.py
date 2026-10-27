@@ -49,7 +49,7 @@ def _check(label: str, path: Path, expected: str, actual: str) -> None:
 
 
 def verify_assets(region: Mapping[str, str]) -> None:
-    """Check the resolved ``conch_lib_path`` (shipped in the component), ``conch_checkpoint`` and ``vocab_json``."""
+    """Check the resolved ``conch_lib_path`` (shipped in the component), ``conch_checkpoint`` and ``vocab_json`` (external)."""
 
     lib, checkpoint, vocab = (Path(region[k]) for k in
                               ("conch_lib_path", "conch_checkpoint", "vocab_json"))

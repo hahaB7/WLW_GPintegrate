@@ -77,21 +77,21 @@ def build_example_artifact(source: dict[str, Any], producer: str) -> dict[str, A
 def _region_cfg(config: Mapping[str, Any]) -> dict[str, Any]:
     """Resolve assets and check their pinned digests.
 
-    Only ``conch_checkpoint`` is external (below reference/person_c). The CONCH library and
-    the BCSS vocabulary ship inside the component; their paths are relative to this package.
+    ``conch_checkpoint`` and ``vocab_json`` (the class descriptions) are external, below
+    reference/person_c. The CONCH library ships inside the component (path relative to this package).
     """
 
     region = dict(config["region"])
-    checkpoint = resolve_person_reference_path("person_c", region["conch_checkpoint"])
-    if not checkpoint.exists():
-        raise FileNotFoundError(f"person_c reference asset is missing: {checkpoint}")
-    region["conch_checkpoint"] = str(checkpoint)
-    package = Path(__file__).resolve().parent
-    for key in ("conch_lib_path", "vocab_json"):
-        path = (package / region[key]).resolve()
-        if not path.is_relative_to(package):
-            raise ValueError(f"region.{key} must stay inside the component: {path}")
+    for key in ("conch_checkpoint", "vocab_json"):
+        path = resolve_person_reference_path("person_c", region[key])
+        if not path.exists():
+            raise FileNotFoundError(f"person_c reference asset is missing: {path}")
         region[key] = str(path)
+    package = Path(__file__).resolve().parent
+    lib = (package / region["conch_lib_path"]).resolve()
+    if not lib.is_relative_to(package):
+        raise ValueError(f"region.conch_lib_path must stay inside the component: {lib}")
+    region["conch_lib_path"] = str(lib)
     verify_assets(region)
     return region
 

@@ -200,8 +200,9 @@ class AssetVerificationTests(unittest.TestCase):
         (lib / "a.py").write_text("x", encoding="utf-8")
         checkpoint = root / "pytorch_model.bin"
         checkpoint.write_bytes(b"weights")
+        (root / "bcss_vocab.json").write_text("[]", encoding="utf-8")
         return {"conch_lib_path": str(lib), "conch_checkpoint": str(checkpoint),
-                "vocab_json": str(Path(assets.__file__).parent / "region/vocab/bcss_vocab.json")}
+                "vocab_json": str(root / "bcss_vocab.json")}
 
     def _pin(self, region: dict):
         from unittest import mock
@@ -210,11 +211,8 @@ class AssetVerificationTests(unittest.TestCase):
             assets,
             CONCH_LIBRARY_TREE_SHA256=assets.tree_sha256(Path(region["conch_lib_path"])),
             CONCH_CHECKPOINT_SHA256=assets.file_sha256(Path(region["conch_checkpoint"])),
+            BCSS_VOCAB_SHA256=assets.file_sha256(Path(region["vocab_json"])),
         )
-
-    def test_shipped_vocabulary_matches_its_pin(self) -> None:
-        vocab = Path(assets.__file__).parent / "region/vocab/bcss_vocab.json"
-        self.assertEqual(assets.BCSS_VOCAB_SHA256, assets.file_sha256(vocab))
 
     def test_shipped_conch_library_matches_its_pin(self) -> None:
         lib = Path(assets.__file__).parent / "third_party/CONCH"

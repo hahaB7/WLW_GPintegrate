@@ -7,8 +7,8 @@
 | Key | Meaning |
 |---|---|
 | `stain_types` | stain types to process; `null` = all. Others keep `roi_list = []` |
-| `region.conch_checkpoint` | the only external asset, below `reference/person_c/`; sha256 checked before the model loads |
-| `region.conch_lib_path`, `vocab_json` | CONCH library and BCSS vocabulary shipped inside the component (paths relative to `components/person_c/`); sha256 checked |
+| `region.conch_checkpoint`, `vocab_json` | external assets (checkpoint, BCSS class descriptions) below `reference/person_c/`; sha256 checked before the model loads |
+| `region.conch_lib_path` | CONCH library shipped inside the component (path relative to `components/person_c/`); sha256 checked |
 | `region.vocab`, `proposal_categories` | zero-shot vocab key (`BCSS`) and kept categories (`[]` = vocab default: tumor, dcis, normal_acinus_or_duct, metaplasia_NOS) |
 | `region.fields`, `mag`, `overlap` | CONCH field(s) of view in level-0 px, magnification, crop overlap |
 | `region.K`, `radius`, `pca_dim`, `use_patch`, `seed`, `zs_temp` | vMF clustering / zero-shot parameters |

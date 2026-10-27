@@ -38,7 +38,7 @@ PYTHON=python bash components/person_c/examples/e2e/run_e2e.sh
 
 Needs a GPU (NVIDIA driver >= 580), the CONCH checkpoint at
 `../reference/person_c/checkpoint/conch/pytorch_model.bin` (README section 7) and the sibling
-`../run/` directory. The CONCH library and the vocabulary are in the repository.
+`../run/` directory. The CONCH library is in the repository; the checkpoint and `template_ref/bcss_vocab.json` are external (README section 7).
 
 Measured result (Nano4, 1 x H200, driver 580.65.06, 8 CPUs, `pipeline_roi` env, 2026-10-27):
 
@@ -49,7 +49,7 @@ Measured result (Nano4, 1 x H200, driver 580.65.06, 8 CPUs, `pipeline_roi` env, 
 | CPU memory (peak RSS) | about 45.7 GB |
 | Output | `E.ROIs@2.0` valid, 160 ROIs (cap 256 not reached) |
 | ROI level-0 longest side | min 704 px, median 1632 px, max 14080 px; `main_info` longest side <= 2048 px |
-| Asset digests | checkpoint, `third_party/CONCH` and vocabulary verified before the model loaded |
+| Asset digests | checkpoint, `third_party/CONCH` and `bcss_vocab.json` verified before the model loaded |
 
 The earlier 2-ROI run on the smaller public BCSS slide `TCGA-AC-A6IW` (28777 x 34620 px, 1 min 58 s,
 4.7 GB GPU) is in README section 8. Seed 42 fixes the clustering on one GPU model; other GPU models are not checked.
