@@ -1,0 +1,190 @@
+{
+  "description": "native-mode structure for E_rois.valid.json + G_queries.valid.json; one event per ROI and query; queries 001/002 (real criteria with Must_False options the vocabulary cannot reach) list the allowed values and can never be selected; synthetic queries 004/005 must be selected/rejected; every matched event must follow score_rule (configs/native.example.json matching)",
+  "case_id": "case-001",
+  "producer": "person-d/visual-filter:0.2.0",
+  "models_loaded": true,
+  "score_rule": {
+    "condition_weights": {
+      "Must_True": 1.0,
+      "High_Possibly_True": 1.0,
+      "Low_Possibly_True": -1.0,
+      "Must_False": -1.0
+    },
+    "score_threshold": 0.0,
+    "min_evaluated_attributes": 1,
+    "unverified_must_true": "skip",
+    "score_tolerance": 1e-06
+  },
+  "roi_ids": [
+    "case-001-case-001-er-roi-001",
+    "case-001-case-001-er-roi-002",
+    "case-001-case-001-he-roi-001",
+    "case-001-case-001-he-roi-002"
+  ],
+  "events": [
+    {
+      "roi_id": "case-001-case-001-er-roi-001",
+      "dx_pair_id": "case-001-dx-001",
+      "query_id": "case-001-query-001",
+      "status": "skipped",
+      "reason": "stain_not_in_reference_wsi"
+    },
+    {
+      "roi_id": "case-001-case-001-er-roi-001",
+      "dx_pair_id": "case-001-dx-001",
+      "query_id": "case-001-query-004",
+      "status": "skipped",
+      "reason": "stain_not_in_reference_wsi"
+    },
+    {
+      "roi_id": "case-001-case-001-er-roi-001",
+      "dx_pair_id": "case-001-dx-001",
+      "query_id": "case-001-query-005",
+      "status": "skipped",
+      "reason": "stain_not_in_reference_wsi"
+    },
+    {
+      "roi_id": "case-001-case-001-er-roi-001",
+      "dx_pair_id": "case-001-dx-002",
+      "query_id": "case-001-query-002",
+      "status": "skipped",
+      "reason": "stain_not_in_reference_wsi"
+    },
+    {
+      "roi_id": "case-001-case-001-er-roi-001",
+      "dx_pair_id": "case-001-dx-002",
+      "query_id": "case-001-query-003",
+      "status": "skipped",
+      "reason": "stain_not_in_reference_wsi"
+    },
+    {
+      "roi_id": "case-001-case-001-er-roi-002",
+      "dx_pair_id": "case-001-dx-001",
+      "query_id": "case-001-query-001",
+      "status": "skipped",
+      "reason": "stain_not_in_reference_wsi"
+    },
+    {
+      "roi_id": "case-001-case-001-er-roi-002",
+      "dx_pair_id": "case-001-dx-001",
+      "query_id": "case-001-query-004",
+      "status": "skipped",
+      "reason": "stain_not_in_reference_wsi"
+    },
+    {
+      "roi_id": "case-001-case-001-er-roi-002",
+      "dx_pair_id": "case-001-dx-001",
+      "query_id": "case-001-query-005",
+      "status": "skipped",
+      "reason": "stain_not_in_reference_wsi"
+    },
+    {
+      "roi_id": "case-001-case-001-er-roi-002",
+      "dx_pair_id": "case-001-dx-002",
+      "query_id": "case-001-query-002",
+      "status": "skipped",
+      "reason": "stain_not_in_reference_wsi"
+    },
+    {
+      "roi_id": "case-001-case-001-er-roi-002",
+      "dx_pair_id": "case-001-dx-002",
+      "query_id": "case-001-query-003",
+      "status": "skipped",
+      "reason": "stain_not_in_reference_wsi"
+    },
+    {
+      "roi_id": "case-001-case-001-he-roi-001",
+      "dx_pair_id": "case-001-dx-001",
+      "query_id": "case-001-query-001",
+      "status_in": [
+        "rejected",
+        "skipped"
+      ],
+      "reason_in": [
+        "must_condition_failed",
+        "insufficient_visual_evidence"
+      ]
+    },
+    {
+      "roi_id": "case-001-case-001-he-roi-001",
+      "dx_pair_id": "case-001-dx-001",
+      "query_id": "case-001-query-004",
+      "status": "selected",
+      "reason": "visual_attributes_match"
+    },
+    {
+      "roi_id": "case-001-case-001-he-roi-001",
+      "dx_pair_id": "case-001-dx-001",
+      "query_id": "case-001-query-005",
+      "status": "rejected",
+      "reason": "score_below_threshold"
+    },
+    {
+      "roi_id": "case-001-case-001-he-roi-001",
+      "dx_pair_id": "case-001-dx-002",
+      "query_id": "case-001-query-002",
+      "status_in": [
+        "rejected",
+        "skipped"
+      ],
+      "reason_in": [
+        "must_condition_failed",
+        "insufficient_visual_evidence"
+      ]
+    },
+    {
+      "roi_id": "case-001-case-001-he-roi-001",
+      "dx_pair_id": "case-001-dx-002",
+      "query_id": "case-001-query-003",
+      "status": "skipped",
+      "reason": "query_unmapped"
+    },
+    {
+      "roi_id": "case-001-case-001-he-roi-002",
+      "dx_pair_id": "case-001-dx-001",
+      "query_id": "case-001-query-001",
+      "status_in": [
+        "rejected",
+        "skipped"
+      ],
+      "reason_in": [
+        "must_condition_failed",
+        "insufficient_visual_evidence"
+      ]
+    },
+    {
+      "roi_id": "case-001-case-001-he-roi-002",
+      "dx_pair_id": "case-001-dx-001",
+      "query_id": "case-001-query-004",
+      "status": "selected",
+      "reason": "visual_attributes_match"
+    },
+    {
+      "roi_id": "case-001-case-001-he-roi-002",
+      "dx_pair_id": "case-001-dx-001",
+      "query_id": "case-001-query-005",
+      "status": "rejected",
+      "reason": "score_below_threshold"
+    },
+    {
+      "roi_id": "case-001-case-001-he-roi-002",
+      "dx_pair_id": "case-001-dx-002",
+      "query_id": "case-001-query-002",
+      "status_in": [
+        "rejected",
+        "skipped"
+      ],
+      "reason_in": [
+        "must_condition_failed",
+        "insufficient_visual_evidence"
+      ]
+    },
+    {
+      "roi_id": "case-001-case-001-he-roi-002",
+      "dx_pair_id": "case-001-dx-002",
+      "query_id": "case-001-query-003",
+      "status": "skipped",
+      "reason": "query_unmapped"
+    }
+  ]
+}
