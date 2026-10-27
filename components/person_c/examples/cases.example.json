@@ -1,0 +1,31 @@
+{
+  "DxItem_list": ["Example_Diagnostic_Item"],
+  "case_list": [
+    {
+      "sample_idx": 0,
+      "case_id": "example-case",
+      "hospital": "EXAMPLE",
+      "patient_info": {},
+      "date": "",
+      "source": {"fixture": "synthetic"},
+      "organ": "Example",
+      "report_raw_content": "Synthetic report text for contract testing only.",
+      "tissue_blocks": [
+        {
+          "block_id": "example-block",
+          "stains": [
+            {
+              "stain_id": "example-stain",
+              "stain_type": "EXAMPLE",
+              "filename": "not-opened.example",
+              "filepath": "/example/not-opened.example",
+              "memo": "The example stubs do not access this path."
+            }
+          ],
+          "memo": ""
+        }
+      ],
+      "memo": ""
+    }
+  ]
+}

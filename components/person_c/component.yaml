@@ -6,12 +6,13 @@ outputs: [E.ROIs@2.0]
 runtime:
   python: "3.12"
   cuda: "13.0"
+  min_nvidia_driver: "580"   # CUDA 13.0 requirement; older drivers need a CUDA 12.x base (README section 7)
   gpu: true
   gpu_count_min: 1
-  vram_gb_min: 5         # measured: 4.7 GB allocated, one 28777x34620 slide
+  vram_gb_min: 16        # measured: 14.6 GB allocated (BRACS_1003691, 61879x70581), 4.7 GB (28777x34620)
   cpu: 8                 # job used 8 CPUs
-  memory_gb: 48          # measured peak RSS 10.9 GB (28777x34620 slide), 42.6 GB (61879x70581 slide)
-  timeout_seconds: null  # 73 s and 216 s on the two slides measured; larger slides not measured
+  memory_gb: 64          # measured peak RSS 45.7 GB (61879x70581 slide), 10.9 GB (28777x34620)
+  timeout_seconds: null  # 5 min 4 s (61879x70581) and 73 s (28777x34620) measured; larger slides not measured
 models:
   - name: conch_ViT-B-16
     configured_by: configs/region_proposal.json:region.conch_checkpoint

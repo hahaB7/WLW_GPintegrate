@@ -4,12 +4,13 @@ import json
 import unittest
 from pathlib import Path
 
+from components.person_c import assets
 from components.person_c.interest_pattern import build_region_artifact
 from components.person_c.rois import build_roi_info, plan_boxes
 from contracts.runtime import ContractError, validate_artifact, validate_case_list_input
 
-ROOT = Path(__file__).resolve().parents[3]
-FIXTURE = ROOT / "integration/fixtures/input/cases.example.json"
+EXAMPLES = Path(__file__).resolve().parents[1] / "examples"
+FIXTURE = EXAMPLES / "cases.example.json"
 SLIDE = (10000, 8000)
 
 
@@ -130,7 +131,6 @@ class RegionArtifactTests(unittest.TestCase):
             )
 
 
-EXAMPLES = Path(__file__).resolve().parents[1] / "examples"
 EXAMPLE_SLIDE = ((30000, 20000), (0.25, 0.25))
 EXAMPLE_CONFIG = {
     "component_version": "person-c/example",
@@ -191,6 +191,71 @@ class InvalidInputTests(unittest.TestCase):
 
         with self.assertRaisesRegex(FileNotFoundError, "WSI is missing"):
             slide_info("/nonexistent/slide.svs")
+
+
+class AssetVerificationTests(unittest.TestCase):
+    def _region(self, root: Path) -> dict:
+        lib = root / "CONCH"
+        lib.mkdir()
+        (lib / "a.py").write_text("x", encoding="utf-8")
+        checkpoint = root / "pytorch_model.bin"
+        checkpoint.write_bytes(b"weights")
+        return {"conch_lib_path": str(lib), "conch_checkpoint": str(checkpoint),
+                "vocab_json": str(Path(assets.__file__).parent / "region/vocab/bcss_vocab.json")}
+
+    def _pin(self, region: dict):
+        from unittest import mock
+
+        return mock.patch.multiple(
+            assets,
+            CONCH_LIBRARY_TREE_SHA256=assets.tree_sha256(Path(region["conch_lib_path"])),
+            CONCH_CHECKPOINT_SHA256=assets.file_sha256(Path(region["conch_checkpoint"])),
+        )
+
+    def test_shipped_vocabulary_matches_its_pin(self) -> None:
+        vocab = Path(assets.__file__).parent / "region/vocab/bcss_vocab.json"
+        self.assertEqual(assets.BCSS_VOCAB_SHA256, assets.file_sha256(vocab))
+
+    def test_shipped_conch_library_matches_its_pin(self) -> None:
+        lib = Path(assets.__file__).parent / "third_party/CONCH"
+        self.assertEqual(assets.CONCH_LIBRARY_TREE_SHA256, assets.tree_sha256(lib))
+
+    def test_matching_assets_pass(self) -> None:
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as tmp:
+            region = self._region(Path(tmp))
+            with self._pin(region):
+                assets.verify_assets(region)
+
+    def test_changed_checkpoint_fails(self) -> None:
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as tmp:
+            region = self._region(Path(tmp))
+            with self._pin(region):
+                Path(region["conch_checkpoint"]).write_bytes(b"other")
+                with self.assertRaisesRegex(assets.AssetError, "CONCH checkpoint digest"):
+                    assets.verify_assets(region)
+
+    def test_changed_library_fails(self) -> None:
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as tmp:
+            region = self._region(Path(tmp))
+            with self._pin(region):
+                (Path(region["conch_lib_path"]) / "a.py").write_text("y", encoding="utf-8")
+                with self.assertRaisesRegex(assets.AssetError, "CONCH library digest"):
+                    assets.verify_assets(region)
+
+    def test_missing_checkpoint_fails(self) -> None:
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as tmp:
+            region = self._region(Path(tmp))
+            Path(region["conch_checkpoint"]).unlink()
+            with self.assertRaisesRegex(assets.AssetError, "checkpoint is missing"):
+                assets.verify_assets(region)
 
 
 if __name__ == "__main__":

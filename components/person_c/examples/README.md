@@ -25,7 +25,36 @@ Covered cases (5 polygons, 4 ROIs):
 
 Run: `python -m unittest components.person_c.tests.test_interest_pattern`
 
-A real end-to-end example needs a WSI with MPP metadata, the CONCH checkpoint under
-`reference/person_c/` and a GPU; see the README (section 8) for the runs that were measured.
+## End-to-end example (real WSI -> CONCH -> ROI)
+
+`e2e/case_list.bracs_1003691.json` is a one-stain CaseList for the BRACS test slide
+`BRACS_1003691.svs` (61879 x 70581 px, MPP 0.2524; not redistributed here). `e2e/run_e2e.sh` writes the CaseList with your slide path, runs the real
+CLI with `configs/region_proposal.json` and prints a ROI summary:
+
+```bash
+SLIDE=/path/to/BRACS_1003691.svs \
+PYTHON=python bash components/person_c/examples/e2e/run_e2e.sh
+```
+
+Needs a GPU (NVIDIA driver >= 580), the CONCH checkpoint at
+`../reference/person_c/checkpoint/conch/pytorch_model.bin` (README section 7) and the sibling
+`../run/` directory. The CONCH library and the vocabulary are in the repository.
+
+Measured result (Nano4, 1 x H200, driver 580.65.06, 8 CPUs, `pipeline_roi` env, 2026-10-27):
+
+| Item | Value |
+|---|---|
+| Wall time | 5 min 4 s |
+| GPU memory (allocated) | about 14.6 GB |
+| CPU memory (peak RSS) | about 45.7 GB |
+| Output | `E.ROIs@2.0` valid, 160 ROIs (cap 256 not reached) |
+| ROI level-0 longest side | min 704 px, median 1632 px, max 14080 px; `main_info` longest side <= 2048 px |
+| Asset digests | checkpoint, `third_party/CONCH` and vocabulary verified before the model loaded |
+
+The earlier 2-ROI run on the smaller public BCSS slide `TCGA-AC-A6IW` (28777 x 34620 px, 1 min 58 s,
+4.7 GB GPU) is in README section 8. Seed 42 fixes the clustering on one GPU model; other GPU models are not checked.
+A checkpoint whose SHA-256
+differs aborts with `AssetError`, exit code 1 and no E file (checked with a wrong file).
+
 Failure cases covered by tests: multi-case input is rejected; a missing slide file raises
 `FileNotFoundError`.

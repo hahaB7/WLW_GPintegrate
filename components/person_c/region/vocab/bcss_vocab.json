@@ -1,0 +1,208 @@
+[
+  {
+    "name": "tumor",
+    "subtypes": [
+      "invasive breast carcinoma",
+      "malignant epithelial cells",
+      "invasive ductal carcinoma",
+      "invasive lobular carcinoma",
+      "infiltrating carcinoma cells",
+      "atypical malignant cells",
+      "neoplastic epithelium",
+      "carcinoma cells with irregular nuclei"
+    ],
+    "templates": ["{subtype}.", "a photomicrograph showing {subtype}.", "a photomicrograph of {subtype}.", "an image of {subtype}.", "an image showing {subtype}.", "an example of {subtype}.", "{subtype} is shown.", "this is {subtype}.", "there is {subtype}.", "a histopathological image showing {subtype}.", "a histopathological image of {subtype}.", "a histopathological photograph of {subtype}.", "a histopathological photograph showing {subtype}.", "shows {subtype}.", "presence of {subtype}.", "{subtype} is present.", "an H&E stained image of {subtype}.", "an H&E stained image showing {subtype}.", "an H&E image showing {subtype}.", "an H&E image of {subtype}.", "{subtype}, H&E stain.", "{subtype}, H&E."]
+  },
+  {
+    "name": "stroma",
+    "subtypes": [
+      "fibrous breast stroma",
+      "desmoplastic stroma",
+      "fibrocollagenous stroma",
+      "stromal fibroblasts",
+      "dense collagenous stroma",
+      "reactive stroma",
+      "hyalinized collagen"
+    ],
+    "templates": ["{subtype}.", "a photomicrograph showing {subtype}.", "a photomicrograph of {subtype}.", "an image of {subtype}.", "an image showing {subtype}.", "an example of {subtype}.", "{subtype} is shown.", "this is {subtype}.", "there is {subtype}.", "a histopathological image showing {subtype}.", "a histopathological image of {subtype}.", "a histopathological photograph of {subtype}.", "a histopathological photograph showing {subtype}.", "shows {subtype}.", "presence of {subtype}.", "{subtype} is present.", "an H&E stained image of {subtype}.", "an H&E stained image showing {subtype}.", "an H&E image showing {subtype}.", "an H&E image of {subtype}.", "{subtype}, H&E stain.", "{subtype}, H&E."]
+  },
+  {
+    "name": "lymphocytic_infiltrate",
+    "subtypes": [
+      "tumor infiltrating lymphocytes",
+      "dense lymphocytic infiltrate",
+      "lymphoid aggregate",
+      "small round blue lymphoid cells",
+      "mononuclear inflammatory infiltrate",
+      "peritumoral lymphocytes"
+    ],
+    "templates": ["{subtype}.", "a photomicrograph showing {subtype}.", "a photomicrograph of {subtype}.", "an image of {subtype}.", "an image showing {subtype}.", "an example of {subtype}.", "{subtype} is shown.", "this is {subtype}.", "there is {subtype}.", "a histopathological image showing {subtype}.", "a histopathological image of {subtype}.", "a histopathological photograph of {subtype}.", "a histopathological photograph showing {subtype}.", "shows {subtype}.", "presence of {subtype}.", "{subtype} is present.", "an H&E stained image of {subtype}.", "an H&E stained image showing {subtype}.", "an H&E image showing {subtype}.", "an H&E image of {subtype}.", "{subtype}, H&E stain.", "{subtype}, H&E."]
+  },
+  {
+    "name": "necrosis_or_debris",
+    "subtypes": [
+      "tumor necrosis",
+      "necrotic cellular debris",
+      "coagulative necrosis",
+      "karyorrhectic debris",
+      "necrotic tissue",
+      "ghost cells"
+    ],
+    "templates": ["{subtype}.", "a photomicrograph showing {subtype}.", "a photomicrograph of {subtype}.", "an image of {subtype}.", "an image showing {subtype}.", "an example of {subtype}.", "{subtype} is shown.", "this is {subtype}.", "there is {subtype}.", "a histopathological image showing {subtype}.", "a histopathological image of {subtype}.", "a histopathological photograph of {subtype}.", "a histopathological photograph showing {subtype}.", "shows {subtype}.", "presence of {subtype}.", "{subtype} is present.", "an H&E stained image of {subtype}.", "an H&E stained image showing {subtype}.", "an H&E image showing {subtype}.", "an H&E image of {subtype}.", "{subtype}, H&E stain.", "{subtype}, H&E."]
+  },
+  {
+    "name": "glandular_secretions",
+    "subtypes": [
+      "luminal glandular secretions",
+      "intraductal secretions",
+      "eosinophilic luminal material",
+      "proteinaceous secretions in ducts"
+    ],
+    "templates": ["{subtype}.", "a photomicrograph showing {subtype}.", "a photomicrograph of {subtype}.", "an image of {subtype}.", "an image showing {subtype}.", "an example of {subtype}.", "{subtype} is shown.", "this is {subtype}.", "there is {subtype}.", "a histopathological image showing {subtype}.", "a histopathological image of {subtype}.", "a histopathological photograph of {subtype}.", "a histopathological photograph showing {subtype}.", "shows {subtype}.", "presence of {subtype}.", "{subtype} is present.", "an H&E stained image of {subtype}.", "an H&E stained image showing {subtype}.", "an H&E image showing {subtype}.", "an H&E image of {subtype}.", "{subtype}, H&E stain.", "{subtype}, H&E."]
+  },
+  {
+    "name": "blood",
+    "subtypes": [
+      "extravasated red blood cells",
+      "hemorrhage",
+      "blood filled space",
+      "red blood cell pool"
+    ],
+    "templates": ["{subtype}.", "a photomicrograph showing {subtype}.", "a photomicrograph of {subtype}.", "an image of {subtype}.", "an image showing {subtype}.", "an example of {subtype}.", "{subtype} is shown.", "this is {subtype}.", "there is {subtype}.", "a histopathological image showing {subtype}.", "a histopathological image of {subtype}.", "a histopathological photograph of {subtype}.", "a histopathological photograph showing {subtype}.", "shows {subtype}.", "presence of {subtype}.", "{subtype} is present.", "an H&E stained image of {subtype}.", "an H&E stained image showing {subtype}.", "an H&E image showing {subtype}.", "an H&E image of {subtype}.", "{subtype}, H&E stain.", "{subtype}, H&E."]
+  },
+  {
+    "name": "metaplasia_NOS",
+    "subtypes": [
+      "apocrine metaplasia",
+      "squamous metaplasia",
+      "metaplastic epithelium",
+      "columnar cell metaplasia"
+    ],
+    "templates": ["{subtype}.", "a photomicrograph showing {subtype}.", "a photomicrograph of {subtype}.", "an image of {subtype}.", "an image showing {subtype}.", "an example of {subtype}.", "{subtype} is shown.", "this is {subtype}.", "there is {subtype}.", "a histopathological image showing {subtype}.", "a histopathological image of {subtype}.", "a histopathological photograph of {subtype}.", "a histopathological photograph showing {subtype}.", "shows {subtype}.", "presence of {subtype}.", "{subtype} is present.", "an H&E stained image of {subtype}.", "an H&E stained image showing {subtype}.", "an H&E image showing {subtype}.", "an H&E image of {subtype}.", "{subtype}, H&E stain.", "{subtype}, H&E."]
+  },
+  {
+    "name": "fat",
+    "subtypes": [
+      "adipose tissue",
+      "mature adipocytes",
+      "fat cells",
+      "clear rounded adipocytes",
+      "univacuolar fat cells"
+    ],
+    "templates": ["{subtype}.", "a photomicrograph showing {subtype}.", "a photomicrograph of {subtype}.", "an image of {subtype}.", "an image showing {subtype}.", "an example of {subtype}.", "{subtype} is shown.", "this is {subtype}.", "there is {subtype}.", "a histopathological image showing {subtype}.", "a histopathological image of {subtype}.", "a histopathological photograph of {subtype}.", "a histopathological photograph showing {subtype}.", "shows {subtype}.", "presence of {subtype}.", "{subtype} is present.", "an H&E stained image of {subtype}.", "an H&E stained image showing {subtype}.", "an H&E image showing {subtype}.", "an H&E image of {subtype}.", "{subtype}, H&E stain.", "{subtype}, H&E."]
+  },
+  {
+    "name": "plasma_cells",
+    "subtypes": [
+      "plasma cell infiltrate",
+      "plasma cells with eccentric nuclei",
+      "clusters of plasma cells"
+    ],
+    "templates": ["{subtype}.", "a photomicrograph showing {subtype}.", "a photomicrograph of {subtype}.", "an image of {subtype}.", "an image showing {subtype}.", "an example of {subtype}.", "{subtype} is shown.", "this is {subtype}.", "there is {subtype}.", "a histopathological image showing {subtype}.", "a histopathological image of {subtype}.", "a histopathological photograph of {subtype}.", "a histopathological photograph showing {subtype}.", "shows {subtype}.", "presence of {subtype}.", "{subtype} is present.", "an H&E stained image of {subtype}.", "an H&E stained image showing {subtype}.", "an H&E image showing {subtype}.", "an H&E image of {subtype}.", "{subtype}, H&E stain.", "{subtype}, H&E."]
+  },
+  {
+    "name": "other_immune_infiltrate",
+    "subtypes": [
+      "macrophage infiltrate",
+      "neutrophilic infiltrate",
+      "mixed inflammatory cell infiltrate",
+      "histiocytes"
+    ],
+    "templates": ["{subtype}.", "a photomicrograph showing {subtype}.", "a photomicrograph of {subtype}.", "an image of {subtype}.", "an image showing {subtype}.", "an example of {subtype}.", "{subtype} is shown.", "this is {subtype}.", "there is {subtype}.", "a histopathological image showing {subtype}.", "a histopathological image of {subtype}.", "a histopathological photograph of {subtype}.", "a histopathological photograph showing {subtype}.", "shows {subtype}.", "presence of {subtype}.", "{subtype} is present.", "an H&E stained image of {subtype}.", "an H&E stained image showing {subtype}.", "an H&E image showing {subtype}.", "an H&E image of {subtype}.", "{subtype}, H&E stain.", "{subtype}, H&E."]
+  },
+  {
+    "name": "mucoid_material",
+    "subtypes": [
+      "extracellular mucin",
+      "mucin pool",
+      "mucinous material",
+      "pools of acellular mucin"
+    ],
+    "templates": ["{subtype}.", "a photomicrograph showing {subtype}.", "a photomicrograph of {subtype}.", "an image of {subtype}.", "an image showing {subtype}.", "an example of {subtype}.", "{subtype} is shown.", "this is {subtype}.", "there is {subtype}.", "a histopathological image showing {subtype}.", "a histopathological image of {subtype}.", "a histopathological photograph of {subtype}.", "a histopathological photograph showing {subtype}.", "shows {subtype}.", "presence of {subtype}.", "{subtype} is present.", "an H&E stained image of {subtype}.", "an H&E stained image showing {subtype}.", "an H&E image showing {subtype}.", "an H&E image of {subtype}.", "{subtype}, H&E stain.", "{subtype}, H&E."]
+  },
+  {
+    "name": "normal_acinus_or_duct",
+    "subtypes": [
+      "benign ductal epithelium",
+      "normal breast ducts",
+      "benign lobular acini",
+      "two cell layer benign epithelium",
+      "normal mammary epithelium"
+    ],
+    "templates": ["{subtype}.", "a photomicrograph showing {subtype}.", "a photomicrograph of {subtype}.", "an image of {subtype}.", "an image showing {subtype}.", "an example of {subtype}.", "{subtype} is shown.", "this is {subtype}.", "there is {subtype}.", "a histopathological image showing {subtype}.", "a histopathological image of {subtype}.", "a histopathological photograph of {subtype}.", "a histopathological photograph showing {subtype}.", "shows {subtype}.", "presence of {subtype}.", "{subtype} is present.", "an H&E stained image of {subtype}.", "an H&E stained image showing {subtype}.", "an H&E image showing {subtype}.", "an H&E image of {subtype}.", "{subtype}, H&E stain.", "{subtype}, H&E."]
+  },
+  {
+    "name": "lymphatics",
+    "subtypes": [
+      "lymphatic vessel",
+      "dilated lymphatic channel",
+      "lymphatic space lined by endothelium"
+    ],
+    "templates": ["{subtype}.", "a photomicrograph showing {subtype}.", "a photomicrograph of {subtype}.", "an image of {subtype}.", "an image showing {subtype}.", "an example of {subtype}.", "{subtype} is shown.", "this is {subtype}.", "there is {subtype}.", "a histopathological image showing {subtype}.", "a histopathological image of {subtype}.", "a histopathological photograph of {subtype}.", "a histopathological photograph showing {subtype}.", "shows {subtype}.", "presence of {subtype}.", "{subtype} is present.", "an H&E stained image of {subtype}.", "an H&E stained image showing {subtype}.", "an H&E image showing {subtype}.", "an H&E image of {subtype}.", "{subtype}, H&E stain.", "{subtype}, H&E."]
+  },
+  {
+    "name": "undetermined",
+    "subtypes": [
+      "ambiguous tissue region",
+      "indeterminate histology",
+      "tissue of uncertain type"
+    ],
+    "templates": ["{subtype}.", "a photomicrograph showing {subtype}.", "a photomicrograph of {subtype}.", "an image of {subtype}.", "an image showing {subtype}.", "an example of {subtype}.", "{subtype} is shown.", "this is {subtype}.", "there is {subtype}.", "a histopathological image showing {subtype}.", "a histopathological image of {subtype}.", "a histopathological photograph of {subtype}.", "a histopathological photograph showing {subtype}.", "shows {subtype}.", "presence of {subtype}.", "{subtype} is present.", "an H&E stained image of {subtype}.", "an H&E stained image showing {subtype}.", "an H&E image showing {subtype}.", "an H&E image of {subtype}.", "{subtype}, H&E stain.", "{subtype}, H&E."]
+  },
+  {
+    "name": "nerve",
+    "subtypes": [
+      "peripheral nerve bundle",
+      "nerve twig",
+      "perineural tissue"
+    ],
+    "templates": ["{subtype}.", "a photomicrograph showing {subtype}.", "a photomicrograph of {subtype}.", "an image of {subtype}.", "an image showing {subtype}.", "an example of {subtype}.", "{subtype} is shown.", "this is {subtype}.", "there is {subtype}.", "a histopathological image showing {subtype}.", "a histopathological image of {subtype}.", "a histopathological photograph of {subtype}.", "a histopathological photograph showing {subtype}.", "shows {subtype}.", "presence of {subtype}.", "{subtype} is present.", "an H&E stained image of {subtype}.", "an H&E stained image showing {subtype}.", "an H&E image showing {subtype}.", "an H&E image of {subtype}.", "{subtype}, H&E stain.", "{subtype}, H&E."]
+  },
+  {
+    "name": "skin_adnexa",
+    "subtypes": [
+      "hair follicle",
+      "sebaceous gland",
+      "sweat gland",
+      "skin adnexal structure"
+    ],
+    "templates": ["{subtype}.", "a photomicrograph showing {subtype}.", "a photomicrograph of {subtype}.", "an image of {subtype}.", "an image showing {subtype}.", "an example of {subtype}.", "{subtype} is shown.", "this is {subtype}.", "there is {subtype}.", "a histopathological image showing {subtype}.", "a histopathological image of {subtype}.", "a histopathological photograph of {subtype}.", "a histopathological photograph showing {subtype}.", "shows {subtype}.", "presence of {subtype}.", "{subtype} is present.", "an H&E stained image of {subtype}.", "an H&E stained image showing {subtype}.", "an H&E image showing {subtype}.", "an H&E image of {subtype}.", "{subtype}, H&E stain.", "{subtype}, H&E."]
+  },
+  {
+    "name": "blood_vessel",
+    "subtypes": [
+      "blood vessel wall",
+      "arteriole",
+      "venule",
+      "vessel lined by endothelium"
+    ],
+    "templates": ["{subtype}.", "a photomicrograph showing {subtype}.", "a photomicrograph of {subtype}.", "an image of {subtype}.", "an image showing {subtype}.", "an example of {subtype}.", "{subtype} is shown.", "this is {subtype}.", "there is {subtype}.", "a histopathological image showing {subtype}.", "a histopathological image of {subtype}.", "a histopathological photograph of {subtype}.", "a histopathological photograph showing {subtype}.", "shows {subtype}.", "presence of {subtype}.", "{subtype} is present.", "an H&E stained image of {subtype}.", "an H&E stained image showing {subtype}.", "an H&E image showing {subtype}.", "an H&E image of {subtype}.", "{subtype}, H&E stain.", "{subtype}, H&E."]
+  },
+  {
+    "name": "angioinvasion",
+    "subtypes": [
+      "tumor emboli within a vessel",
+      "lymphovascular invasion",
+      "carcinoma cells inside a blood vessel"
+    ],
+    "templates": ["{subtype}.", "a photomicrograph showing {subtype}.", "a photomicrograph of {subtype}.", "an image of {subtype}.", "an image showing {subtype}.", "an example of {subtype}.", "{subtype} is shown.", "this is {subtype}.", "there is {subtype}.", "a histopathological image showing {subtype}.", "a histopathological image of {subtype}.", "a histopathological photograph of {subtype}.", "a histopathological photograph showing {subtype}.", "shows {subtype}.", "presence of {subtype}.", "{subtype} is present.", "an H&E stained image of {subtype}.", "an H&E stained image showing {subtype}.", "an H&E image showing {subtype}.", "an H&E image of {subtype}.", "{subtype}, H&E stain.", "{subtype}, H&E."]
+  },
+  {
+    "name": "dcis",
+    "subtypes": [
+      "ductal carcinoma in situ",
+      "DCIS filling a duct",
+      "intraductal carcinoma",
+      "comedo necrosis within a duct"
+    ],
+    "templates": ["{subtype}.", "a photomicrograph showing {subtype}.", "a photomicrograph of {subtype}.", "an image of {subtype}.", "an image showing {subtype}.", "an example of {subtype}.", "{subtype} is shown.", "this is {subtype}.", "there is {subtype}.", "a histopathological image showing {subtype}.", "a histopathological image of {subtype}.", "a histopathological photograph of {subtype}.", "a histopathological photograph showing {subtype}.", "shows {subtype}.", "presence of {subtype}.", "{subtype} is present.", "an H&E stained image of {subtype}.", "an H&E stained image showing {subtype}.", "an H&E image showing {subtype}.", "an H&E image of {subtype}.", "{subtype}, H&E stain.", "{subtype}, H&E."]
+  },
+  {
+    "name": "other",
+    "subtypes": [
+      "unclassified tissue",
+      "miscellaneous tissue component"
+    ],
+    "templates": ["{subtype}.", "a photomicrograph showing {subtype}.", "a photomicrograph of {subtype}.", "an image of {subtype}.", "an image showing {subtype}.", "an example of {subtype}.", "{subtype} is shown.", "this is {subtype}.", "there is {subtype}.", "a histopathological image showing {subtype}.", "a histopathological image of {subtype}.", "a histopathological photograph of {subtype}.", "a histopathological photograph showing {subtype}.", "shows {subtype}.", "presence of {subtype}.", "{subtype} is present.", "an H&E stained image of {subtype}.", "an H&E stained image showing {subtype}.", "an H&E image showing {subtype}.", "an H&E image of {subtype}.", "{subtype}, H&E stain.", "{subtype}, H&E."]
+  }
+]

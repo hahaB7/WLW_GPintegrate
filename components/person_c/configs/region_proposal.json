@@ -5,9 +5,9 @@
     "HE"
   ],
   "region": {
-    "conch_lib_path": "../reference/person_c/template_ref/CONCH",
+    "conch_lib_path": "third_party/CONCH",
     "conch_checkpoint": "../reference/person_c/checkpoint/conch/pytorch_model.bin",
-    "vocab_json": "../reference/person_c/template_ref/bcss_vocab.json",
+    "vocab_json": "region/vocab/bcss_vocab.json",
     "vocab": "BCSS",
     "proposal_categories": [],
     "device": "cuda",

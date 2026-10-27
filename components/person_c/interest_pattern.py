@@ -16,6 +16,7 @@ from copy import deepcopy
 from pathlib import Path
 from typing import Any, Mapping
 
+from components.person_c.assets import verify_assets
 from components.person_c.rois import (
     build_roi_info,
     candidate_event,
@@ -74,14 +75,24 @@ def build_example_artifact(source: dict[str, Any], producer: str) -> dict[str, A
 
 
 def _region_cfg(config: Mapping[str, Any]) -> dict[str, Any]:
-    """Resolve reference assets below reference/person_c and fill region defaults."""
+    """Resolve assets and check their pinned digests.
+
+    Only ``conch_checkpoint`` is external (below reference/person_c). The CONCH library and
+    the BCSS vocabulary ship inside the component; their paths are relative to this package.
+    """
 
     region = dict(config["region"])
-    for key in ("conch_lib_path", "conch_checkpoint", "vocab_json"):
-        path = resolve_person_reference_path("person_c", region[key])
-        if not path.exists():
-            raise FileNotFoundError(f"person_c reference asset is missing: {path}")
+    checkpoint = resolve_person_reference_path("person_c", region["conch_checkpoint"])
+    if not checkpoint.exists():
+        raise FileNotFoundError(f"person_c reference asset is missing: {checkpoint}")
+    region["conch_checkpoint"] = str(checkpoint)
+    package = Path(__file__).resolve().parent
+    for key in ("conch_lib_path", "vocab_json"):
+        path = (package / region[key]).resolve()
+        if not path.is_relative_to(package):
+            raise ValueError(f"region.{key} must stay inside the component: {path}")
         region[key] = str(path)
+    verify_assets(region)
     return region
 
 

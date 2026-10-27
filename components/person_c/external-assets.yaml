@@ -1,3 +1,11 @@
+# Digests below are pinned in assets.py and checked at runtime before the model loads
+# (mismatch -> AssetError, non-zero exit, no E artifact written).
+# Not external, shipped inside the component and checked as well:
+#   third_party/CONCH   unmodified conch/open_clip_custom + LICENSE of mahmoodlab/CONCH
+#                       @ 141cc09c7d4ff33d8eda562bd75169b457f71a62 (CC-BY-NC-ND 4.0),
+#                       tree sha256 9e6419e1c78f79406acf635529bfde1c4029f15acb97221d11e76345d187febd
+#   region/vocab/bcss_vocab.json   sha256 47ea2b920bb73dfd43e9f3b9892fab20b80e6812902a9b914b6986f13166aa62
+# Only the checkpoint below is an external asset.
 assets:
   - asset_id: conch-vit-b-16
     type: model_weight
@@ -5,24 +13,8 @@ assets:
     version: "conch_ViT-B-16"
     sha256: "40a9644b9ba0e83a74576e0a5e5f7313599fa9c9cdaf3c20f8a3e271b0e9ae7c"
     size_bytes: 802235437
-    license_or_access_policy: "MahmoodLab/CONCH gated access (CC-BY-NC-ND 4.0); do not redistribute"
+    source: "https://huggingface.co/MahmoodLab/CONCH (gated; file pytorch_model.bin)"
+    license_or_access_policy: "MahmoodLab/CONCH gated access (CC-BY-NC-ND 4.0); do not redistribute. Obtain it from the source above after accepting the terms."
     contains_phi: false
     configured_by: "configs/region_proposal.json:region.conch_checkpoint"
     mount_path: "reference/person_c/checkpoint/conch/pytorch_model.bin"
-
-  - asset_id: conch-library
-    type: code
-    required: true
-    version: "unpinned (copied from a local clone; pin the upstream commit before delivery)"
-    contains_phi: false
-    configured_by: "configs/region_proposal.json:region.conch_lib_path"
-    mount_path: "reference/person_c/template_ref/CONCH"
-
-  - asset_id: bcss-zero-shot-vocab
-    type: template_ref
-    required: true
-    version: "bcss_vocab.json"
-    sha256: "47ea2b920bb73dfd43e9f3b9892fab20b80e6812902a9b914b6986f13166aa62"
-    contains_phi: false
-    configured_by: "configs/region_proposal.json:region.vocab_json"
-    mount_path: "reference/person_c/template_ref/bcss_vocab.json"

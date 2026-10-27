@@ -1,0 +1,35 @@
+{
+  "DxItem_list": [
+    "Example_Diagnostic_Item"
+  ],
+  "case_list": [
+    {
+      "sample_idx": 0,
+      "case_id": "bracs-1003691",
+      "hospital": "EXAMPLE",
+      "patient_info": {},
+      "date": "",
+      "source": {
+        "dataset": "BRACS (public)"
+      },
+      "organ": "Breast",
+      "report_raw_content": "Synthetic report text for the person_c example.",
+      "tissue_blocks": [
+        {
+          "block_id": "A",
+          "stains": [
+            {
+              "stain_id": "bracs-1003691-he",
+              "stain_type": "HE",
+              "filename": "BRACS_1003691.svs",
+              "filepath": "/data/BRACS_1003691.svs",
+              "memo": "processed (HE)"
+            }
+          ],
+          "memo": ""
+        }
+      ],
+      "memo": ""
+    }
+  ]
+}

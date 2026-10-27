@@ -3,7 +3,7 @@
 #   docker build -f components/person_c/Dockerfile -t wlw/person-c:0.1.0 .
 # No weights, WSIs or run data are baked in: mount reference/ read-only at /reference and
 # run/ at /run. Base image follows person_e (nvidia/cuda runtime); Ubuntu 24.04 is used because
-# it ships Python 3.12. The host GPU driver (NVIDIA container toolkit) must support CUDA 13.
+# it ships Python 3.12. The host NVIDIA driver must be >= 580 (CUDA 13.0 requirement); for older drivers use a CUDA 12.x base (see README, section 7).
 FROM nvidia/cuda:13.0.3-cudnn-runtime-ubuntu24.04
 
 ENV DEBIAN_FRONTEND=noninteractive PIP_NO_CACHE_DIR=1 PIP_DISABLE_PIP_VERSION_CHECK=1
