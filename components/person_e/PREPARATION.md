@@ -127,7 +127,7 @@ Canonical schemas：
   "schema_version": "2.0",
   "artifact_id": "I-case-001",
   "case_id": "case-001",
-  "producer": "person-e/clee:1.0.0",
+  "producer": "person-e/clee:1.1.0",
   "payload": {
     "data_mode": "inference",
     "DxItem_list": ["Histologic_Type"],
@@ -184,7 +184,7 @@ Canonical schemas：
                         "status": "selected",
                         "selected": true,
                         "reason": "case_importance_threshold_met",
-                        "producer": "person-e/clee:1.0.0",
+                        "producer": "person-e/clee:1.1.0",
                         "backend": "native",
                         "dx_pair_id": "case-001-dx-001",
                         "threshold": 0.7,
@@ -225,6 +225,10 @@ run/cache/person_e/                         # external-command/native 暫存
 - `configs/default.json` 是 deterministic fixture，只供 contract／pipeline 測試。
 - `configs/native.json` 是 native inference 設定；部署前由 `native.example.json` 複製並填入可驗證路徑。
 - checkpoint active label space 是 authority；deployment whitelist 只能縮小，不能擴張 checkpoint 支援範圍。
+- 正式設定固定使用 `clee-261027221211` epoch 223 與同 epoch 的 validation-calibrated threshold bundle。
+- `DxItem_embeddings_2607231639.pt/` 是含 `embedding_manifest.json` 的唯讀目錄，不再是單一 `.pt` 檔。
+- evidence retention 使用 `case_importance.by_DxResult`；個別 DxResult 不可校準時才記錄原因並降級至 `by_DxItem`，不得挪用 `roi_classification` threshold。
+- 零候選 policy 的 scope 是 case × DxItem；raw retained count 為 0 時，只在 terminal layer 依 evidence score 降冪、stable `global_idx` 破同分，取 `fallback_top_k`（預設 1）。
 - 模型、embedding、checkpoint、threshold 本體不進 Git 或 image；在 `external-assets.yaml` 記錄 revision、
   SHA-256、license 與 mount path。
 - D/H/I、ROI crop、backend 暫存與 log 一律位於 sibling `run/`。
@@ -259,7 +263,7 @@ non-zero exit，不得寫出部分 I。
 
 目前 component manifest 的正式需求為：
 
-- Component version：`1.0.0`
+- Component version：`1.1.0`
 - Python：`3.10`
 - CUDA runtime：`11.8`
 - GPU：必要，至少 1 張
@@ -273,7 +277,7 @@ non-zero exit，不得寫出部分 I。
 ```bash
 docker build --no-cache \
   -f components/person_e/Dockerfile \
-  -t wlw/person-e:1.0.0 .
+  -t wlw/person-e:1.1.0 .
 ```
 
 clean-machine 測試需包含 fixture CPU path 與 native GPU path。Docker build 不得下載私有模型或 checkpoint；
@@ -313,6 +317,7 @@ label-space/threshold authority、chunk 行為、CLI、Docker build/run、canoni
 - [ ] I 通過 schema 與 selection semantics，H ROI 全數保留。
 - [ ] fixture、空 eligible、multi-DxItem、native GPU smoke 與錯誤路徑皆通過。
 - [ ] checkpoint epoch、threshold bundle、label space 與 component version 可相互驗證。
+- [ ] `by_DxResult` resolution／`by_DxItem` fallback 與 terminal-layer Top-K audit 可由 `reference_versions.clee_inference` 重建。
 - [ ] clean-machine image 可跑 fixture 與掛載 reference 後的 native smoke。
 - [ ] source、configs、examples、tests、Dockerfile、requirements、README、PREPARATION 已提交。
 - [ ] 模型與 checkpoint 只放 `reference/person_e/`；run artifacts、cache、crop 與 credential 不提交。

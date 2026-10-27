@@ -16,25 +16,33 @@ assets:
         model-00002-of-00002.safetensors: "958e39df78c35ddb812fbcb8b5e7f46e07f1b153c1589f2d3f0b41c3b0748d30"
         model.safetensors.index.json: "77f4b67de084c31c7bcd373b039908108eee6c6181607e6d53da730e5f0bc659"
 
-  - asset_id: clee-prefix-260805142953-epoch-173
+  - asset_id: clee-prefix-261027221211-epoch-223
     type: model_weight
     required: true
-    version: "260805142953"
-    revision: "best-epoch-173"
+    version: "261027221211"
+    revision: "sha256-tree-a068361b08213426b65eddb590505a187e01c95190f09836bd8e9a4d185ecca3"
+    sha256: "a068361b08213426b65eddb590505a187e01c95190f09836bd8e9a4d185ecca3"
+    size_bytes: 2208566
     contains_phi: false
     configured_by: "configs/native.json:checkpoint_dir"
+    verification:
+      tree_hash_algorithm: "sha256 of sorted '<file-sha256>  <relative-name>' lines"
     required_files_sha256:
-      "[model]best_model.pth": "d27b24f5f045d58b23385c8c8aec2dcb186da4e20ebd8c7693df8f0bbd5f1402"
-      "[checkpoint]best_model.json": "8cc8d2134f93330e1457b6c4b25fee42301b75cb6337b059484e82db35f54317"
-      config.json: "476ee6c06948b78b0e915ce1424f6507dff9f52cfba7014bf58635c74cae9716"
-      "threshold_bundle[173]_260905204848.json": "fa1fb373381b99a010689989938d8d5b8ce11729ada8b11339a3e75185b26ef7"
+      "[model]best_model.pth": "c49ca17f56922140ee8b9bbeae1daf38a5d030f2306f991bae5c361bc218076a"
+      "[checkpoint]best_model.json": "f179d9136bcbbc31900223d698d3ce73a228597fa6a50f644106e4c46a993e9e"
+      config.json: "07eec28babb8c489a000dfce4b9cc42c265556d6b3fc386ae5a90b91d0bcb027"
+      "threshold_bundle[223]_261027221211.json": "48f0bf54d3c7d3176b12aaa1310597a2f60511051b133f64de21be48a71d9a1f"
 
   - asset_id: clee-dxitem-embeddings-2607231639
     type: model_weight
     required: true
     version: "2607231639"
-    revision: "sha256-5785cb6e8b35ef5958bc56ceedf615a0d267a48efcf1d64f99bbd264a328ba4f"
-    sha256: "5785cb6e8b35ef5958bc56ceedf615a0d267a48efcf1d64f99bbd264a328ba4f"
-    size_bytes: 4042010
+    revision: "sha256-tree-659b903c495e3dbf9fb3b8535d6a6aca21c755fc90e013cd3428676e5a67cc0a"
+    sha256: "659b903c495e3dbf9fb3b8535d6a6aca21c755fc90e013cd3428676e5a67cc0a"
+    size_bytes: 4095512
     contains_phi: false
     configured_by: "configs/native.json:backend.model.embedding_path"
+    verification:
+      tree_hash_algorithm: "sha256 of sorted '<file-sha256>  <relative-name>' lines"
+      manifest_sha256: "b8fbca834751fe87dbf1f88002b82184d55675727a551c91077c07af524f31c0"
+      manifest_schema: "clee_dxitem_embedding_catalog_v1"

@@ -144,7 +144,9 @@ def _prediction_event(
     support: CheckpointSupport,
     dx_pair_id: str,
     DxItem: str,
+    case_result: str,
     trace: Mapping[str, Any],
+    selection_detail: Mapping[str, Any] | None,
     query_ids: list[str],
 ) -> dict[str, Any]:
     final_predictions = trace.get(FINAL_RESULT_KEY)
@@ -160,6 +162,40 @@ def _prediction_event(
         raise ValueError(
             f"CLEE finalResult for {dx_pair_id}/{DxItem} must decide assigned_as_ref"
         )
+    importance = prediction.get("importance")
+    if not isinstance(importance, (int, float)) or isinstance(importance, bool):
+        raise ValueError(
+            f"CLEE finalResult for {dx_pair_id}/{DxItem} requires a numeric "
+            "evidence score in importance"
+        )
+    evidence_score = float(importance)
+    threshold = support.threshold_for(DxItem, case_result)
+    if selection_detail is None:
+        raw_retained = evidence_score >= threshold
+        selection_source = (
+            "zero_candidate_topk_fallback"
+            if assigned_as_ref and not raw_retained
+            else "threshold"
+        )
+    else:
+        raw_retained = selection_detail.get("raw_retained")
+        selection_source = selection_detail.get("selection_source")
+        if not isinstance(raw_retained, bool):
+            raise ValueError(
+                f"CLEE selection audit for {dx_pair_id}/{DxItem} has no raw decision"
+            )
+        if selection_detail.get("effective_assigned_as_ref") is not assigned_as_ref:
+            raise ValueError(
+                f"CLEE selection audit for {dx_pair_id}/{DxItem} disagrees "
+                "with assigned_as_ref"
+            )
+
+    if selection_source == "zero_candidate_topk_fallback":
+        reason = "zero_candidate_topk_fallback"
+    elif raw_retained:
+        reason = "case_importance_threshold_met"
+    else:
+        reason = "case_importance_threshold_not_met"
 
     numeric_layers = sorted(
         int(layer_key)
@@ -175,16 +211,12 @@ def _prediction_event(
         dx_pair_id=dx_pair_id,
         action="evidence_evaluated",
         status="selected" if assigned_as_ref else "rejected",
-        reason=(
-            "case_importance_threshold_met"
-            if assigned_as_ref
-            else "case_importance_threshold_not_met"
-        ),
+        reason=reason,
         query_ids=query_ids,
     )
     event.update(
         {
-            "threshold": support.case_importance_thresholds[DxItem],
+            "threshold": threshold,
             "comparison": ">=",
             "assigned": str(prediction["assigned"]),
             "assigned_as_ref": assigned_as_ref,
@@ -192,9 +224,7 @@ def _prediction_event(
             "chunk_idx": int(prediction["chunk_idx"]),
         }
     )
-    importance = prediction.get("importance")
-    if isinstance(importance, (int, float)) and not isinstance(importance, bool):
-        event["score"] = float(importance)
+    event["score"] = evidence_score
     return event
 
 
@@ -233,6 +263,7 @@ def main() -> None:
     roi_entries = list(iter_rois(payload))
     backend_statuses: list[str] = []
     result_sources: dict[str, str] = {}
+    selection_summaries: dict[str, dict[str, Any]] = {}
 
     if not d_records:
         for _, roi in roi_entries:
@@ -328,6 +359,10 @@ def main() -> None:
             config=config,
         )
         backend_statuses.append(backend_result.execution_status)
+        if backend_result.selection_summary:
+            selection_summaries[DxItem] = dict(
+                backend_result.selection_summary
+            )
 
         if backend_result.execution_status != "backend_deferred":
             returned_ids = set(backend_result.predictions_by_roi_id)
@@ -375,7 +410,11 @@ def main() -> None:
                     support=support,
                     dx_pair_id=dx_pair_id,
                     DxItem=DxItem,
+                    case_result=str(case_result),
                     trace=trace,
+                    selection_detail=(
+                        backend_result.selection_by_roi_id.get(roi_id)
+                    ),
                     query_ids=selected_query_ids_by_roi[roi_id],
                 )
             )
@@ -395,6 +434,12 @@ def main() -> None:
         ),
         "checkpoint_epoch": support.checkpoint_epoch,
         "bundle_id": support.bundle_id,
+        "threshold_policy": support.threshold_policy,
+        "threshold_resolutions": support.threshold_resolution_records,
+        "selection_scope": "case_x_DxItem",
+        "zero_candidate_fallback_policy": "terminal_layer_top_k",
+        "fallback_top_k": support.fallback_top_k,
+        "selection_summaries": selection_summaries,
         "support_policy": (
             "checkpoint_active_label_space"
             if config.get("wlw_supported_dx_items") is None

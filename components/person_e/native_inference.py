@@ -17,6 +17,10 @@ from PIL import Image
 import torch
 import torch.nn.functional as F
 
+from components.person_e.embedding_catalog import (
+    load_embedding_bank as load_catalog_embedding_bank,
+    normalize_embedding_key,
+)
 from components.person_e.model.contracts import Case, ROI
 from contracts.paths import resolve_person_reference_path, resolve_run_path
 
@@ -47,6 +51,13 @@ class NativeArtifacts:
 class _InputRecord:
     roi_id: str
     roi: ROI
+
+
+@dataclass(frozen=True)
+class NativeInferenceResult:
+    predictions_by_roi_id: dict[str, dict[str, Any]]
+    selection_by_roi_id: dict[str, dict[str, Any]]
+    selection_summary: dict[str, Any]
 
 
 def _json_object(path: Path) -> dict[str, Any]:
@@ -141,55 +152,11 @@ def _embedding_path(
         if not isinstance(checkpoint_value, str) or not checkpoint_value:
             raise ValueError("Checkpoint config has no embedding_path")
         result = weight_path / Path(checkpoint_value).name
-    if not result.is_file():
-        raise FileNotFoundError(f"CLEE embedding file is missing: {result}")
-    return result
-
-
-def _normalize_embedding_key(value: Any) -> tuple[str, ...]:
-    if isinstance(value, str) and value:
-        return (value,)
-    if (
-        isinstance(value, Sequence)
-        and not isinstance(value, (str, bytes))
-        and len(value) == 2
-        and all(isinstance(item, str) and item for item in value)
-    ):
-        return tuple(value)
-    raise ValueError(f"Invalid CLEE embedding_key: {value!r}")
-
-
-def _load_embedding_bank(
-    path: Path, embedding_key: Any, model_name: str
-) -> dict[str, dict[str, torch.Tensor]]:
-    stored = torch.load(path, map_location="cpu", weights_only=True)
-    if not isinstance(stored, Mapping):
-        raise ValueError(f"CLEE embedding file must contain a mapping: {path}")
-    selector = _normalize_embedding_key(embedding_key)
-    bank: dict[str, dict[str, torch.Tensor]] = {}
-    for raw_item, raw_labels in stored.items():
-        if not isinstance(raw_labels, Mapping):
-            continue
-        labels: dict[str, torch.Tensor] = {}
-        for raw_label, raw_info in raw_labels.items():
-            if not isinstance(raw_info, Mapping):
-                continue
-            try:
-                if len(selector) == 1:
-                    embedding = raw_info[selector[0]]
-                else:
-                    embedding = raw_info[selector[0]]["embedding"][model_name][selector[1]]
-            except (KeyError, TypeError):
-                continue
-            tensor = embedding if torch.is_tensor(embedding) else torch.as_tensor(embedding)
-            labels[str(raw_label)] = tensor.detach().cpu()
-        if labels:
-            bank[str(raw_item)] = labels
-    if not bank:
-        raise ValueError(
-            f"No embeddings matched key={list(selector)!r}, model={model_name!r} in {path}"
+    if not result.is_dir():
+        raise FileNotFoundError(
+            f"CLEE embedding catalog directory is missing: {result}"
         )
-    return bank
+    return result
 
 
 def _validate_checkpoint_metadata(
@@ -199,15 +166,15 @@ def _validate_checkpoint_metadata(
 ) -> None:
     if checkpoint_config.get("model_variant", "CLEE") != "CLEE":
         raise ValueError("Native inference requires checkpoint model_variant='CLEE'")
-    if _normalize_embedding_key(threshold_bundle.get("embedding_key")) != (
-        _normalize_embedding_key(checkpoint_config.get("embedding_key"))
+    if normalize_embedding_key(threshold_bundle.get("embedding_key")) != (
+        normalize_embedding_key(checkpoint_config.get("embedding_key"))
     ):
         raise ValueError("CLEE checkpoint/threshold embedding_key mismatch")
     threshold_embedding = threshold_bundle.get("embedding_path")
     if not isinstance(threshold_embedding, str) or (
         Path(threshold_embedding).name != embedding_path.name
     ):
-        raise ValueError("CLEE checkpoint/threshold embedding file mismatch")
+        raise ValueError("CLEE checkpoint/threshold embedding catalog mismatch")
 
 
 def _dtype(name: Any) -> torch.dtype:
@@ -505,7 +472,9 @@ def _pseudo_prediction(
     return {
         "chunk_idx": chunk_idx,
         "assigned": assigned,
-        "importance": round(importance, 6),
+        # Keep the report-conditioned score at full precision because the
+        # zero-candidate policy ranks terminal-layer ROIs by this value.
+        "importance": importance,
         "assigned_as_ref": importance >= case_threshold,
         "candidate@top3AUC": {
             label: round(score, 6) for label, score in top_three
@@ -529,7 +498,7 @@ def run_native_inference(
     case_label: str,
     support: Any,
     config: Mapping[str, Any],
-) -> dict[str, dict[str, Any]]:
+) -> NativeInferenceResult:
     """Load the real checkpoint and return layered pseudo labels by stable ROI ID."""
 
     artifacts = resolve_native_artifacts(config)
@@ -555,7 +524,7 @@ def run_native_inference(
         labels = list(HISTOLOGIC_TYPE_SEVERITY)
     if case_label not in labels:
         raise ValueError(f"Native CLEE received unsupported {DxItem} result: {case_label}")
-    embeddings = _load_embedding_bank(
+    embeddings = load_catalog_embedding_bank(
         embedding_path, cfg.embedding_key, cfg.model_name
     )
     missing_labels = set(labels) - set(embeddings.get(DxItem, {}))
@@ -613,7 +582,9 @@ def run_native_inference(
                             labels=labels,
                             thresholds=support.roi_classification_thresholds[DxItem],
                             case_label=case_label,
-                            case_threshold=support.case_importance_thresholds[DxItem],
+                            case_threshold=support.threshold_for(
+                                DxItem, case_label
+                            ),
                             chunk_idx=chunk_idx,
                         )
                         traces[record.roi_id][str(layer_idx)] = {
@@ -629,6 +600,20 @@ def run_native_inference(
                     break
                 pending = selected
                 layer_idx += 1
-        return traces
+        from components.person_e.adapter import apply_effective_selection
+
+        selection_by_roi_id, selection_summary = apply_effective_selection(
+            traces=traces,
+            global_idx_by_roi_id={
+                record.roi_id: record.roi.global_idx for record in records
+            },
+            DxItem=DxItem,
+            fallback_top_k=support.fallback_top_k,
+        )
+        return NativeInferenceResult(
+            predictions_by_roi_id=traces,
+            selection_by_roi_id=selection_by_roi_id,
+            selection_summary=selection_summary,
+        )
     finally:
         resources.close()

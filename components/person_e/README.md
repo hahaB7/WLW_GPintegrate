@@ -1,5 +1,7 @@
 # Person E: CLEE evidence selection
 
+Component version: `person-e/clee:1.1.0`.
+
 This component consumes one `D.DxPairs@2.0` artifact and the matching
 `H.MatchedROIs@2.0` artifact. It writes `I.CLEESelectedROIs@2.0`, preserving
 all H ROIs and appending one auditable CLEE decision per diagnostic pair.
@@ -21,9 +23,12 @@ python -m components.person_e.clee \
   --config components/person_e/configs/native.json
 ```
 
-The default config is a deterministic test fixture. `configs/native.json` is the active real-inference
-configuration. MedGemma, embedding, and CLEE checkpoint paths are managed only there and resolve
-below sibling `reference/person_e/`; runtime artifacts remain below sibling `run/`.
+The default config is a deterministic test fixture. `configs/native.json` is
+the active real-inference configuration, using prefix checkpoint
+`clee-261027221211` (epoch 223), its validation-calibrated threshold bundle,
+and the manifest-backed `DxItem_embeddings_2607231639.pt/` catalog. MedGemma,
+embedding, and CLEE checkpoint paths are managed only there and resolve below
+sibling `reference/person_e/`; runtime artifacts remain below sibling `run/`.
 
 ## Image input
 
@@ -35,13 +40,26 @@ sibling `run`; only an absolute WSI `stains[].filepath` may remain external.
 ## Runtime behavior
 
 Inference uses deterministic ROI ordering and every eligible ROI. The forward
-limit divides a layer into chunks. ROIs meeting the validation calibrated case
-importance threshold enter the next layer, and processing ends after one chunk,
-no selected references, or no reduction. Classification thresholds produce
-the checkpoint-declared class `assigned` value independently from evidence
-selection. The current checkpoint supports `Histologic_Type` and
-`Microcalcification`; their predictions are merged into the same ROI's layered
-`pseudo_DxPair` without overwriting one another.
+limit divides a layer into chunks. ROIs meeting the validation-calibrated
+report-concordance `case_importance.by_DxResult` threshold enter the next
+layer. If one result lacks a usable result-specific threshold, the adapter
+records the reason and falls back only for that result to
+`case_importance.by_DxItem`; ROI-classification thresholds are never used for
+evidence retention.
+
+Selection is scoped to one case × DxItem. When its raw retained count is zero,
+the terminal layer is ranked by report-conditioned evidence score descending,
+then stable `global_idx`, and the configured top K is retained (native default:
+1). `pseudo_DxPair.importance` remains the numeric evidence score, while
+`assigned_as_ref` is the effective post-fallback decision. Raw/fallback counts,
+ranks, threshold resolution, and selected ROI IDs are preserved under
+`payload.reference_versions.clee_inference`; each ROI event identifies whether
+selection came from the threshold or zero-candidate fallback.
+
+Classification thresholds produce the checkpoint-declared class `assigned`
+value independently from evidence selection. The current checkpoint supports
+`Histologic_Type` and `Microcalcification`; their predictions are merged into
+the same ROI's layered `pseudo_DxPair` without overwriting one another.
 
 The native backend requires CUDA for the supplied configuration and fails with
 a nonzero exit on missing assets, checkpoint inconsistency, model errors, or

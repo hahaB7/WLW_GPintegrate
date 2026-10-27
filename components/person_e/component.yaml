@@ -1,6 +1,6 @@
 name: clee
 owner: person_E
-version: 1.0.0
+version: 1.1.0
 inputs: [D.DxPairs@2.0, H.MatchedROIs@2.0]
 outputs: [I.CLEESelectedROIs@2.0]
 runtime:
@@ -15,6 +15,6 @@ runtime:
 models:
   - name: medgemma-1.5-4b-it
     configured_by: configs/native.json:backend.model.weight_path
-  - name: clee-prefix-260805142953
+  - name: clee-prefix-261027221211
     configured_by: configs/native.json:checkpoint_dir
 entrypoint: python -m components.person_e.clee
