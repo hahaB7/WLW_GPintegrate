@@ -4,9 +4,19 @@
 元件與外部資產；其他元件只依賴輸入／輸出 contract、程序 exit code 與檔案路徑，不直接 import
 別人的研究實作。
 
-目前 `person_a`～`person_d` 僅保留可跑通 contract 與 pipeline 的範例 stub，不包含研究方法、模型、
-checkpoint 或正式超參數；`person_e` 保留 CLEE 整合實作。stub 輸出只可用於介面測試，不得用於研究、
-診斷、效能評估或 benchmark。
+## 元件狀態
+
+| 元件 | 版本 | 功能 |
+|---|---|---|
+| Person A | 0.9.0 | Report Decomposition / Query Generation |
+| Person B | 0.5.0 | Literature Preparation / Dense Retrieval |
+| Person C | 0.4.0 | MRCPS WSI Interest Pattern Extraction |
+| Person D | 0.2.0 | PLIP + CONCH Visual Attribute Extraction / Matching |
+| Person E | 依現行 component.yaml | CLEE Evidence Selection |
+
+各元件已有獨立的研究實作與測試覆蓋。2026-10-29 已以 RTX 4090、各元件 Docker 映像、
+真實 MRXS 與 sibling `reference/` 外部資產完成三案例正式端到端驗收；修正內容、正式設定、
+逐案結果與限制詳見 [`INTEGRATION_EXECUTION_REPORT.zh-TW.md`](INTEGRATION_EXECUTION_REPORT.zh-TW.md)。
 
 ## 1. 框架與資料流
 
@@ -215,6 +225,14 @@ components/person_x/examples/
 ```bash
 mkdir -p ../run/input/pipeline
 cp integration/fixtures/input/cases.example.json ../run/input/pipeline/cases.json
+python3 pipeline/run_prepare_literature.py --profile example
+python3 pipeline/run_pipeline.py --profile example
+```
+
+正式流程的無參數預設為 `production` profile：以各元件 Docker image、正式 config 與
+唯讀 `../reference` 執行，不依賴主機 Python 環境。準備正式文獻與跑完整 pipeline 的命令為：
+
+```bash
 python3 pipeline/run_prepare_literature.py
 python3 pipeline/run_pipeline.py
 ```

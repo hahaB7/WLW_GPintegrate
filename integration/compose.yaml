@@ -1,7 +1,11 @@
-name: wlw-contract-example
+name: wlw-native-single-case
 
 x-common: &common
   user: "${LOCAL_UID:-1000}:${LOCAL_GID:-1000}"
+  network_mode: none
+  shm_size: "8gb"
+  environment:
+    PYTORCH_CUDA_ALLOC_CONF: expandable_segments:True
   volumes:
     - ../../reference:/reference:ro
     - ../../run:/run
@@ -9,35 +13,37 @@ x-common: &common
 services:
   report-decompose:
     <<: *common
-    image: wlw/person-a:example
+    image: wlw/person-a:lab22-integrated
     build:
       context: ..
       dockerfile: components/person_a/Dockerfile
     command:
       - --input
-      - /run/input/pipeline/cases.json
+      - /run/output/pipeline/cases/${CASE_ID:-S1202317}/case_input.json
       - --output
-      - /run/output/pipeline/cases/example-case/D_dx_pairs.json
+      - /run/output/pipeline/cases/${CASE_ID:-S1202317}/D_dx_pairs.json
       - --config
-      - /app/components/person_a/configs/example.json
+      - /app/components/person_a/configs/report_decompose.default.json
 
   interest-pattern:
     <<: *common
-    image: wlw/person-c:example
+    image: wlw/person-c:0.4.0-final-20261027
+    gpus: all
     build:
       context: ..
       dockerfile: components/person_c/Dockerfile
     command:
       - --input
-      - /run/input/pipeline/cases.json
+      - /run/output/pipeline/cases/${CASE_ID:-S1202317}/case_input.json
       - --output
-      - /run/output/pipeline/cases/example-case/E_rois.json
+      - /run/output/pipeline/cases/${CASE_ID:-S1202317}/E_rois.json
       - --config
-      - /app/components/person_c/configs/example.json
+      - /app/components/person_c/configs/default.json
 
   knowledge-retrieval:
     <<: *common
-    image: wlw/person-b:example
+    image: wlw/person-b:final-main-42ce738
+    gpus: all
     build:
       context: ..
       dockerfile: components/person_b/Dockerfile
@@ -48,15 +54,16 @@ services:
       - --input
       - /run/input/pipeline/A_literature.json
       - --input
-      - /run/output/pipeline/cases/example-case/D_dx_pairs.json
+      - /run/output/pipeline/cases/${CASE_ID:-S1202317}/D_dx_pairs.json
       - --output
-      - /run/output/pipeline/cases/example-case/F_chunks.json
+      - /run/output/pipeline/cases/${CASE_ID:-S1202317}/F_chunks.json
       - --config
-      - /app/components/person_b/configs/example.json
+      - /app/components/person_b/configs/dense.default.json
 
   query-generation:
     <<: *common
-    image: wlw/person-a:example
+    image: wlw/person-a:lab22-integrated
+    gpus: all
     build:
       context: ..
       dockerfile: components/person_a/Dockerfile
@@ -66,17 +73,18 @@ services:
         condition: service_completed_successfully
     command:
       - --input
-      - /run/output/pipeline/cases/example-case/D_dx_pairs.json
+      - /run/output/pipeline/cases/${CASE_ID:-S1202317}/D_dx_pairs.json
       - --input
-      - /run/output/pipeline/cases/example-case/F_chunks.json
+      - /run/output/pipeline/cases/${CASE_ID:-S1202317}/F_chunks.json
       - --output
-      - /run/output/pipeline/cases/example-case/G_queries.json
+      - /run/output/pipeline/cases/${CASE_ID:-S1202317}/G_queries.json
       - --config
-      - /app/components/person_a/configs/example.json
+      - /app/components/person_a/configs/query_generation.default.json
 
   visual-filter:
     <<: *common
-    image: wlw/person-d:example
+    image: wlw/person-d:lab22-integrated
+    gpus: all
     build:
       context: ..
       dockerfile: components/person_d/Dockerfile
@@ -87,17 +95,18 @@ services:
         condition: service_completed_successfully
     command:
       - --input
-      - /run/output/pipeline/cases/example-case/E_rois.json
+      - /run/output/pipeline/cases/${CASE_ID:-S1202317}/E_rois.json
       - --input
-      - /run/output/pipeline/cases/example-case/G_queries.json
+      - /run/output/pipeline/cases/${CASE_ID:-S1202317}/G_queries.json
       - --output
-      - /run/output/pipeline/cases/example-case/H_matches.json
+      - /run/output/pipeline/cases/${CASE_ID:-S1202317}/H_matches.json
       - --config
-      - /app/components/person_d/configs/example.json
+      - /app/components/person_d/configs/native.example.json
 
   clee:
     <<: *common
-    image: wlw/person-e:demo
+    image: wlw/person-e:final-main-42ce738
+    gpus: all
     build:
       context: ..
       dockerfile: components/person_e/Dockerfile
@@ -108,10 +117,10 @@ services:
         condition: service_completed_successfully
     command:
       - --input
-      - /run/output/pipeline/cases/example-case/D_dx_pairs.json
+      - /run/output/pipeline/cases/${CASE_ID:-S1202317}/D_dx_pairs.json
       - --input
-      - /run/output/pipeline/cases/example-case/H_matches.json
+      - /run/output/pipeline/cases/${CASE_ID:-S1202317}/H_matches.json
       - --output
-      - /run/output/pipeline/cases/example-case/I_selected_rois.json
+      - /run/output/pipeline/cases/${CASE_ID:-S1202317}/I_selected_rois.json
       - --config
-      - /app/components/person_e/configs/default.json
+      - /app/components/person_e/configs/native.json

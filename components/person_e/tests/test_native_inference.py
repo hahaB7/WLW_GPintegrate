@@ -6,7 +6,12 @@ import tempfile
 import unittest
 
 from PIL import Image
+import torch
 
+from components.person_e.embedding_catalog import (
+    embedding_filename,
+    load_embedding_bank,
+)
 from components.person_e.native_inference import (
     _pseudo_prediction,
     _read_wsi_roi,
@@ -28,6 +33,54 @@ class _FakeSlide:
 
 
 class NativeInferenceTests(unittest.TestCase):
+    def test_manifest_catalog_reassembles_per_result_embeddings(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            filename = embedding_filename("pretrain", "D", "A")
+            (root / "embedding_manifest.json").write_text(
+                json.dumps(
+                    {
+                        "schema_version": (
+                            "clee_dxitem_embedding_catalog_v1"
+                        ),
+                        "dx_item_order": ["D"],
+                        "dx_result_order": {"D": ["A"]},
+                        "entries": [
+                            {
+                                "type": "pretrain",
+                                "dx_item": "D",
+                                "dx_result": "A",
+                                "filename": filename,
+                            }
+                        ],
+                    }
+                ),
+                encoding="utf-8",
+            )
+            torch.save(
+                {
+                    "type": "pretrain",
+                    "content": {
+                        "is": {
+                            "embedding": {
+                                "medgemma-1.5-4b-it": {
+                                    "eosToken": torch.tensor([1.0, 2.0])
+                                }
+                            }
+                        }
+                    },
+                },
+                root / filename,
+            )
+
+            bank = load_embedding_bank(
+                root,
+                ["is", "eosToken"],
+                "medgemma-1.5-4b-it",
+            )
+
+        self.assertTrue(torch.equal(bank["D"]["A"], torch.tensor([1.0, 2.0])))
+
     def test_only_absolute_wsi_paths_may_escape_run(self) -> None:
         external = Path("/external/slide.svs")
         self.assertEqual(

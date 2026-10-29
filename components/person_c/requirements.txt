@@ -1,19 +1,7 @@
-# Versions of the validated dev environment (Python 3.12, installed from a clean venv in the same order as the Dockerfile).
-# CONCH itself is not on PyPI: it is vendored read-only under reference/person_c/template_ref/CONCH
-# (see external-assets.yaml) and added to sys.path from configs/region_proposal.json.
-torch==2.14.0
-torchvision==0.29.0
-timm==1.0.29
-transformers==4.57.6
-tokenizers==0.22.2
-numpy==2.5.3
-scipy==1.18.1
-scikit-learn==1.9.0
-pandas==3.0.5
-h5py==3.16.0
-regex==2026.9.10
-ftfy==6.3.1
-Pillow==12.3.0
-opencv-python-headless==5.0.0.93
+numpy==2.2.6
+opencv-python-headless==4.12.0.88
 openslide-python==1.4.6
-openslide-bin==4.0.1.2
+Pillow==12.0.0
+scikit-image==0.25.2
+scipy==1.15.3
+torch==2.6.0

@@ -1,31 +1,20 @@
-# Digests below are pinned in assets.py and checked at runtime before the model loads
-# (mismatch -> AssetError, non-zero exit, no E artifact written).
-# Not external, shipped inside the component and checked as well:
-#   third_party/CONCH   unmodified conch/open_clip_custom + LICENSE of mahmoodlab/CONCH
-#                       @ 141cc09c7d4ff33d8eda562bd75169b457f71a62 (CC-BY-NC-ND 4.0),
-#                       tree sha256 9e6419e1c78f79406acf635529bfde1c4029f15acb97221d11e76345d187febd
-# External assets: the checkpoint and the BCSS class descriptions below.
 assets:
-  - asset_id: conch-vit-b-16
+  - asset_id: person-c-central-breast-mrcps
     type: model_weight
     required: true
-    version: "conch_ViT-B-16"
-    sha256: "40a9644b9ba0e83a74576e0a5e5f7313599fa9c9cdaf3c20f8a3e271b0e9ae7c"
-    size_bytes: 802235437
-    source: "https://huggingface.co/MahmoodLab/CONCH (gated; file pytorch_model.bin)"
-    license_or_access_policy: "MahmoodLab/CONCH gated access (CC-BY-NC-ND 4.0); do not redistribute. Obtain it from the source above after accepting the terms."
+    version: "sha256-1f8aa232"
+    revision: "sha256:1f8aa23202e4efda656b227efa1114cea74036f79f6dd0deba20f50bde90b12b"
+    sha256: "1f8aa23202e4efda656b227efa1114cea74036f79f6dd0deba20f50bde90b12b"
+    size_bytes: 153282613
+    license_or_access_policy: "research storage; access managed by dataset owner"
     contains_phi: false
-    configured_by: "configs/region_proposal.json:region.conch_checkpoint"
-    mount_path: "reference/person_c/checkpoint/conch/pytorch_model.bin"
-
-  - asset_id: bcss-zero-shot-vocab
-    type: template_ref
-    required: true
-    version: "bcss_vocab.json"
-    sha256: "47ea2b920bb73dfd43e9f3b9892fab20b80e6812902a9b914b6986f13166aa62"
-    size_bytes: 18222
-    source: "authored by the project (class names, subtype descriptions and prompt templates for BCSS tissue classes)"
-    license_or_access_policy: "project file, no restriction"
-    contains_phi: false
-    configured_by: "configs/region_proposal.json:region.vocab_json"
-    mount_path: "reference/person_c/template_ref/bcss_vocab.json"
+    configured_by: "configs/default.json:model.path"
+  - asset_id: person-c-bracs-265-test-wsi
+    type: test_data
+    required: false
+    version: "sha256-49290ba7"
+    revision: "sha256:49290ba7a15005760336be13a769d0ef60e5a6cc040f10292048fa31dc9fdf5d"
+    sha256: "49290ba7a15005760336be13a769d0ef60e5a6cc040f10292048fa31dc9fdf5d"
+    size_bytes: 1865817773
+    license_or_access_policy: "BRACS dataset terms and research storage access apply"
+    purpose: "External real-WSI smoke test only; not included in the component folder"

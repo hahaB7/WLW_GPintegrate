@@ -1,161 +1,35 @@
-# 丙(Person C):WSI Interest Pattern Extraction
+# Person C: WSI interest pattern extraction
 
-把一個 case 的 WSI 轉成 ROI 清單 `[E]`,交給丁(`visual_filter`)。
+This component reads one raw CaseList case and writes `E.ROIs@2.0`.
+`stain_type_whitelist` controls which WSI types are opened; the default is `HE`.
+Other stains remain present with empty ROI lists.
 
-- Owner:person_C
-- Component version:`0.1.0`(`status: integration_draft`,第一版可跑通,演算法為初版)
-- 輸入:`CaseListInput@1.0`(每次一個 case)
-- 輸出:`E.ROIs@2.0`
-- 入口:`python -m components.person_c.interest_pattern --input ... --output ... --config ...`
-
-## 1. 在整個流程中的位置
-
-```text
-                      WLW pipeline(單一 case)
-
-  CaseList ──> 甲 report_decompose ──> [D] ──┬──> 乙 knowledge_retrieval ──> [F]
-      │                                      │                                │
-      │                                      │         甲 query_generation <──┘
-      │                                      │                  │
-      │                                      │                 [G]
-      │                                      │                  │
-      └──> 丙 interest_pattern ──> [E] ──────┼──> 丁 visual_filter <── [G]
-           ^^^^^^^^^^^^^^^^^^^^^               │            │
-           本元件(這份 README)                │           [H]
-                                               │            │
-                                               └──> 戊 clee <┘ ──> [I] ──> DRGVLM
-```
-
-丙只依賴 CaseList,不依賴甲、乙;丁、戊之後會讀丙的 ROI 座標去重建影像。
-
-## 2. 這個元件做什麼
-
-```text
- CaseList JSON (一個 case)
-        │
-        ▼
- ┌────────────────────────────────────────────────────────────┐
- │ interest_pattern.py                                        │
- │                                                            │
- │  驗證輸入(單案、schema)                                  │
- │        │                                                   │
- │        ▼                                                   │
- │  for 每個 block ─> for 每個 stain                          │
- │        │                                                   │
- │        ├─ stain_type 不在 stain_types ──> roi_list = []    │
- │        │                                                   │
- │        └─ 要處理的 stain:                                  │
- │             │                                              │
- │             ▼                                              │
- │     ┌───────────────┐   讀 slide 尺寸與 MPP                │
- │     │ slide_info    │   (沒有 MPP 就直接失敗)             │
- │     └──────┬────────┘                                      │
- │            ▼                                               │
- │     ┌───────────────────────────────────────────┐          │
- │     │ region/proposal.py   (GPU)                │          │
- │     │                                           │          │
- │     │  CONCH 抽 dense 特徵                      │          │
- │     │     ──> vMF 分群 (K 群)                   │          │
- │     │     ──> zero-shot 幫每群命名 (BCSS 詞表)  │          │
- │     │     ──> 只留 proposal 類別                │          │
- │     │            tumor / dcis /                 │          │
- │     │            normal_acinus_or_duct /        │          │
- │     │            metaplasia_NOS                 │          │
- │     │     ──> 輸出 polygon (level-0 像素)       │          │
- │     └──────────────────┬────────────────────────┘          │
- │                        ▼                                   │
- │     ┌───────────────────────────────────────────┐          │
- │     │ rois.py   (純 Python)                     │          │
- │     │  每個聯通元件 ──> 一個外接矩形 ROI        │          │
- │     │  level0_info + main_info (換成 target_mpp)│          │
- │     └──────────────────┬────────────────────────┘          │
- │                        ▼                                   │
- │          roi_list / roi_num / selection_history            │
- │                                                            │
- │  寫檔前再驗證 E.ROIs 契約,失敗就不寫檔                    │
- └────────────────────────────────────────────────────────────┘
-        │
-        ▼
- E.ROIs JSON  ──>  丁 visual_filter
-```
-
-重點:
-
-- **不輸出圖片。** `roi_path` 為 `null`,下游用 `stains[].filepath` 加 `level0_info` 自己從 WSI 裁圖。
-- **`region/` 是可替換的部分。** 它只負責「給一張 WSI,回傳 polygon」;之後換演算法,只要保持這個介面,CLI、契約驗證、ROI 轉換都不用動。
-
-## 3. 兩種模式
-
-| Config | 行為 |
-|---|---|
-| `configs/example.json`(`mode: example`) | 契約用的空殼,不開 slide,ROI 為空。共用 pipeline 和既有測試使用 |
-| `configs/region_proposal.json`(`mode: region_proposal`) | 上圖的真實流程 |
-
-## 4. 座標與 ROI 規則(下游以本節為準)
-
-- 座標單位是 level-0 像素,原點在左上,x 向右、y 向下。
-- `xywh = [left, top, width, height]`,涵蓋 `[left, left+width) × [top, top+height)`,一定在 slide 範圍內。
-- **一個聯通元件(一個 proposal polygon)一個 ROI**,取其外接矩形(往外取整到整數像素,夾在 slide 範圍內)。ROI 大小不固定;巢狀或相鄰元件的外框可能重疊。
-- 小於 `roi.min_region_area_px` 的元件丟掉(面積已扣除挖洞);每個 stain 最多 `roi.max_rois_per_stain` 個,由大的元件先取。
-- 排序為 `(top, left)`,`global_idx` 依「block → stain → 此順序」從 0 連續編號;`local_idx` 是 stain 內序號。
-- `roi_id = <stain_id>-roi-<local_idx:05d>`,case 內唯一。
-- `main_info` 是同一個矩形換算到「每個 ROI 自己的工作 MPP」:`mpp = max(roi.target_mpp, 最長邊(µm) ÷ roi.max_main_side_px)`。也就是預設用 `target_mpp`,若這樣會讓最長邊超過 `max_main_side_px`(預設 2048),就改用更粗的 MPP,大的聯通元件因此是縮小看,不會被切開。`level0_info` 完全不受影響。
-  `roi_wh = max(1, round(level0_wh × level0_mpp ÷ mpp))`(每軸),`xywh` 以同一比例縮放並四捨五入。這與 person_e 讀 ROI 的公式一致。
-- `mpp` 欄位:x、y 相同時是單一數字,否則是 `[mpp_x, mpp_y]`。
-- `coords_seg`、`DxPair`、`visualAttrs`、`visualAttrs_info` 都是 `null`。
-- 每個 ROI 附一筆 `selection_history` 事件:`stage=interest_pattern_extraction`、`action=candidate_generated`、`status=selected`。
-
-### 4.1 丙對下游的保證
-
-對任何成功輸出的 `E.ROIs`,以下成立(第 1、2、4、5、6、7 項由單元測試與 `examples/` 檢查;第 3 項由程式內的 MPP 檢查保證;第 8 項是幾何特性,無法測試):
-
-1. 同一個 case 內,`roi_id` 與 `global_idx` 各自唯一;`roi_num == len(roi_list)`。
-2. 每個 ROI 的 `level0_info.xywh` 為整數、寬高 > 0,且完全落在 slide 的 level-0 範圍內。
-3. `level0_info.mpp` 是 slide 的 level-0 MPP(來自 `openslide.mpp-x/y`,缺失即失敗),`main_info.mpp` 是該 ROI 的工作 MPP(單一數字,≥ `roi.target_mpp`)。
-4. `main_info.roi_wh = max(1, round(level0_info.roi_wh × level0_info.mpp ÷ main_info.mpp))`(每軸);`main_info.xywh` 是 `level0_info.xywh` 以同一比例換算。
-5. `roi_path` 一律為 `null`(不輸出圖片);`coords_seg`、`DxPair`、`visualAttrs`、`visualAttrs_info` 一律為 `null`。
-6. `selection_history` 第一筆是丙的事件(`stage=interest_pattern_extraction`、`status=selected`);丙不會寫 `pseudo_DxPair`。
-7. 非處理的 stain 照常保留,`roi_num=0`、`roi_list=[]`;一個 case 沒有任何 ROI 也是合法的成功輸出。
-8. 外接矩形可能互相重疊、可能包含空白;同一個 ROI 不保證整塊都是病灶。
-
-### 4.2 下游如何取得 ROI 影像
-
-不要用 `global_idx` 猜來源。以 `stain.filepath`(外部絕對路徑)加 `level0_info` 重建:
-
-```python
-import openslide
-slide = openslide.OpenSlide(stain["filepath"])
-x, y, w, h = roi["level0_info"]["xywh"]          # level-0 像素,左上角起算
-out_w, out_h = roi["main_info"]["roi_wh"]         # 影像最終尺寸
-# 從夠細的金字塔層讀 (x, y, w, h) 這個 level-0 區域,縮放到 (out_w, out_h) 即為 main_info 視角的 ROI。
-```
-
-這與 person_e 的 `_read_wsi_roi` 使用同一個公式,因此戊可以直接用,不需要額外轉換。
-
-已驗證:用 person_e 的 `_read_wsi_roi` 實際讀取 BRACS_1003691 的 16 個 ROI(含最大的 6 個,最長邊 > 12000 px),讀出的影像尺寸與 `main_info.roi_wh` 全部一致。
-
-## 5. 設定(`configs/region_proposal.json`)
-
-| 鍵 | 說明 |
-|---|---|
-| `stain_types` | 要處理的染色類型,`null` 代表全部。其他 stain 保留,`roi_list=[]` |
-| `region.conch_checkpoint`、`vocab_json` | 外部資產(權重、BCSS 類別描述),必須在 `reference/person_c/` 之下;執行前檢查 SHA-256 |
-| `region.conch_lib_path` | 隨元件發佈(`third_party/CONCH`,相對於 `components/person_c/`);同樣檢查 SHA-256 |
-| `region.vocab`、`proposal_categories` | zero-shot 詞表(`BCSS`)與保留的類別,`[]` 代表詞表預設 |
-| `region.fields`、`mag`、`overlap` | CONCH 視野(level-0 px)、倍率、重疊比例 |
-| `region.K`、`radius`、`pca_dim`、`use_patch`、`seed`、`zs_temp` | 分群與 zero-shot 參數 |
-| `region.device`、`batch_size`、`num_workers` | 執行參數 |
-| `roi.target_mpp`、`max_main_side_px`、`min_region_area_px`、`max_rois_per_stain` | ROI 轉換參數(`max_main_side_px`:`main_info` 最長邊上限) |
-
-## 6. 執行
-
-目錄必須是 repo 的同層結構(見根目錄 README):`../reference/person_c/`、`../run/`。
+The MRCPS checkpoint is stored at sibling
+`reference/person_c/checkpoint/central_breast_inference.pt`; its path and SHA-256 are owned only by
+`configs/default.json`. Runtime artifacts and optional PNG crops stay below sibling `run/`.
+The only external runtime path is each WSI `stains[].filepath` supplied by CaseList metadata.
 
 ```bash
 python -m components.person_c.interest_pattern \
   --input  ../run/input/pipeline/case-001.json \
   --output ../run/output/work/E_rois.json \
-  --config components/person_c/configs/region_proposal.json
+  --config components/person_c/configs/default.json
+```
+
+`save_roi_png=true` writes RGB crops to the config's `roi_output_dir`, which is constrained to
+`run/output`. Otherwise downstream components reopen the authoritative WSI path and use
+`level0_info.xywh`.
+
+Coordinates use an upper-left origin and half-open rectangles. `level0_info.xywh` is authoritative
+at level 0; `main_info` describes the virtual working-MPP image. See
+[configs/README.md](configs/README.md) for parameters.
+
+`configs/demo.json` is a path-free fixture backend for the local pipeline and does not perform WSI
+inference. Invalid CaseList input, missing WSI, unreadable MPP, missing/wrong checkpoint, and model
+errors fail without writing E.
+
+```bash
+python -m unittest discover -s components/person_c/tests -v
 ```
 
 失敗(非單案、slide 讀不到、MPP 缺失、CUDA 不可用、模型錯誤、輸出不合契約)一律非零結束,不寫出 E。

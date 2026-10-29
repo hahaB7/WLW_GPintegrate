@@ -1,5 +1,5 @@
 {
-  "component_version": "person-e/clee:1.0.0",
+  "component_version": "person-e/clee:1.1.0",
   "backend": {
     "mode": "fixture",
     "fixture_importance_score_cycle": [0.82, 0.55]
@@ -9,5 +9,7 @@
   "threshold_bundle_path": "../reference/person_e/template_ref/fixture_thresholds.json",
   "checkpoint_dir": null,
   "image_root": null,
-  "max_roi_dxitem_inputs_per_forward": 500
+  "max_roi_dxitem_inputs_per_forward": 500,
+  "threshold_policy": "by_DxItem",
+  "fallback_top_k": 1
 }

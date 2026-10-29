@@ -1,0 +1,104 @@
+{
+  "contract": "E.ROIs",
+  "schema_version": "2.0",
+  "artifact_id": "E-case-001-empty",
+  "case_id": "case-001",
+  "producer": "person-c/interest-pattern:0.3.0",
+  "payload": {
+    "data_mode": "inference",
+    "DxItem_list": [
+      "Angiolymphatic_permeation",
+      "Architectural_pattern_of_DCIS",
+      "Deep_fascia",
+      "E-cadherin",
+      "ER_status",
+      "Extensive_intraductal_component",
+      "Extranodal_involvement",
+      "FISH_CEP17",
+      "FISH_HER2",
+      "FISH_HER2_Ratio",
+      "GATA3",
+      "Her-2/neu_status",
+      "Histologic_Grade",
+      "Histologic_Type",
+      "Ki-67_labeling_index",
+      "Lymph_node_status",
+      "Margins",
+      "Microcalcification",
+      "Necrosis_of_DCIS",
+      "Nipple",
+      "Nuclear_grade_of_DCIS",
+      "PR_status",
+      "Pathological_TNM_stage",
+      "Perineural_invasion",
+      "Skin",
+      "TNM_descriptors",
+      "TRPS1",
+      "Treatment_Effect",
+      "Tumor_focality",
+      "Tumor_infiltrating_lymphocytes_(TILs)",
+      "p63",
+      "pM_Category",
+      "pN_Category",
+      "pT_Category",
+      "size_of_invasive_carcinoma",
+      "Tubular_formation",
+      "Nuclear_pleomorphism",
+      "Mitotic_count"
+    ],
+    "reference_versions": {
+      "dx_candidates": {
+        "source_name": "DxStructuredCandidates_integrated.json",
+        "source_path": "example://DxStructuredCandidates_integrated.json",
+        "sha256": "9de99e2380107d97029fb07a21b2c04df2579e28f4e18d6955adf548248fc694"
+      }
+    },
+    "case_list": [
+      {
+        "sample_idx": 0,
+        "case_id": "case-001",
+        "hospital": "VGHTC",
+        "patient_info": {},
+        "date": "",
+        "source": {
+          "reports": [
+            {
+              "report_id": "report-001",
+              "table_idx": 0,
+              "source": "VGHTC2024_reports.csv:VGHTC2024_reports.csv:2"
+            }
+          ]
+        },
+        "organ": "Breast",
+        "report_raw_content": "Breast biopsy with invasive carcinoma.",
+        "tissue_blocks": [
+          {
+            "block_id": "A",
+            "stains": [
+              {
+                "stain_id": "case-001-er",
+                "stain_type": "ER",
+                "filename": "case-001-er.svs",
+                "filepath": "/data/case-001-er.svs",
+                "memo": "",
+                "roi_num": 0,
+                "roi_list": []
+              },
+              {
+                "stain_id": "case-001-he",
+                "stain_type": "HE",
+                "filename": "synthetic_slide.tiff",
+                "filepath": "../run/input/person_d/examples/synthetic_slide.tiff",
+                "memo": "",
+                "roi_num": 0,
+                "roi_list": []
+              }
+            ],
+            "memo": ""
+          }
+        ],
+        "memo": ""
+      }
+    ]
+  }
+}

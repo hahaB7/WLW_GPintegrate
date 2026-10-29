@@ -1,5 +1,5 @@
 {
-  "component_version": "person-e/clee:1.0.0",
+  "component_version": "person-e/clee:1.1.0",
   "backend": {
     "mode": "native",
     "model": {
@@ -15,7 +15,9 @@
   "wlw_supported_dx_items": null,
   "checkpoint_config_path": null,
   "threshold_bundle_path": null,
-  "checkpoint_dir": "../reference/person_e/checkpoint/clee-260805142953",
+  "checkpoint_dir": "../reference/person_e/checkpoint/clee-261027221211",
   "image_root": null,
-  "max_roi_dxitem_inputs_per_forward": 500
+  "max_roi_dxitem_inputs_per_forward": 8,
+  "threshold_policy": "by_DxResult",
+  "fallback_top_k": 1
 }

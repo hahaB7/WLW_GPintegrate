@@ -1,19 +1,28 @@
 # Person C configuration
 
-`example.json` only preserves the shared `--config` shape (stub mode).
+`default.json` runs the MRCPS extractor. `model.path` must resolve below sibling
+`reference/person_c/checkpoint/`; `roi_output_dir` must resolve below sibling `run/`. Do not create
+run-specific configs outside this directory.
 
-`region_proposal.json`:
+| Key | Type / range | Meaning |
+|---|---|---|
+| `component_version` | nonempty string | Producer recorded in E and each selection event. |
+| `backend` | `mrcps` or `demo` | `mrcps` opens selected WSI and runs inference. `demo` uses fixed fixture boxes. |
+| `stain_type_whitelist` | nonempty list[string] | Case-insensitive stain types allowed to open and process; default is `["HE"]`. |
+| `model.path` | nonempty path | Read-only MRCPS checkpoint. Required in `mrcps` mode. |
+| `model.revision` | `sha256:<64 hex>` | Optional runtime checksum check; the default pins the approved checkpoint. |
+| `device` | `auto`, `cpu`, `cuda` | `auto` uses CUDA when available. Explicit `cuda` fails if unavailable. |
+| `patch_size` | positive integer | MRCPS input width and height in read-level pixels; trained value is 512. |
+| `stride` | positive integer, at most `patch_size` | Patch grid spacing; trained value is 512. |
+| `low_resolution_ratio` | positive integer | Low-resolution context ratio; trained value is 8. |
+| `batch_size` | positive integer | Number of patches per model forward pass. Reduce after CUDA OOM. |
+| `check_mpp` | positive number | Approximate MPP for tissue background screening. |
+| `postprocess_mpp` | positive number | MPP of the stitched mask and morphology. |
+| `background_lower`, `background_upper` | integers with `0 <= lower < upper <= 255` | Mean-RGB window used for tissue screening. |
+| `background_dilation_kernel` | positive integer | Square grid dilation kernel for background screening. |
+| `hole_area_threshold` | nonnegative integer | Fill smaller holes in the stitched mask. |
+| `min_object_size` | positive integer | Remove smaller connected tissue objects. |
+| `save_roi_png` | boolean | Whether to write PNG crops and set `main_info.roi_path`. |
+| `roi_output_dir` | path below sibling `run` | PNG directory when `save_roi_png=true`. |
 
-| Key | Meaning |
-|---|---|
-| `stain_types` | stain types to process; `null` = all. Others keep `roi_list = []` |
-| `region.conch_checkpoint`, `vocab_json` | external assets (checkpoint, BCSS class descriptions) below `reference/person_c/`; sha256 checked before the model loads |
-| `region.conch_lib_path` | CONCH library shipped inside the component (path relative to `components/person_c/`); sha256 checked |
-| `region.vocab`, `proposal_categories` | zero-shot vocab key (`BCSS`) and kept categories (`[]` = vocab default: tumor, dcis, normal_acinus_or_duct, metaplasia_NOS) |
-| `region.fields`, `mag`, `overlap` | CONCH field(s) of view in level-0 px, magnification, crop overlap |
-| `region.K`, `radius`, `pca_dim`, `use_patch`, `seed`, `zs_temp` | vMF clustering / zero-shot parameters |
-| `region.device`, `batch_size`, `num_workers` | runtime |
-| `roi.target_mpp` | MPP of `main_info` (default working resolution) |
-| `roi.max_main_side_px` | longest side of `main_info`; larger ROIs use a coarser MPP (`level0_info` unchanged) |
-| `roi.min_region_area_px` | drop polygons smaller than this (level-0 px^2) |
-| `roi.max_rois_per_stain` | cap per stain (largest polygons first) |
+The legacy area-to-working-MPP ladder is 0.25, 0.5, 1, 2, 4, 8 and 16 µm/pixel for level-0 ROI areas up to 1, 4, 16, 64, 256, 1024 and over 1024 million pixels² respectively. Input and model revisions, resolved config, and WSI references should be snapshotted with each experiment. `demo` output is only a compatibility fixture and does not locate tissue.
