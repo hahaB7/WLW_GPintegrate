@@ -34,6 +34,7 @@ python -c "import json, torch; from pathlib import Path; from conch.open_clip_cu
 | `extraction.multi_select_margin` | Multi-select attributes keep options within this margin of the best score. |
 | `extraction.copy_na_labels` | Keep agreed `N/A` labels. |
 | `extraction.enable_prompt_chunking`, `token_safety_margin`, `fallback_words_per_chunk` | Long option prompts are split into chunks whose embeddings are averaged. |
+| `matching.enable` | Boolean switch for the matching filter; defaults to `true` when omitted. When `false`, PLIP/CONCH extraction still runs, the label map is not loaded, and mapped queries on reference-WSI ROIs pass through as `selected` with reason `matching_disabled_passthrough`. This bypass is intended for controlled downstream integration tests, not diagnostic filtering. |
 | `matching.label_map_path` | Extraction-label to diagnosticCriteria-option aliases; its `criteria_version` must equal G `diagnosticCriteria.version`. |
 | `matching.label_map_sha256` | Required SHA-256 of the label map, checked at the start of every native run; a mismatch fails. |
 | `matching.condition_weights` | Weight in [-1, 1] for each informative condition: `Must_True`, `High_Possibly_True`, `Low_Possibly_True`, `Must_False`. |

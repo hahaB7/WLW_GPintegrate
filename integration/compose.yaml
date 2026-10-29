@@ -4,6 +4,8 @@ x-common: &common
   user: "${LOCAL_UID:-1000}:${LOCAL_GID:-1000}"
   network_mode: none
   shm_size: "8gb"
+  environment:
+    PYTORCH_CUDA_ALLOC_CONF: expandable_segments:True
   volumes:
     - ../../reference:/reference:ro
     - ../../run:/run

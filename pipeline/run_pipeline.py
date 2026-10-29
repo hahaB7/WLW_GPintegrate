@@ -194,7 +194,14 @@ def _docker_command(
         f"{RUN_ROOT.resolve()}:/run",
     ]
     if component["gpu"]:
-        command.extend(["--gpus", "all"])
+        command.extend(
+            [
+                "--gpus",
+                "all",
+                "-e",
+                "PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True",
+            ]
+        )
     command.extend(
         [
             "--entrypoint",

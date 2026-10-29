@@ -40,7 +40,9 @@ sibling `run`; only an absolute WSI `stains[].filepath` may remain external.
 ## Runtime behavior
 
 Inference uses deterministic ROI ordering and every eligible ROI. The forward
-limit divides a layer into chunks. ROIs meeting the validation-calibrated
+limit divides a layer into chunks; the packaged `native.json` uses 8 inputs per
+forward so the MedGemma vision tower fits a 24 GB GPU without dropping ROIs.
+ROIs meeting the validation-calibrated
 report-concordance `case_importance.by_DxResult` threshold enter the next
 layer. If one result lacks a usable result-specific threshold, the adapter
 records the reason and falls back only for that result to

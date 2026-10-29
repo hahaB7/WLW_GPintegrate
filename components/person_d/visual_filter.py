@@ -12,7 +12,7 @@ from __future__ import annotations
 import hashlib
 import json
 from copy import deepcopy
-from typing import Any, Callable
+from typing import Any, Callable, Mapping
 
 from components.person_d.assets import check_digest, required_digest
 from components.person_d.geometry import roi_geometry
@@ -117,6 +117,15 @@ def _load_label_map(matching_config: dict[str, Any]) -> tuple[LabelMap, dict[str
         "criteria_version": document["criteria_version"],
         "sha256": digest,
     }
+
+
+def _matching_enabled(matching_config: Mapping[str, Any]) -> bool:
+    """Return the matching switch, preserving enabled behavior for older configs."""
+
+    enabled = matching_config.get("enable", True)
+    if type(enabled) is not bool:
+        raise ValueError("Person D matching.enable must be a boolean")
+    return enabled
 
 
 def _event(producer: str, status: str, reason: str, **extra: Any) -> dict[str, Any]:
@@ -248,8 +257,13 @@ def build_native_artifact(
 
     case_id = validate_inputs(e_artifact, g_artifact)
     producer = _native_producer(config)
-    settings = MatchingSettings.from_config(config["matching"])
-    label_map, label_map_info = _load_label_map(config["matching"])
+    matching_config = config["matching"]
+    matching_enabled = _matching_enabled(matching_config)
+    settings = MatchingSettings.from_config(matching_config) if matching_enabled else None
+    if matching_enabled:
+        label_map, label_map_info = _load_label_map(matching_config)
+    else:
+        label_map, label_map_info = None, None
     data_mode = g_artifact["payload"]["data_mode"]
 
     case = deepcopy(single_case(e_artifact))
@@ -299,6 +313,16 @@ def build_native_artifact(
                     extraction = extractor.extract(image_reader.read(stain, roi))
                     matching: dict[str, Any] = {}
                     for index, query, linkage in pending:
+                        if not matching_enabled:
+                            events[index] = _event(
+                                producer,
+                                "selected",
+                                "matching_disabled_passthrough",
+                                **linkage,
+                                backend=NATIVE_BACKEND,
+                            )
+                            continue
+                        assert label_map is not None and settings is not None
                         result = match_query(
                             extraction["consistent"],
                             query["diagnosticCriteria"],
@@ -335,6 +359,7 @@ def build_native_artifact(
                         "backend": NATIVE_BACKEND,
                         "producer": producer,
                         "models": _model_summary(extraction["models"]),
+                        "matching_enabled": matching_enabled,
                         "matching": matching,
                     }
                 roi["selection_history"].extend(events)
@@ -361,14 +386,19 @@ def build_native_artifact(
                 else {}
             ),
         },
-        "visual_matching_filter": {
-            "label_map": label_map_info,
-            "condition_weights": dict(settings.condition_weights),
-            "score_threshold": settings.score_threshold,
-            "comparison": ">=",
-            "min_evaluated_attributes": settings.min_evaluated_attributes,
-            "unverified_must_true": settings.unverified_must_true,
-        },
+        "visual_matching_filter": (
+            {
+                "enabled": True,
+                "label_map": label_map_info,
+                "condition_weights": dict(settings.condition_weights),
+                "score_threshold": settings.score_threshold,
+                "comparison": ">=",
+                "min_evaluated_attributes": settings.min_evaluated_attributes,
+                "unverified_must_true": settings.unverified_must_true,
+            }
+            if matching_enabled and settings is not None
+            else {"enabled": False, "behavior": "passthrough"}
+        ),
     }
     collisions = set(own_entries) & set(reference_versions)
     if collisions:

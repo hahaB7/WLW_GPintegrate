@@ -17,7 +17,7 @@
   "threshold_bundle_path": null,
   "checkpoint_dir": "../reference/person_e/checkpoint/clee-261027221211",
   "image_root": null,
-  "max_roi_dxitem_inputs_per_forward": 500,
+  "max_roi_dxitem_inputs_per_forward": 8,
   "threshold_policy": "by_DxResult",
   "fallback_top_k": 1
 }

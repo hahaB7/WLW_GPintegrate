@@ -37,6 +37,7 @@
     "fallback_words_per_chunk": 35
   },
   "matching": {
+    "enable": false,
     "label_map_path": "../reference/person_d/template_ref/criteria_label_map.json",
     "label_map_sha256": "e1f59e667358fbca6f6bfe70cbfc140cd6c0a4ed8f6661920b5562a042f46e38",
     "condition_weights": {

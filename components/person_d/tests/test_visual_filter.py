@@ -118,6 +118,9 @@ class NativeVisualFilterTests(unittest.TestCase):
         self.config = json.loads(
             (COMPONENT / "configs/native.example.json").read_text(encoding="utf-8")
         )
+        # Most tests below exercise the matching rules themselves.  Keep those
+        # tests independent from the deploy-time switch in native.example.json.
+        self.config["matching"]["enable"] = True
         self.config["matching"]["label_map_path"] = str(label_map)
         self.config["matching"]["label_map_sha256"] = hashlib.sha256(label_map.read_bytes()).hexdigest()
         self.e = _load("E_rois.valid.json")
@@ -274,6 +277,53 @@ class NativeVisualFilterTests(unittest.TestCase):
             {event["reason"] for event in he_events},
         )
         self.assertTrue(all("query_id" in event for event in he_events))
+
+    def test_matching_can_be_disabled_while_extraction_still_runs(self) -> None:
+        self.config["matching"]["enable"] = False
+        self.config["matching"]["label_map_path"] = "missing-while-disabled.json"
+        extractor = _FakeExtractor(
+            {
+                "case-001-case-001-he-roi-001": POSITIVE,
+                "case-001-case-001-he-roi-002": NEGATIVE,
+            }
+        )
+        artifact, loads = self._build(extractor)
+        validate_artifact(artifact, "H.MatchedROIs")
+
+        self.assertEqual([1], loads)
+        self.assertEqual(
+            {"case-001-case-001-he-roi-001", "case-001-case-001-he-roi-002"},
+            set(extractor.calls),
+        )
+        reference = artifact["payload"]["reference_versions"]
+        self.assertEqual(
+            {"enabled": False, "behavior": "passthrough"},
+            reference["visual_matching_filter"],
+        )
+        for stain, roi in iter_rois(artifact["payload"]):
+            events = roi["selection_history"][1:]
+            if stain["stain_id"] == "case-001-he":
+                disabled = [
+                    event
+                    for event in events
+                    if event["reason"] == "matching_disabled_passthrough"
+                ]
+                self.assertEqual(4, len(disabled))
+                self.assertTrue(all(event["status"] == "selected" for event in disabled))
+                self.assertTrue(all(event["selected"] is True for event in disabled))
+                self.assertFalse(roi["visualAttrs_info"]["matching_enabled"])
+                self.assertEqual({}, roi["visualAttrs_info"]["matching"])
+
+    def test_native_example_temporarily_disables_matching(self) -> None:
+        config = json.loads(
+            (COMPONENT / "configs/native.example.json").read_text(encoding="utf-8")
+        )
+        self.assertIs(config["matching"]["enable"], False)
+
+    def test_matching_enable_must_be_boolean(self) -> None:
+        self.config["matching"]["enable"] = "false"
+        with self.assertRaisesRegex(ValueError, "matching.enable must be a boolean"):
+            self._build(_FakeExtractor({}))
 
     def test_identity_and_linkage_errors_fail(self) -> None:
         extractor = _FakeExtractor({})
