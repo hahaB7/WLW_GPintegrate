@@ -14,8 +14,9 @@
 | Person D | 0.2.0 | PLIP + CONCH Visual Attribute Extraction / Matching |
 | Person E | 依現行 component.yaml | CLEE Evidence Selection |
 
-目前各元件已有獨立的研究實作與測試覆蓋，
-但完整正式 native pipeline 尚未通過端到端驗收。
+各元件已有獨立的研究實作與測試覆蓋。2026-10-29 已以 RTX 4090、各元件 Docker 映像、
+真實 MRXS 與 sibling `reference/` 外部資產完成三案例正式端到端驗收；修正內容、正式設定、
+逐案結果與限制詳見 [`INTEGRATION_EXECUTION_REPORT.zh-TW.md`](INTEGRATION_EXECUTION_REPORT.zh-TW.md)。
 
 ## 1. 框架與資料流
 
@@ -224,6 +225,14 @@ components/person_x/examples/
 ```bash
 mkdir -p ../run/input/pipeline
 cp integration/fixtures/input/cases.example.json ../run/input/pipeline/cases.json
+python3 pipeline/run_prepare_literature.py --profile example
+python3 pipeline/run_pipeline.py --profile example
+```
+
+正式流程的無參數預設為 `production` profile：以各元件 Docker image、正式 config 與
+唯讀 `../reference` 執行，不依賴主機 Python 環境。準備正式文獻與跑完整 pipeline 的命令為：
+
+```bash
 python3 pipeline/run_prepare_literature.py
 python3 pipeline/run_pipeline.py
 ```

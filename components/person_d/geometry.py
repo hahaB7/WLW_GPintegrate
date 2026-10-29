@@ -40,7 +40,11 @@ def roi_geometry(roi: Mapping[str, Any]) -> tuple[tuple[int, int, int, int], tup
         round(width * level0_mpp[0] / target_mpp[0]),
         round(height * level0_mpp[1] / target_mpp[1]),
     )
-    if abs(expected[0] - target_w) > 1 or abs(expected[1] - target_h) > 1:
+    # Person C maps half-open ROI endpoints independently with floor(start)
+    # and ceil(stop).  Compared with rounding the scaled width directly this
+    # can differ by two pixels when the level-0 origin and anisotropic MPP both
+    # contribute fractional offsets.  Larger discrepancies remain invalid.
+    if abs(expected[0] - target_w) > 2 or abs(expected[1] - target_h) > 2:
         raise ValueError(
             f"ROI {roi_id} main_info.roi_wh {target_w, target_h} does not match "
             f"level0 xywh and mpp (expected about {expected})"

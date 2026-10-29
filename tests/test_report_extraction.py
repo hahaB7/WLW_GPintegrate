@@ -132,6 +132,21 @@ Gross description: Histologic Type: this must not replace the diagnosis.
         self.assertNotIn("Tumor Size", extracted)
         self.assertEqual("Invasive carcinoma", extracted["Histologic Type"])
 
+    def test_vghtc_uses_pathologic_diagnosis_when_histologic_label_is_absent(self) -> None:
+        report = (
+            "Pathologic diagnosis:\n"
+            "Breast, left, core needle biopsy --- Infiltrating duct carcinoma, grade 3.\n\n"
+            "Ancillary study for diagnosis:\nP63 (-).\n\n"
+            "Prognostic and predictive factor:\n1. Microcalcification: Absent.\n"
+        )
+        extracted = extract_vghtc_items(report)
+        self.assertEqual(
+            "Breast, left, core needle biopsy --- Infiltrating duct carcinoma, grade 3.",
+            extracted["Histologic Type"],
+        )
+        self.assertEqual("Absent.", extracted["Microcalcification"])
+        self.assertEqual("IC", classify_histologic_type(extracted["Histologic Type"]))
+
     def test_cgmh_extractor_preserves_aliases_and_grade_subitems(self) -> None:
         report = (
             "ER(6F11/Novacastra): Positive\n"

@@ -39,6 +39,8 @@ class ContractExamplePipelineTest(unittest.TestCase):
                 [
                     sys.executable,
                     str(ROOT / "pipeline/run_prepare_literature.py"),
+                    "--profile",
+                    "example",
                     "--output",
                     str(literature),
                 ],
@@ -52,6 +54,8 @@ class ContractExamplePipelineTest(unittest.TestCase):
                 [
                     sys.executable,
                     str(ROOT / "pipeline/run_pipeline.py"),
+                    "--profile",
+                    "example",
                     "--case-list",
                     str(case_list),
                     "--literature",
@@ -98,13 +102,15 @@ class ContractExamplePipelineTest(unittest.TestCase):
             manifest = json.loads(
                 (artifacts / "run_manifest.json").read_text(encoding="utf-8")
             )
+            self.assertEqual(1, len(manifest["completed_cases"]))
+            self.assertEqual("example-case", manifest["completed_cases"][0]["case_id"])
             self.assertEqual(
-                [{
-                    "case_id": "example-case",
-                    "case_input_path": "cases/example-case/case_input.json",
-                    "selected_rois_path": "cases/example-case/I_selected_rois.json",
-                }],
-                manifest["completed_cases"],
+                "cases/example-case/case_input.json",
+                manifest["completed_cases"][0]["case_input_path"],
+            )
+            self.assertEqual(
+                "cases/example-case/I_selected_rois.json",
+                manifest["completed_cases"][0]["selected_rois_path"],
             )
 
 

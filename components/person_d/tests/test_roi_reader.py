@@ -54,6 +54,17 @@ class ROIReaderTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "exceeds"):
             read_wsi_roi(_FakeSlide(), _roi(xywh=(3500, 0, 1000, 800)))
 
+    def test_half_open_endpoint_rounding_allows_two_pixel_difference(self) -> None:
+        geometry = roi_geometry(
+            _roi(
+                xywh=(42154, 130263, 430, 363),
+                level0_mpp=0.242647058823529,
+                mpp=0.25,
+                roi_wh=(419, 354),
+            )
+        )
+        self.assertEqual((419, 354), geometry[1])
+
     def test_each_wsi_opens_once_and_closes_on_exit(self) -> None:
         slides: dict[str, _FakeSlide] = {}
 

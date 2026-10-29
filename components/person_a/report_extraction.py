@@ -135,6 +135,13 @@ CGMH_ITEM_ALIASES: dict[str, list[str]] = {
 
 
 GROSS_STOP_RE = re.compile(r"\bGross\s*description\s*[:：]", re.IGNORECASE)
+VGHTC_PATHOLOGIC_DIAGNOSIS_RE = re.compile(
+    r"\bPathologic(?:al)?\s+diagnosis\s*[:：]\s*(.*?)"
+    r"(?=\n\s*(?:Ancillary\s+study\s+for\s+diagnosis|"
+    r"Prognostic\s+and\s+predictive\s+factor|Gross\s+description|"
+    r"Microscopic\s+description|Note)\s*[:：]|\Z)",
+    re.IGNORECASE | re.DOTALL,
+)
 CGMH_GRADE_SUB_ITEMS = [
     "Tubular Differentiation",
     "Ductal formation",
@@ -233,6 +240,16 @@ def extract_vghtc_items(report_text: str) -> dict[str, str]:
             value = re.sub(r"\s+", " ", raw_value).strip()
             if value and value.casefold() != "not found":
                 extracted[item_name] = value
+    # VGHTC reports commonly encode the tumour type only in the leading
+    # Pathologic diagnosis section rather than under a "Histologic Type:"
+    # label.  Preserve the complete diagnosis text as evidence; the dedicated
+    # seven-class classifier normalises it downstream.
+    if "Histologic Type" not in extracted:
+        diagnosis = VGHTC_PATHOLOGIC_DIAGNOSIS_RE.search(report_text)
+        if diagnosis:
+            value = _clean_value(diagnosis.group(1))
+            if value:
+                extracted["Histologic Type"] = value
     return extracted
 
 

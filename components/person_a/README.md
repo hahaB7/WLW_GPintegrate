@@ -11,9 +11,11 @@ Component version: `0.9.0`
 | `components.person_a.query_generation` | `D.DxPairs@2.0` + `F.Chunks@2.0` | `G.VisualAttributeQueries@2.0` |
 
 `report_decompose` and `query_generation` handle one case per invocation.
-`pipeline/run_pipeline.py` demonstrates multi-case fan-out with repository
-example configs. Production orchestration uses the same single-case CLI with
-production configs. Inputs are identified by contract, not command-line order.
+`pipeline/run_pipeline.py` performs multi-case fan-out. Its default `production`
+profile invokes the component in Docker with the production configs and mounted
+external references; `--profile example` selects the dependency-free repository
+examples used by contract tests. Inputs are identified by contract, not
+command-line order.
 
 ## Behavior
 

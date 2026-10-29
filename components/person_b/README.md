@@ -87,8 +87,12 @@ python -m components.person_b.knowledge_retrieval \
   --config components/person_b/configs/dense.default.json
 ```
 
-`pipeline/run_prepare_literature.py` and the shared example pipeline keep using
-`configs/example.json` (`mode: example`), which emits the contract stub.
+By default, `pipeline/run_prepare_literature.py` runs the Person B Docker image
+with `prepare_literature.rag_database.json` against the mounted
+`reference/person_b/rag_database`, and the production pipeline uses
+`dense.default.json` for real retrieval. Pass `--profile example` explicitly to
+either shared runner to use `configs/example.json` (`mode: example`) and the
+dependency-free contract stub.
 
 ### Configs (`components/person_b/configs/`)
 
