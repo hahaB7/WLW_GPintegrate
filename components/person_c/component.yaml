@@ -15,7 +15,4 @@ models:
   - name: segnet-c9-sclip-bracs-s0
     revision: sha256:b13895d5cf7ca919cb6b78e43931a5e9174f7305573964c3ed1ac5cea5b3e95b
     configured_by: configs/default.json:segnet.checkpoints
-  - name: central-breast-mrcps          # only for configs/mrcps.json
-    revision: sha256:1f8aa23202e4efda656b227efa1114cea74036f79f6dd0deba20f50bde90b12b
-    configured_by: configs/mrcps.json:model.path
 entrypoint: python -m components.person_c.interest_pattern

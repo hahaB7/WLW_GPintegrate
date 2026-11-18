@@ -1,8 +1,8 @@
-"""Semantic mask of one WSI from the SEGNET student (backend ``segnet``), the counterpart of ``wsi_processing.infer_mask``.
+"""Semantic mask of one WSI from the SEGNET student (backend ``segnet``).
 
 A DeepLab student trained without annotation (PIPELINE/SEGNET, ``Unsup``, pseudo labels of the SCLIP teacher on
 BRACS slides, class set c9) labels the slide; the union of ``roi_classes`` (TUM, BEN) is returned as a boolean
-mask at ``postprocess_mpp``, which ``wsi_processing.level0_boxes`` turns into ROI boxes as for MRCPS.
+mask at ``postprocess_mpp``, which ``wsi_processing.level0_boxes`` turns into ROI boxes.
 
 * The slide is read at the student's 1 um/px in tiles of ``tile_um`` with ``margin_um`` of context on every side;
   the student's windows (224 px, half overlap, cosine-squared blending, ``tta_views`` dihedral views, mean over

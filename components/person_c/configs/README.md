@@ -3,19 +3,18 @@
 | File | Backend | Use |
 |---|---|---|
 | `default.json` | `segnet` | the SEGNET student (the default of the pipeline) |
-| `mrcps.json` | `mrcps` | the MRCPS network, kept as the comparison |
 | `demo.json` | `demo` | fixed boxes, no slide; pipeline and contract tests only |
 
 Paths in a config are relative to `components/person_c/`: checkpoints must resolve below sibling `reference/person_c/`,
 every output directory below sibling `run/output/`. Do not create run-specific configs outside this directory.
 Snapshot the config, the checkpoint revision and the WSI references with each experiment.
 
-## Every backend that opens a slide (`segnet`, `mrcps`)
+## `segnet` and `demo`
 
 | Key | Type / range | Meaning |
 |---|---|---|
 | `component_version` | nonempty string | Producer recorded in E and in each selection event. |
-| `backend` | `segnet`, `mrcps`, `demo` | See above. |
+| `backend` | `segnet`, `demo` | See above. |
 | `stain_type_whitelist` | nonempty list[string] | Case-insensitive stain types that are opened; the others keep `roi_list = []`. Default `["HE"]`. |
 | `device` | `auto`, `cpu`, `cuda` | `auto` uses CUDA when available; an explicit `cuda` fails when it is not. |
 | `postprocess_mpp` | positive number | MPP of the mask the boxes are made from (8 µm/px). |
@@ -48,19 +47,6 @@ The working MPP of `main_info` follows from the box area in level-0 pixels²: up
 | `figures.dir` | path below `run/output` | Directory of the PNGs, `<case_id>_<stain_id>_<stage>.png`; required when a switch is on. |
 
 All switches are off by default.
-
-## `mrcps` only
-
-| Key | Type / range | Meaning |
-|---|---|---|
-| `model.path` | path below `reference/person_c/checkpoint/` | Read-only MRCPS checkpoint. |
-| `model.revision` | `sha256:<64 hex>` | Optional checksum; the default pins the approved checkpoint. |
-| `patch_size`, `stride` | positive integers, `stride <= patch_size` | Input size and grid spacing in read-level pixels; trained value 512. |
-| `low_resolution_ratio` | positive integer | Ratio of the low-resolution context; trained value 8. |
-| `batch_size` | positive integer | Patches per forward pass. |
-| `check_mpp` | positive number | Approximate MPP of the overview that screens the background. |
-| `background_lower`, `background_upper` | integers, `0 <= lower < upper <= 255` | Mean-RGB window of a tissue patch. |
-| `background_dilation_kernel` | positive integer | Square kernel that dilates the screened grid. |
 
 ## `demo` only
 

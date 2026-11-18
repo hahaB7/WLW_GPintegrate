@@ -10,7 +10,7 @@
 |---|---|---|
 | Person A | 0.9.0 | Report Decomposition / Query Generation |
 | Person B | 0.5.0 | Literature Preparation / Dense Retrieval |
-| Person C | 0.4.0 | MRCPS WSI Interest Pattern Extraction |
+| Person C | 0.5.0 | SEGNET WSI Interest Pattern Extraction |
 | Person D | 0.2.0 | PLIP + CONCH Visual Attribute Extraction / Matching |
 | Person E | 依現行 component.yaml | CLEE Evidence Selection |
 

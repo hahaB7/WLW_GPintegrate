@@ -38,18 +38,20 @@ def _case_input(he_path: str) -> dict:
 
 def _config(save_png: bool = False, output_dir: str = "") -> dict:
     return {
-        "component_version": "person-c/interest-pattern:test", "backend": "mrcps",
+        "component_version": "person-c/interest-pattern:test", "backend": "segnet",
         "stain_type_whitelist": ["HE"],
-        "model": {
-            "path": "../reference/person_c/checkpoint/missing-test.pt"
-        }, "device": "cpu",
-        "patch_size": 512, "stride": 512, "low_resolution_ratio": 8,
-        "batch_size": 1, "check_mpp": 32, "postprocess_mpp": 8,
-        "background_lower": 10, "background_upper": 240,
-        "background_dilation_kernel": 5, "hole_area_threshold": 0,
+        "segnet": {
+            "checkpoints": [{"path": "../reference/person_c/checkpoint/segnet/missing-test.pt", "revision": "sha256:" + "0" * 64}],
+            "roi_classes": ["TUM", "BEN"], "tile_um": 1792, "margin_um": 112, "tta_views": 1, "batch_size": 1, "num_workers": 0,
+        },
+        "device": "cpu", "postprocess_mpp": 8, "hole_area_threshold": 0,
         "min_object_size": 1, "save_roi_png": save_png,
         "roi_output_dir": output_dir,
     }
+
+
+def _stages(mask: np.ndarray) -> dict:
+    return {"tissue": np.full(mask.shape, 255, dtype=np.uint8), "epithelium": mask, "classes": ["TUM", "BEN"]}
 
 
 class _Slide:
@@ -74,9 +76,9 @@ class InterestPatternTest(TestCase):
             validate_case_list_input(original, single_case=True)
             mask = np.zeros((16, 16), dtype=bool)
             mask[1:4, 2:6] = True
-            with patch("components.person_c.wsi_processing.load_model", return_value=(object(), "cpu")), \
+            with patch("components.person_c.region.segnet.load_model", return_value=(object(), "cpu")), \
                  patch("openslide.OpenSlide", return_value=_Slide()), \
-                 patch("components.person_c.wsi_processing.infer_mask", return_value=mask):
+                 patch("components.person_c.region.segnet.infer_stages", return_value=_stages(mask)):
                 output = run(original, _config())
                 repeated = run(original, _config())
             validate_artifact(output, "E.ROIs")
@@ -99,14 +101,14 @@ class InterestPatternTest(TestCase):
             he_path = Path(temp_dir) / "tiny.svs"
             he_path.touch()
             empty = np.zeros((16, 16), dtype=bool)
-            with patch("components.person_c.wsi_processing.load_model", return_value=(object(), "cpu")), \
+            with patch("components.person_c.region.segnet.load_model", return_value=(object(), "cpu")), \
                  patch("openslide.OpenSlide", return_value=_Slide()), \
-                 patch("components.person_c.wsi_processing.infer_mask", return_value=empty):
+                 patch("components.person_c.region.segnet.infer_stages", return_value=_stages(empty)):
                 output = run(_case_input(str(he_path)), _config())
             validate_artifact(output, "E.ROIs")
             he = output["payload"]["case_list"][0]["tissue_blocks"][0]["stains"][0]
             self.assertEqual((0, []), (he["roi_num"], he["roi_list"]))
-            with patch("components.person_c.wsi_processing.load_model", return_value=(object(), "cpu")):
+            with patch("components.person_c.region.segnet.load_model", return_value=(object(), "cpu")):
                 with self.assertRaisesRegex(FileNotFoundError, "WSI is missing"):
                     run(_case_input(str(Path(temp_dir) / "absent.svs")), _config())
 
@@ -118,9 +120,9 @@ class InterestPatternTest(TestCase):
             he_path.touch()
             mask = np.zeros((16, 16), dtype=bool)
             mask[1:4, 2:6] = True
-            with patch("components.person_c.wsi_processing.load_model", return_value=(object(), "cpu")), \
+            with patch("components.person_c.region.segnet.load_model", return_value=(object(), "cpu")), \
                  patch("openslide.OpenSlide", return_value=_Slide()), \
-                 patch("components.person_c.wsi_processing.infer_mask", return_value=mask), \
+                 patch("components.person_c.region.segnet.infer_stages", return_value=_stages(mask)), \
                  patch("components.person_c.wsi_processing.save_png", return_value="/cache/roi.png") as save:
                 output = run(_case_input(str(he_path)), _config(True, temp_dir))
             roi = output["payload"]["case_list"][0]["tissue_blocks"][0]["stains"][0]["roi_list"][0]
@@ -128,7 +130,7 @@ class InterestPatternTest(TestCase):
             save.assert_called_once()
             validate_artifact(output, "E.ROIs")
 
-    def test_invalid_contract_and_missing_model_fail(self) -> None:
+    def test_invalid_contract_and_missing_checkpoint_fail(self) -> None:
         root = Path(__file__).resolve().parents[3]
         with TemporaryDirectory(dir=WORK) as temp_dir:
             input_path = Path(temp_dir) / "invalid.json"
@@ -146,7 +148,7 @@ class InterestPatternTest(TestCase):
 
             he_path = Path(temp_dir) / "tiny.svs"
             he_path.touch()
-            with self.assertRaisesRegex(FileNotFoundError, "model weight is missing"):
+            with self.assertRaisesRegex(FileNotFoundError, "SEGNET checkpoint is missing"):
                 run(_case_input(str(he_path)), _config())
 
     def test_explicit_demo_keeps_non_he_empty(self) -> None:

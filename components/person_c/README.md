@@ -13,13 +13,9 @@ rectangles (ROIs) of the epithelium. Person D (`visual_filter`) reopens the slid
 
 ## 1. Backends
 
-`backend` in the config selects how the epithelium is found. Everything after the mask (boxes, ROI records, E) is shared.
-
-| Config | Backend | What it does |
-|---|---|---|
-| `configs/default.json` | `segnet` | The SEGNET student labels the slide into nine tissue classes and one other class; the ROIs are the boxes of TUM and BEN (section 2). |
-| `configs/mrcps.json` | `mrcps` | The MRCPS network of the central-breast checkpoint finds the tissue; kept as the comparison. |
-| `configs/demo.json` | `demo` | Fixed boxes from the config, no slide is opened. Only for the pipeline and contract tests. |
+One algorithm finds the epithelium: the SEGNET student (`backend: "segnet"`, `configs/default.json`, section 2). The only
+other backend is `demo` (`configs/demo.json`): fixed boxes from the config, no slide is opened, for the pipeline and
+contract tests. Everything after the mask (boxes, ROI records, E) is shared.
 
 `stain_type_whitelist` (default `["HE"]`) selects the stains that are opened. Every other stain stays in E with
 `roi_num = 0` and `roi_list = []`.
@@ -65,11 +61,11 @@ rectangles (ROIs) of the epithelium. Person D (`visual_filter`) reopens the slid
   `area` is `width × height` in the pixels of that record.
 - **Identity.** `roi_id` is `<case_id>-<stain_id>-roi-<16 hex>`, the hash of the case, the stain and the level-0 box.
   `global_idx` counts the ROIs of the case in stain order, `local_idx` those of the stain. With `segnet` the ROIs of a
-  stain are ordered by (top, left); with `mrcps` by the label order of the objects.
+  stain are ordered by (top, left).
 - **Selection history.** One event per ROI: stage `interest_pattern_extraction`, owner `person_C`, action
   `candidate_generated`, status `selected`. `DxPair`, `visualAttrs` and `visualAttrs_info` are `null`.
 - **Empty.** A stain without objects gives `roi_num = 0`; a case without any ROI is a valid E.
-- **`save_roi_png`** (all backends except `demo`): `true` writes the crop of every ROI below `run/output` and sets
+- **`save_roi_png`** (`segnet`): `true` writes the crop of every ROI below `run/output` and sets
   `main_info.roi_path`; otherwise downstream components reopen the slide.
 - **Failure.** A case with more than one entry, a missing slide, a missing MPP, a missing or wrong checkpoint, an
   unavailable CUDA device that was asked for, a model error, or an E that violates the contract ends with a non-zero exit
@@ -122,7 +118,6 @@ docker run --rm --gpus all \
 | GPU | one; peak GPU memory 0.78 GiB measured (one network, no TTA, `batch_size` 32) |
 | CPU | 8 (6 tile readers and the main process); `device: "cpu"` is accepted but was not run |
 | Checkpoint | `reference/person_c/checkpoint/segnet/c9_sclip_bracs_s0.pt`, SHA-256 `b13895d5cf7ca919cb6b78e43931a5e9174f7305573964c3ed1ac5cea5b3e95b`, 238 008 769 bytes |
-| MRCPS checkpoint | only for `configs/mrcps.json`; path and SHA-256 in that config |
 
 External assets (checkpoints, test slide) are listed with digests in `external-assets.yaml`. Nothing is downloaded at
 build or run time; `reference/` is read-only, everything the component writes goes below `run/`.
@@ -160,13 +155,12 @@ Test-time augmentation (`segnet.tta_views`) and more checkpoints multiply the GP
 ```text
 components/person_c/
 ├── interest_pattern.py       entry point: CLI, stain loop, E.ROIs
-├── wsi_processing.py         settings check, MPP and levels, mask to boxes, ROI records (mrcps and segnet)
+├── wsi_processing.py         settings check, MPP and levels, mask to boxes, ROI records
 ├── region/
 │   ├── segnet.py             the student on a slide: tiles, windows, class map, epithelium mask
 │   ├── segnet_net.py         DeepLab v3+ network (inference)
 │   └── figures.py            the PNG of a stage
-├── model/                    MRCPS network (backend mrcps)
-├── configs/                  default.json (segnet), mrcps.json, demo.json, README.md
+├── configs/                  default.json (segnet), demo.json, README.md
 ├── examples/                 canonical CaseList and expected E, command, e2e/run_e2e.sh
 ├── tests/                    test_interest_pattern.py, test_segnet_regions.py
 ├── component.yaml  external-assets.yaml  requirements.txt  Dockerfile
@@ -177,5 +171,5 @@ components/person_c/
 
 | Version | Change |
 |---|---|
-| 0.5.0 | `segnet` backend (SEGNET student replaces the MRCPS segmentation) and it is the default config; `configs/mrcps.json` keeps MRCPS. Stage PNGs (`figures`). Tiles read at the right level by worker processes (6 min to 28 s). The unreachable CONCH region-proposal code was removed. |
-| 0.4.0 | MRCPS extractor and demo backend (upstream). |
+| 0.5.0 | The SEGNET student replaces the MRCPS segmentation (the MRCPS code, network and config were removed; they stay in git history). `segnet` is the default config. Stage PNGs (`figures`). Tiles read at the right level by worker processes (6 min to 28 s). The unreachable CONCH region-proposal code was removed. |
+| 0.4.0 | MRCPS extractor and demo backend (upstream; see `DELIVERY_REPORT.md`). |

@@ -1,13 +1,11 @@
-"""WSI inference and geometry for person C's MRCPS interest extractor."""
+"""Settings, slide geometry and ROI records of person C's interest extractor (the mask itself comes from region/segnet.py)."""
 
 from __future__ import annotations
 
 from hashlib import sha256
 from math import ceil, floor, isfinite
 from pathlib import Path
-from typing import Any, Iterator
-
-from contracts.paths import resolve_person_reference_path
+from typing import Any
 
 
 def positive_number(value: Any, name: str) -> float:
@@ -32,9 +30,9 @@ def validate_settings(config: dict[str, Any]) -> dict[str, Any]:
     if not isinstance(version, str) or not version:
         raise ValueError("person_c config requires component_version")
     # The pre-existing integration fixture has demo_regions but no backend key.
-    backend = config.get("backend", "demo" if "demo_regions" in config else "mrcps")
-    if backend not in {"demo", "mrcps", "segnet"}:
-        raise ValueError("person_c backend must be demo, mrcps or segnet")
+    backend = config.get("backend", "demo" if "demo_regions" in config else "segnet")
+    if backend not in {"demo", "segnet"}:
+        raise ValueError("person_c backend must be demo or segnet")
     result = {**config, "backend": backend}
     whitelist = result.get("stain_type_whitelist")
     if (
@@ -51,22 +49,8 @@ def validate_settings(config: dict[str, Any]) -> dict[str, Any]:
         if not isinstance(result.get("demo_regions"), list) or not isinstance(result.get("demo_mpp"), dict):
             raise ValueError("person_c demo requires demo_regions and demo_mpp")
         return result
-    if backend == "mrcps":
-        model = result.get("model")
-        if not isinstance(model, dict) or not isinstance(model.get("path"), str) or not model["path"]:
-            raise ValueError("person_c mrcps requires model.path")
-        for name in ("patch_size", "stride", "low_resolution_ratio", "batch_size", "background_dilation_kernel"):
-            result[name] = integer(result.get(name), name, 1)
-        if result["stride"] > result["patch_size"]:
-            raise ValueError("person_c stride cannot exceed patch_size")
-        result["check_mpp"] = positive_number(result.get("check_mpp"), "check_mpp")
-        for name in ("background_lower", "background_upper"):
-            result[name] = integer(result.get(name), name)
-        if not 0 <= result["background_lower"] < result["background_upper"] <= 255:
-            raise ValueError("person_c background bounds must satisfy 0 <= lower < upper <= 255")
-    else:
-        result["segnet"] = validate_segnet(result.get("segnet"))
-        result["figures"] = validate_figures(result.get("figures"))
+    result["segnet"] = validate_segnet(result.get("segnet"))
+    result["figures"] = validate_figures(result.get("figures"))
     result["min_object_size"] = integer(result.get("min_object_size"), "min_object_size", 1)
     result["postprocess_mpp"] = positive_number(result.get("postprocess_mpp"), "postprocess_mpp")
     result["hole_area_threshold"] = integer(result.get("hole_area_threshold"), "hole_area_threshold")
@@ -141,157 +125,6 @@ def read_level(slide: Any, mpp: tuple[float, float], target_mpp: float) -> int:
         if all(axis * float(downsample) <= target_mpp * 1.01 for axis in mpp)
     ]
     return max(candidates) if candidates else 0
-
-
-def read_rgb(slide: Any, x: int, y: int, level: int, width: int, height: int) -> Any:
-    import numpy as np
-
-    downsample = float(slide.level_downsamples[level])
-    image = slide.read_region((floor(x * downsample), floor(y * downsample)), level, (width, height))
-    try:
-        rgb = image.convert("RGB")
-        try:
-            return np.asarray(rgb).copy()
-        finally:
-            rgb.close()
-    finally:
-        image.close()
-
-
-def read_padded_rgb(slide: Any, x: int, y: int, level: int, size: int) -> Any:
-    import numpy as np
-
-    width, height = slide.level_dimensions[level]
-    x0, y0, x1, y1 = max(0, x), max(0, y), min(width, x + size), min(height, y + size)
-    result = np.full((size, size, 3), 255, dtype=np.uint8)
-    if x1 > x0 and y1 > y0:
-        result[y0-y:y1-y, x0-x:x1-x] = read_rgb(slide, x0, y0, level, x1-x0, y1-y0)
-    return result
-
-
-def patch_locations(slide: Any, mpp: tuple[float, float], settings: dict[str, Any]) -> Iterator[tuple[int, int]]:
-    import cv2
-    import numpy as np
-
-    level = read_level(slide, mpp, mpp[0])
-    width, height = slide.level_dimensions[level]
-    cols, rows = width // settings["stride"], height // settings["stride"]
-    if not cols or not rows:
-        return
-    check_level = read_level(slide, mpp, settings["check_mpp"])
-    check_width, check_height = slide.level_dimensions[check_level]
-    overview = read_rgb(slide, 0, 0, check_level, check_width, check_height)
-    grid = cv2.resize(overview, (cols, rows), interpolation=cv2.INTER_LINEAR)
-    average = grid.mean(axis=2)
-    tissue = ((average >= settings["background_lower"]) &
-              (average <= settings["background_upper"])).astype(np.uint8)
-    kernel = np.ones((settings["background_dilation_kernel"],) * 2, dtype=np.uint8)
-    tissue = cv2.dilate(tissue, kernel, iterations=1)
-    for row, col in np.argwhere(tissue):
-        yield int(col) * settings["stride"], int(row) * settings["stride"]
-
-
-def mask_shape(slide: Any, mpp: tuple[float, float], target_mpp: float) -> tuple[int, int]:
-    width, height = slide.level_dimensions[0]
-    return ceil(height * mpp[1] / target_mpp), ceil(width * mpp[0] / target_mpp)
-
-
-def draw_mask(result: Any, mask: Any, x: int, y: int, lower: int, upper: int,
-              source_mpp: tuple[float, float], target_mpp: float,
-              source_size: tuple[int, int]) -> None:
-    import cv2
-    import numpy as np
-
-    width, height = source_size
-    x0, y0 = max(0, x + lower), max(0, y + lower)
-    x1, y1 = min(width, x + upper), min(height, y + upper)
-    if x1 <= x0 or y1 <= y0:
-        return
-    crop = np.asarray(mask)[y0-y:y1-y, x0-x:x1-x]
-    if not crop.any():
-        return
-    dx0 = max(0, min(result.shape[1], floor(x0 * source_mpp[0] / target_mpp)))
-    dy0 = max(0, min(result.shape[0], floor(y0 * source_mpp[1] / target_mpp)))
-    dx1 = max(0, min(result.shape[1], ceil(x1 * source_mpp[0] / target_mpp)))
-    dy1 = max(0, min(result.shape[0], ceil(y1 * source_mpp[1] / target_mpp)))
-    if dx1 > dx0 and dy1 > dy0:
-        scaled = cv2.resize(crop.astype(np.float32), (dx1-dx0, dy1-dy0), interpolation=cv2.INTER_AREA) > 0
-        result[dy0:dy1, dx0:dx1] |= scaled
-
-
-def load_model(settings: dict[str, Any]) -> tuple[Any, Any]:
-    import torch
-    from .model.MRCPS_inference_model import MRCPS
-
-    path = resolve_person_reference_path("person_c", settings["model"]["path"])
-    if not path.is_file():
-        raise FileNotFoundError(f"person_c model weight is missing: {path}")
-    revision = settings["model"].get("revision")
-    if revision is not None:
-        if not isinstance(revision, str) or not revision.startswith("sha256:"):
-            raise ValueError("person_c model.revision must use sha256:<digest>")
-        digest = sha256()
-        with path.open("rb") as stream:
-            for chunk in iter(lambda: stream.read(4 * 1024 * 1024), b""):
-                digest.update(chunk)
-        if digest.hexdigest() != revision.removeprefix("sha256:"):
-            raise ValueError(f"person_c model checksum mismatch: {path}")
-    device_name = settings["device"]
-    if device_name == "auto":
-        device_name = "cuda" if torch.cuda.is_available() else "cpu"
-    if device_name == "cuda" and not torch.cuda.is_available():
-        raise RuntimeError("person_c CUDA was requested but is unavailable")
-    checkpoint = torch.load(path, map_location="cpu", weights_only=True)
-    if not isinstance(checkpoint, dict) or "model_state_dict" not in checkpoint:
-        raise ValueError("person_c model checkpoint lacks model_state_dict")
-    model = MRCPS()
-    model.load_state_dict(checkpoint["model_state_dict"], strict=True)
-    model.to(device_name).eval()
-    return model, torch.device(device_name)
-
-
-def infer_mask(slide: Any, mpp: tuple[float, float], settings: dict[str, Any], model: Any, device: Any) -> Any:
-    import numpy as np
-    import torch
-
-    patch = settings["patch_size"]
-    stride = settings["stride"]
-    low_ratio = settings["low_resolution_ratio"]
-    level = read_level(slide, mpp, mpp[0])
-    downsample = float(slide.level_downsamples[level])
-    source_mpp = (mpp[0] * downsample, mpp[1] * downsample)
-    low_level = read_level(slide, mpp, source_mpp[0] * low_ratio)
-    low_coord_ratio = float(slide.level_downsamples[low_level]) / downsample
-    low_shift = patch // 2 - patch // low_ratio // 2
-    result = np.zeros(mask_shape(slide, mpp, settings["postprocess_mpp"]), dtype=bool)
-    lower, upper = (patch-stride)//2, (patch-stride)//2 + stride
-    batch: list[tuple[int, int, Any, Any]] = []
-
-    def flush() -> None:
-        if not batch:
-            return
-        images = torch.from_numpy(np.stack([item[2] for item in batch]).transpose(0, 3, 1, 2).copy()).to(
-            device=device, dtype=torch.float32
-        ) / 255.0
-        low_images = torch.from_numpy(np.stack([item[3] for item in batch]).transpose(0, 3, 1, 2).copy()).to(
-            device=device, dtype=torch.float32
-        ) / 255.0
-        with torch.inference_mode():
-            masks = model(images, low_images).to(torch.uint8).cpu().numpy()
-        for (x, y, _, _), mask in zip(batch, masks):
-            draw_mask(result, mask, x, y, lower, upper, source_mpp,
-                      settings["postprocess_mpp"], slide.level_dimensions[level])
-        batch.clear()
-
-    for x, y in patch_locations(slide, mpp, settings):
-        image = read_padded_rgb(slide, x, y, level, patch)
-        low_x, low_y = round(x / low_coord_ratio) - low_shift, round(y / low_coord_ratio) - low_shift
-        low_image = read_padded_rgb(slide, low_x, low_y, low_level, patch)
-        batch.append((x, y, image, low_image))
-        if len(batch) == settings["batch_size"]:
-            flush()
-    flush()
-    return result
 
 
 def level0_boxes(mask: Any, mpp: tuple[float, float], size: tuple[int, int], settings: dict[str, Any]) -> list[list[int]]:
