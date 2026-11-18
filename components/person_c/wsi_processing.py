@@ -97,13 +97,6 @@ def _bounded_int(value: Any, low: int, high: int, name: str) -> int:
     return value
 
 
-def _rgb(value: Any, name: str) -> tuple[int, int, int]:
-    if not (isinstance(value, (list, tuple)) and len(value) == 3 and all(
-            isinstance(v, int) and not isinstance(v, bool) and 0 <= v <= 255 for v in value)):
-        raise ValueError(f"person_c {name} must be three integers in [0, 255] (R, G, B)")
-    return tuple(value)
-
-
 def validate_figures(cfg: Any) -> dict[str, Any]:
     """``figures``: one switch per stage (tissue, epithelium, boxes) and the directory below sibling ``run/output``."""
 
@@ -121,18 +114,7 @@ def validate_figures(cfg: Any) -> dict[str, Any]:
     result["downscale"] = _bounded_int(cfg.get("downscale", 1), 1, 64, "figures.downscale")
     result["quality"] = _bounded_int(cfg.get("quality", 90), 1, 100, "figures.quality")
     thickness = cfg.get("box_thickness")
-    result["box_thickness"] = None if thickness is None else _bounded_int(thickness, 1, 100, "figures.box_thickness")
-    alpha = cfg.get("alpha", {})
-    if not isinstance(alpha, dict) or set(alpha) - {"tissue", "epithelium", "boxes"} or not all(
-            isinstance(v, (int, float)) and not isinstance(v, bool) and 0 <= v <= 1 for v in alpha.values()):
-        raise ValueError("person_c figures.alpha must map tissue/epithelium/boxes to numbers in [0, 1]")
-    result["alpha"] = dict(alpha)
-    colors = cfg.get("class_colors", {})
-    if not isinstance(colors, dict):
-        raise ValueError("person_c figures.class_colors must map class names to [R, G, B]")
-    result["class_colors"] = {name: _rgb(value, f"figures.class_colors.{name}") for name, value in colors.items()}
-    result["box_color"] = _rgb(cfg.get("box_color", [255, 0, 0]), "figures.box_color")[::-1]            # RGB in the config, BGR for OpenCV
-    result["annotation_color"] = _rgb(cfg.get("annotation_color", [0, 170, 0]), "figures.annotation_color")[::-1]
+    result["box_thickness"] = 2 if thickness is None else _bounded_int(thickness, 1, 20, "figures.box_thickness")
     if any(result[stage] for stage in ("tissue", "epithelium", "boxes")) and not result["dir"]:
         raise ValueError("person_c figures.dir is required when a figure is switched on")
     return result

@@ -46,16 +46,13 @@ The working MPP of `main_info` follows from the box area in level-0 pixels²: up
 | `figures.dir` | path below `run/output` | Directory of the JPEGs, `<case_id>_<stain_id>_<stage>.jpg`; required when a switch is on. |
 | `figures.annotations` | path below `run/` (optional) | JSON `{stain_id: [[x, y, w, h], ...]}` of annotation ROIs in level-0 pixels. A stain with an entry gets them in green on the boxes figure; a stain without gets nothing. |
 
-Look of the figures (all optional; the values shown are the defaults):
+Look of the figures (optional; the values shown are the defaults; the colours are fixed):
 
 | Key | Type / range | Meaning |
 |---|---|---|
 | `figures.downscale` | integer 1..64 (1) | The figure is this many times smaller than the 1 µm/px stages (4: 4 µm/px, 16 times fewer pixels, a viewable overview). |
 | `figures.quality` | integer 1..100 (90) | JPEG quality. |
-| `figures.alpha` | `{tissue, epithelium, boxes: 0..1}` (0.6, 0.55, 0.3) | Opacity of the stage colour over the slide; a stage that is not listed keeps its default. |
-| `figures.class_colors` | `{class: [R, G, B]}` | Replaces the colour of a class in the tissue figure and its legend; the others keep theirs. |
-| `figures.box_color`, `figures.annotation_color` | `[R, G, B]` (red, green) | Colour of the boxes and of the annotation ROIs. |
-| `figures.box_thickness` | integer 1..100 (about 2 per 1600 px of figure width, at least 2) | Line width of the boxes in pixels of the figure. |
+| `figures.box_thickness` | integer 1..20 (2) | Line width of the boxes and annotation ROIs in pixels of the figure (thin: the figure is looked at zoomed in). |
 
 All switches are off by default.
 

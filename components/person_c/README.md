@@ -49,10 +49,10 @@ opened. Every other stain stays in E with `roi_num = 0` and `roi_list = []`.
   Boxes that only overlap are all kept.
 - **Figures** (all off by default). `figures.tissue`, `figures.epithelium` and `figures.boxes` write one JPEG per WSI and stage
   to `figures.dir` below `run/output`, as `<case_id>_<stain_id>_<stage>.jpg`, at 1 µm/px (a 60 000 × 70 000 px slide gives about
-  16 000 × 18 000 px, about 50 MB): the class map with a legend, the epithelium mask with its outline, and the boxes (red) over
+  16 000 × 18 000 px, about 50 MB): the class map with a legend, the epithelium mask with its outline, and the boxes (red, dashed, 2 px thick) over
   it. If `figures.annotations` points to a JSON `{stain_id: [[x, y, w, h], ...]}` (level-0 pixels) the annotation ROIs of the
   stain are drawn in green on the boxes figure; without an entry nothing is drawn. The look is configurable (`figures.downscale`,
-  `quality`, `alpha`, `class_colors`, `box_color`, `box_thickness`; `configs/README.md`): `downscale: 4` gives a 4 µm/px figure
+  `quality`, `box_thickness`; `configs/README.md`; the colours are fixed): `downscale: 4` gives a 4 µm/px figure
   that most viewers open. A file appears whole or not at all.
 - **Looking at a figure.** A figure is too large for most viewers and for a web page (hundreds of megapixels). Two ways:
   copy it to a computer (`scp`) and open it with a viewer that handles large images (for example Fiji / ImageJ, IrfanView or an

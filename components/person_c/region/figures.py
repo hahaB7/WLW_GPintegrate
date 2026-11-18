@@ -1,7 +1,7 @@
 """One JPEG per WSI and per stage, for whoever follows the segmentation (switches: ``figures`` in the config).
 
 Stages: ``tissue`` (the multi-class tissue segmentation, one colour per class with a legend), ``epithelium`` (the processed
-segmentation the boxes are made from) and ``boxes`` (the level-0 boxes of the ROIs over the epithelium). Each is the slide at
+segmentation the boxes are made from) and ``boxes`` (the level-0 boxes of the ROIs over the epithelium, dashed lines). Each is the slide at
 the resolution of the segmentation (``postprocess_mpp``, 1 um/px) with the stage drawn over it, written to ``figures.dir``
 below ``run/output`` as ``<case_id>_<stain_id>_<stage>.jpg``. The slide image is the one the student already read; the
 painting runs on the GPU in bands of rows, so that the memory stays at a few images of the final size.
@@ -22,13 +22,13 @@ BOX = (0, 0, 255)                            # BGR: the images of this module ar
 CLASS_COLORS = {"TUM": (215, 35, 55), "BEN": (240, 120, 30), "STR": (15, 155, 65), "LYM": (35, 95, 215), "NEC": (240, 180, 10),
                 "FAT": (40, 190, 230), "VES": (130, 60, 190), "BLD": (110, 20, 45), "SEC": (200, 50, 160), "OTH": (25, 30, 75)}
 UNLABELED = 255
+BOX_THICKNESS = 2                            # px of the figure; whatever its size, the figure is looked at zoomed in
 BAND = 1024                                  # rows per band
 QUALITY = 90                                 # JPEG quality: clear to the eye, a tenth of the size of a PNG
 ALPHA = {"tissue": 0.6, "epithelium": 0.55, "boxes": 0.3}
 
 
-def paint(stage: str, band: np.ndarray, labels: np.ndarray, epithelium: np.ndarray, classes: Sequence[str], device: Any,
-          alpha: float | None = None, colors: Mapping[str, Sequence[int]] | None = None) -> np.ndarray:
+def paint(stage: str, band: np.ndarray, labels: np.ndarray, epithelium: np.ndarray, classes: Sequence[str], device: Any) -> np.ndarray:
     """The stage drawn on a band of the slide (uint8 RGB, rows of the stage arrays) -> the painted band, as BGR. On the GPU."""
 
     import torch
@@ -40,11 +40,11 @@ def paint(stage: str, band: np.ndarray, labels: np.ndarray, epithelium: np.ndarr
         lab = torch.from_numpy(labels).to(device)
         lut = torch.zeros((256, 3), dtype=torch.float32, device=device)
         for index, name in enumerate(classes):
-            lut[index] = torch.tensor((colors or {}).get(name) or CLASS_COLORS.get(name, (128, 128, 128)), dtype=torch.float32)
+            lut[index] = torch.tensor(CLASS_COLORS.get(name, (128, 128, 128)), dtype=torch.float32)
         color, mask = lut[lab.long()], lab != UNLABELED
     else:
         color, mask = torch.tensor(EPITHELIUM, dtype=torch.float32, device=device), epi
-    alpha = ALPHA[stage] if alpha is None else alpha
+    alpha = ALPHA[stage]
     mixed = ((1 - alpha) * image.float() + alpha * color).to(torch.uint8)
     image = torch.where(mask[..., None], mixed, image)
     if stage == "epithelium":                                   # a black line of about 3 px along the border
@@ -53,13 +53,12 @@ def paint(stage: str, band: np.ndarray, labels: np.ndarray, epithelium: np.ndarr
     return image.flip(-1).cpu().numpy()                        # BGR, the order OpenCV draws and writes in
 
 
-def legend(image: np.ndarray, classes: Sequence[str], present: Sequence[bool], unit: float,
-           colors: Mapping[str, Sequence[int]] | None = None) -> None:
+def legend(image: np.ndarray, classes: Sequence[str], present: Sequence[bool], unit: float) -> None:
     import cv2
 
     names = [name for name, here in zip(classes, present) if here]
     for row, name in enumerate(names):
-        y, color = int((60 + row * 34) * unit), tuple((colors or {}).get(name) or CLASS_COLORS.get(name, (128, 128, 128)))[::-1]
+        y, color = int((60 + row * 34) * unit), tuple(CLASS_COLORS.get(name, (128, 128, 128)))[::-1]
         cv2.rectangle(image, (int(12 * unit), y), (int(40 * unit), y + int(24 * unit)), color, -1)
         cv2.rectangle(image, (int(12 * unit), y), (int(40 * unit), y + int(24 * unit)), (0, 0, 0), max(1, int(unit)))
         cv2.putText(image, name, (int(50 * unit), y + int(20 * unit)), cv2.FONT_HERSHEY_SIMPLEX, 0.8 * unit, (0, 0, 0), max(1, int(2 * unit)))
@@ -72,15 +71,28 @@ def caption(image: np.ndarray, text: str, unit: float) -> None:
         cv2.putText(image, text, (int(12 * unit), int(32 * unit)), cv2.FONT_HERSHEY_SIMPLEX, unit, color, max(1, int(width * unit)))
 
 
-def draw_boxes(image: np.ndarray, boxes: Sequence[Sequence[int]], mpp0: tuple[float, float], mpp: float, thickness: int,
-               color: tuple[int, int, int] = BOX) -> None:
-    """In place: level-0 ``[x, y, w, h]`` boxes on an image of ``mpp`` um/px."""
+def dashed_line(image: np.ndarray, start: tuple[int, int], end: tuple[int, int], color: tuple[int, int, int], thickness: int) -> None:
+    """In place: a dashed line (dash 6 and gap 6 line widths), so that the slide stays visible under it."""
 
     import cv2
 
+    length = max(abs(end[0] - start[0]), abs(end[1] - start[1]))
+    period, dash = 12 * thickness, 6 * thickness
+    for t in range(0, length, period):
+        a, b = t / length, min(t + dash, length) / length
+        cv2.line(image, (round(start[0] + (end[0] - start[0]) * a), round(start[1] + (end[1] - start[1]) * a)),
+                 (round(start[0] + (end[0] - start[0]) * b), round(start[1] + (end[1] - start[1]) * b)), color, thickness)
+
+
+def draw_boxes(image: np.ndarray, boxes: Sequence[Sequence[int]], mpp0: tuple[float, float], mpp: float, thickness: int,
+               color: tuple[int, int, int] = BOX) -> None:
+    """In place: level-0 ``[x, y, w, h]`` boxes on an image of ``mpp`` um/px, as dashed rectangles."""
+
     for x, y, w, h in boxes:
-        cv2.rectangle(image, (round(x * mpp0[0] / mpp), round(y * mpp0[1] / mpp)),
-                      (round((x + w) * mpp0[0] / mpp), round((y + h) * mpp0[1] / mpp)), color, thickness)
+        x0, y0 = round(x * mpp0[0] / mpp), round(y * mpp0[1] / mpp)
+        x1, y1 = round((x + w) * mpp0[0] / mpp), round((y + h) * mpp0[1] / mpp)
+        for start, end in (((x0, y0), (x1, y0)), ((x1, y0), (x1, y1)), ((x1, y1), (x0, y1)), ((x0, y1), (x0, y0))):
+            dashed_line(image, start, end, color, thickness)
 
 
 def write_jpeg(image: np.ndarray, path: Path, quality: int = QUALITY) -> str:
@@ -102,9 +114,8 @@ def save_figures(mpp0: tuple[float, float], mpp: float, stages: Mapping[str, Any
                  figures: Mapping[str, Any], case_id: str, stain_id: str, device: Any, annotations: Sequence[Sequence[int]] = ()) -> list[str]:
     """Write the JPEGs whose switch is on; return their paths.
 
-    Optional keys of ``figures`` (all validated in ``wsi_processing.validate_figures``): ``downscale`` (integer, the figure is that
-    many times smaller than the stages), ``quality`` (JPEG), ``alpha`` (per stage), ``class_colors`` (RGB per class),
-    ``box_color`` / ``annotation_color`` (BGR) and ``box_thickness`` (px).
+    Optional keys of ``figures`` (validated in ``wsi_processing.validate_figures``): ``downscale`` (integer, the figure is that
+    many times smaller than the stages), ``quality`` (JPEG) and ``box_thickness`` (px). Colours are fixed.
 
     ``stages`` are the arrays of ``segnet.infer_stages(..., with_image=True)`` (at ``mpp`` um/px), ``mpp0`` the level-0 MPP of
     the slide. ``annotations`` are level-0 ``[x, y, w, h]`` ROIs of an annotation, if there is one: they are drawn in green
@@ -129,21 +140,20 @@ def save_figures(mpp0: tuple[float, float], mpp: float, stages: Mapping[str, Any
         r1, e0, e1 = min(rows, r0 + band_rows), max(0, r0 - 4), min(rows, r0 + band_rows + 4)   # the extra rows keep the outline whole
         counts += np.bincount(labels[r0:r1].ravel(), minlength=256)
         for stage in wanted:
-            band = paint(stage, slide_image[e0:e1], labels[e0:e1], epithelium[e0:e1], stages["classes"], device,
-                         figures.get("alpha", {}).get(stage), figures.get("class_colors"))[r0 - e0:r1 - e0]
+            band = paint(stage, slide_image[e0:e1], labels[e0:e1], epithelium[e0:e1], stages["classes"], device)[r0 - e0:r1 - e0]
             if step > 1:
                 band = cv2.resize(band, (out_cols, -(-(r1 - r0) // step)), interpolation=cv2.INTER_AREA)
             images[stage][r0 // step:r0 // step + band.shape[0]] = band
     unit = out_cols / 1600                                  # sizes of text and lines are those of a 1600 px wide image
-    thickness = figures.get("box_thickness") or max(2, int(2 * unit))
+    thickness = figures.get("box_thickness", BOX_THICKNESS)    # thin: the figure is looked at zoomed in
     directory = Path(figures["dir"])
     directory.mkdir(parents=True, exist_ok=True)
     for stage in wanted:
         if stage == "boxes":
-            draw_boxes(images[stage], boxes, mpp0, fig_mpp, thickness, figures.get("box_color", BOX))
-            draw_boxes(images[stage], annotations, mpp0, fig_mpp, thickness, figures.get("annotation_color", ANNOTATION))
+            draw_boxes(images[stage], boxes, mpp0, fig_mpp, thickness, BOX)
+            draw_boxes(images[stage], annotations, mpp0, fig_mpp, thickness, ANNOTATION)
         if stage == "tissue":
-            legend(images[stage], stages["classes"], counts[:len(stages["classes"])] > 0, unit, figures.get("class_colors"))
+            legend(images[stage], stages["classes"], counts[:len(stages["classes"])] > 0, unit)
         caption(images[stage], f"{stain_id} {stage}" + (f" ({len(boxes)}" + (f", annotation {len(annotations)}" if len(annotations) else "") + ")" if stage == "boxes" else ""), unit)
     quality = figures.get("quality", QUALITY)
     with ThreadPoolExecutor(len(wanted)) as pool:
