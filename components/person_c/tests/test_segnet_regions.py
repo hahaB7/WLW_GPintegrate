@@ -10,7 +10,7 @@ from components.person_c import wsi_processing as wsi
 from components.person_c.region import figures
 from components.person_c.region.segnet import fill_holes, resample_mask, window_starts
 
-CONFIG = Path(__file__).resolve().parents[1] / "configs" / "segnet.json"
+CONFIG = Path(__file__).resolve().parents[1] / "configs" / "default.json"
 
 
 class SegnetSettingsTests(unittest.TestCase):
@@ -86,12 +86,12 @@ class FigureTests(unittest.TestCase):
             self.assertEqual([], figures.save_figures(Slide(), stages, [], {"dir": tmp}, "c1", "s2"))
 
 
-class NestedTests(unittest.TestCase):
-    def test_inner_and_mostly_inner_boxes_are_dropped(self) -> None:
+class EnclosedTests(unittest.TestCase):
+    def test_only_a_box_completely_inside_another_is_dropped(self) -> None:
         big = [0, 0, 1000, 1000]
-        boxes = [[100, 100, 50, 50], big, [950, 100, 100, 100], [2000, 2000, 10, 10]]
-        self.assertEqual([big, [950, 100, 100, 100], [2000, 2000, 10, 10]], wsi.drop_nested(boxes, 0.9))
-        self.assertEqual([big, [2000, 2000, 10, 10]], wsi.drop_nested(boxes, 0.5))
+        boxes = [[100, 100, 50, 50], big, [950, 100, 100, 100], [0, 0, 1000, 1000], [2000, 2000, 10, 10], [0, 500, 1000, 500]]
+        # [950,100,100,100] sticks out of big by 50 px, so it stays; the copy of big and the box touching its edge go
+        self.assertEqual([big, [950, 100, 100, 100], [2000, 2000, 10, 10]], wsi.drop_enclosed(boxes))
 
 
 class HoleTests(unittest.TestCase):

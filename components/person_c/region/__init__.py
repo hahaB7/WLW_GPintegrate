@@ -1,1 +1,1 @@
-"""CONCH dense-feature region proposal (ported from PIPELINE/ROI/utils)."""
+"""Segmentation of a slide by the SEGNET student (backend ``segnet``) and the figures of its stages."""

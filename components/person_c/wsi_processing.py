@@ -104,9 +104,6 @@ def validate_segnet(cfg: Any) -> dict[str, Any]:
         raise ValueError("person_c segnet.tta_views must be 1..8")
     result["batch_size"] = integer(cfg.get("batch_size"), "segnet.batch_size", 1)
     result["num_workers"] = integer(cfg.get("num_workers"), "segnet.num_workers", 0)
-    overlap = cfg.get("nested_overlap")
-    if isinstance(overlap, bool) or not isinstance(overlap, (int, float)) or not 0 < overlap <= 1:
-        raise ValueError("person_c segnet.nested_overlap must be a number in (0, 1]")
     return result
 
 
@@ -319,15 +316,12 @@ def level0_boxes(mask: Any, mpp: tuple[float, float], size: tuple[int, int], set
     return boxes
 
 
-def drop_nested(boxes: list[list[int]], overlap: float) -> list[list[int]]:
-    """Keep the larger boxes first; drop a box when at least ``overlap`` of its area lies inside a box already kept."""
+def drop_enclosed(boxes: list[list[int]]) -> list[list[int]]:
+    """Drop every box that lies completely inside another box (the same box twice counts once)."""
+    ordered = sorted(boxes, key=lambda b: (-b[2] * b[3], b[1], b[0]))
     kept: list[list[int]] = []
-    for x, y, w, h in sorted(boxes, key=lambda b: -b[2] * b[3]):
-        inside = any(
-            max(0, min(x + w, kx + kw) - max(x, kx)) * max(0, min(y + h, ky + kh) - max(y, ky)) >= overlap * w * h
-            for kx, ky, kw, kh in kept
-        )
-        if not inside:
+    for x, y, w, h in ordered:
+        if not any(kx <= x and ky <= y and x + w <= kx + kw and y + h <= ky + kh for kx, ky, kw, kh in kept):
             kept.append([x, y, w, h])
     return sorted(kept, key=lambda b: (b[1], b[0]))
 

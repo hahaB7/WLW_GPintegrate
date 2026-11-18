@@ -10,7 +10,7 @@ from unittest.mock import patch
 
 import numpy as np
 
-from contracts.paths import REFERENCE_ROOT, RUN_ROOT
+from contracts.paths import RUN_ROOT
 from contracts.runtime import validate_artifact, validate_case_list_input
 from components.person_c.interest_pattern import run
 from components.person_c import wsi_processing as wsi

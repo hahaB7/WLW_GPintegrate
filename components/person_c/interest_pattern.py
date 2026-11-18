@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from collections.abc import Callable
 from copy import deepcopy
 from pathlib import Path
 from typing import Any
@@ -132,7 +131,7 @@ def run(source: dict[str, Any], config: dict[str, Any]) -> dict[str, Any]:
                         mask = wsi.infer_mask(slide, mpp, settings, model, device)
                     boxes = wsi.level0_boxes(mask, mpp, slide.dimensions, settings)
                     if settings["backend"] == "segnet":
-                        boxes = wsi.drop_nested(boxes, settings["segnet"]["nested_overlap"])
+                        boxes = wsi.drop_enclosed(boxes)
                     rois = [
                         _make_roi(case_id, stain["stain_id"], box, slide, mpp,
                                   global_index + index, index, settings)
@@ -151,119 +150,6 @@ def run(source: dict[str, Any], config: dict[str, Any]) -> dict[str, Any]:
         "artifact_id": f"E-{case_id}", "case_id": case_id,
         "producer": settings["component_version"], "payload": payload,
     }
-
-
-def build_example_artifact(source: dict[str, Any], producer: str) -> dict[str, Any]:
-    case = deepcopy(source["case_list"][0])
-    for block in case["tissue_blocks"]:
-        for stain in block["stains"]:
-            stain["roi_num"] = 0
-            stain["roi_list"] = []
-    return _artifact(
-        source,
-        case,
-        producer,
-        f"E-example-{case['case_id']}",
-        {"example_stub": {"implemented": False, "purpose": "contract smoke test"}},
-    )
-
-
-def _region_cfg(config: Mapping[str, Any]) -> dict[str, Any]:
-    """Resolve assets and check their pinned digests.
-
-    ``conch_checkpoint`` and ``vocab_json`` (the class descriptions) are external, below
-    reference/person_c. The CONCH library ships inside the component (path relative to this package).
-    """
-
-    region = dict(config["region"])
-    for key in ("conch_checkpoint", "vocab_json"):
-        path = resolve_person_reference_path("person_c", region[key])
-        if not path.exists():
-            raise FileNotFoundError(f"person_c reference asset is missing: {path}")
-        region[key] = str(path)
-    package = Path(__file__).resolve().parent
-    lib = (package / region["conch_lib_path"]).resolve()
-    if not lib.is_relative_to(package):
-        raise ValueError(f"region.conch_lib_path must stay inside the component: {lib}")
-    region["conch_lib_path"] = str(lib)
-    verify_assets(region)
-    return region
-
-
-def slide_info(path: str) -> tuple[tuple[int, int], tuple[float, float]]:
-    """Return ``((width, height), (mpp_x, mpp_y))`` of level 0; fail if MPP is absent."""
-
-    import openslide
-
-    if not Path(path).is_file():
-        raise FileNotFoundError(f"WSI is missing: {path}")
-    with openslide.OpenSlide(path) as slide:
-        mpp_x = slide.properties.get("openslide.mpp-x")
-        mpp_y = slide.properties.get("openslide.mpp-y")
-        if not mpp_x or not mpp_y:
-            raise ValueError(f"WSI has no openslide.mpp-x/mpp-y metadata: {path}")
-        width, height = slide.level_dimensions[0]
-    mpp = (float(mpp_x), float(mpp_y))
-    if any(value <= 0 for value in mpp):
-        raise ValueError(f"WSI has a non-positive MPP {mpp}: {path}")
-    return (int(width), int(height)), mpp
-
-
-def build_region_artifact(
-    source: dict[str, Any],
-    config: Mapping[str, Any],
-    *,
-    propose: Propose,
-    slide_info: SlideInfo,
-) -> dict[str, Any]:
-    producer = _producer(config)
-    region = dict(config["region"])
-    roi_cfg = config["roi"]
-    stain_types = config.get("stain_types")
-    case = deepcopy(source["case_list"][0])
-    global_idx = 0
-    for block in case["tissue_blocks"]:
-        for stain in block["stains"]:
-            stain["roi_list"] = []
-            if stain_types is not None and stain["stain_type"] not in stain_types:
-                stain["roi_num"] = 0
-                continue
-            slide_wh, mpp = slide_info(stain["filepath"])
-            boxes = plan_boxes(
-                propose(stain["filepath"], region),
-                slide_wh,
-                float(roi_cfg["min_region_area_px"]),
-                int(roi_cfg["max_rois_per_stain"]),
-            )
-            for local_idx, box in enumerate(boxes):
-                level0, main = build_roi_info(
-                    box,
-                    mpp,
-                    float(roi_cfg["target_mpp"]),
-                    int(roi_cfg["max_main_side_px"]),
-                )
-                stain["roi_list"].append(
-                    {
-                        "roi_id": f"{stain['stain_id']}-roi-{local_idx:05d}",
-                        "global_idx": global_idx,
-                        "local_idx": local_idx,
-                        "level0_info": level0,
-                        "main_info": main,
-                        "DxPair": None,
-                        "visualAttrs": None,
-                        "visualAttrs_info": None,
-                        "selection_history": [candidate_event(producer)],
-                    }
-                )
-                global_idx += 1
-            stain["roi_num"] = len(stain["roi_list"])
-    return _artifact(
-        source,
-        case,
-        producer,
-        f"E-{case['case_id']}",
-        {"interest_pattern": {"region": region, "roi": dict(roi_cfg)}},
-    )
 
 
 def main() -> None:

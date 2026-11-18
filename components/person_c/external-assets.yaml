@@ -1,14 +1,15 @@
 assets:
   - asset_id: person-c-central-breast-mrcps
     type: model_weight
-    required: true
+    required: false
     version: "sha256-1f8aa232"
     revision: "sha256:1f8aa23202e4efda656b227efa1114cea74036f79f6dd0deba20f50bde90b12b"
     sha256: "1f8aa23202e4efda656b227efa1114cea74036f79f6dd0deba20f50bde90b12b"
     size_bytes: 153282613
     license_or_access_policy: "research storage; access managed by dataset owner"
     contains_phi: false
-    configured_by: "configs/default.json:model.path"
+    note: "only for configs/mrcps.json"
+    configured_by: "configs/mrcps.json:model.path"
   - asset_id: person-c-bracs-265-test-wsi
     type: test_data
     required: false
@@ -20,11 +21,11 @@ assets:
     purpose: "External real-WSI smoke test only; not included in the component folder"
   - asset_id: person-c-segnet-c9-sclip-bracs-s0
     type: model_weight
-    required: false
+    required: true
     version: "SEGNET Unsup c9_224px_1um_sclipcrf_glvq5r2m20-bracs_wsi_s0, step 6000"
     revision: "sha256:b13895d5cf7ca919cb6b78e43931a5e9174f7305573964c3ed1ac5cea5b3e95b"
     sha256: "b13895d5cf7ca919cb6b78e43931a5e9174f7305573964c3ed1ac5cea5b3e95b"
     size_bytes: 238008769
     license_or_access_policy: "project-trained (no annotation, SCLIP pseudo labels on BRACS slides); follow the BRACS terms for redistribution"
     contains_phi: false
-    configured_by: "configs/segnet.json:segnet.checkpoints"
+    configured_by: "configs/default.json:segnet.checkpoints"

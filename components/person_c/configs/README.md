@@ -1,43 +1,67 @@
 # Person C configuration
 
-`default.json` runs the MRCPS extractor. `model.path` must resolve below sibling
-`reference/person_c/checkpoint/`; `roi_output_dir` must resolve below sibling `run/`. Do not create
-run-specific configs outside this directory.
+| File | Backend | Use |
+|---|---|---|
+| `default.json` | `segnet` | the SEGNET student (the default of the pipeline) |
+| `mrcps.json` | `mrcps` | the MRCPS network, kept as the comparison |
+| `demo.json` | `demo` | fixed boxes, no slide; pipeline and contract tests only |
+
+Paths in a config are relative to `components/person_c/`: checkpoints must resolve below sibling `reference/person_c/`,
+every output directory below sibling `run/output/`. Do not create run-specific configs outside this directory.
+Snapshot the config, the checkpoint revision and the WSI references with each experiment.
+
+## Every backend that opens a slide (`segnet`, `mrcps`)
 
 | Key | Type / range | Meaning |
 |---|---|---|
-| `component_version` | nonempty string | Producer recorded in E and each selection event. |
-| `backend` | `mrcps`, `segnet` or `demo` | `mrcps` / `segnet` open selected WSI and run inference (`segnet`: the SEGNET student, `configs/segnet.json`). `demo` uses fixed fixture boxes. |
-| `stain_type_whitelist` | nonempty list[string] | Case-insensitive stain types allowed to open and process; default is `["HE"]`. |
-| `model.path` | nonempty path | Read-only MRCPS checkpoint. Required in `mrcps` mode. |
-| `model.revision` | `sha256:<64 hex>` | Optional runtime checksum check; the default pins the approved checkpoint. |
-| `device` | `auto`, `cpu`, `cuda` | `auto` uses CUDA when available. Explicit `cuda` fails if unavailable. |
-| `patch_size` | positive integer | MRCPS input width and height in read-level pixels; trained value is 512. |
-| `stride` | positive integer, at most `patch_size` | Patch grid spacing; trained value is 512. |
-| `low_resolution_ratio` | positive integer | Low-resolution context ratio; trained value is 8. |
-| `batch_size` | positive integer | Number of patches per model forward pass. Reduce after CUDA OOM. |
-| `check_mpp` | positive number | Approximate MPP for tissue background screening. |
-| `postprocess_mpp` | positive number | MPP of the stitched mask and morphology. |
-| `background_lower`, `background_upper` | integers with `0 <= lower < upper <= 255` | Mean-RGB window used for tissue screening. |
-| `background_dilation_kernel` | positive integer | Square grid dilation kernel for background screening. |
-| `hole_area_threshold` | nonnegative integer | Fill smaller holes in the stitched mask. |
-| `min_object_size` | positive integer | Remove smaller connected tissue objects. |
-| `save_roi_png` | boolean | Whether to write PNG crops and set `main_info.roi_path`. |
-| `roi_output_dir` | path below sibling `run` | PNG directory when `save_roi_png=true`. |
+| `component_version` | nonempty string | Producer recorded in E and in each selection event. |
+| `backend` | `segnet`, `mrcps`, `demo` | See above. |
+| `stain_type_whitelist` | nonempty list[string] | Case-insensitive stain types that are opened; the others keep `roi_list = []`. Default `["HE"]`. |
+| `device` | `auto`, `cpu`, `cuda` | `auto` uses CUDA when available; an explicit `cuda` fails when it is not. |
+| `postprocess_mpp` | positive number | MPP of the mask the boxes are made from (8 µm/px). |
+| `hole_area_threshold` | nonnegative integer | Holes of at most this many mask pixels are filled before the boxes are made. |
+| `min_object_size` | positive integer | Objects smaller than this many mask pixels get no box. |
+| `save_roi_png` | boolean | Write the crop of every ROI and set `main_info.roi_path`. |
+| `roi_output_dir` | path below `run/output` | Where the crops go; required when `save_roi_png` is true. |
 
-The legacy area-to-working-MPP ladder is 0.25, 0.5, 1, 2, 4, 8 and 16 µm/pixel for level-0 ROI areas up to 1, 4, 16, 64, 256, 1024 and over 1024 million pixels² respectively. Input and model revisions, resolved config, and WSI references should be snapshotted with each experiment. `demo` output is only a compatibility fixture and does not locate tissue.
+The working MPP of `main_info` follows from the box area in level-0 pixels²: up to 1, 4, 16, 64, 256, 1024 million
+0.25, 0.5, 1, 2, 4, 8 µm/px, larger 16.
 
-`segnet` backend (`configs/segnet.json`; the post-processing keys above `postprocess_mpp`, `hole_area_threshold`, `min_object_size` apply too; `background_*`, `patch_size`, `stride`, `low_resolution_ratio`, `check_mpp` and `model` are MRCPS only):
+## `segnet` only
 
 | Key | Type / range | Meaning |
 |---|---|---|
-| `segnet.checkpoints` | list of `{path, revision}` | Student checkpoints below `reference/person_c/`; `revision` is `sha256:<64 hex>` and is checked. The probabilities of all are averaged (one is used by default; every extra network costs as much GPU time as the first). |
-| `segnet.roi_classes` | nonempty list[string] | Classes whose union is the mask (names in the checkpoint; `TUM`, `BEN`). |
-| `segnet.tile_um`, `segnet.margin_um` | multiples of 4 | Tile of the slide read at the student's 1 um/px, and its context on every side. |
-| `segnet.tta_views` | 1..8 | Dihedral views per window. 1 is no test-time augmentation (the default here); SEGNET's own default is 8, and every view multiplies the GPU time. |
-| `segnet.batch_size` | positive integer | Windows per forward pass. |
-| `segnet.num_workers` | integer >= 0 | Processes that read the tiles of the slide while the GPU predicts (0: read in the main process). Keep it at most the CPUs of the job minus two. |
-| `segnet.nested_overlap` | (0, 1] | After the mask is cut into boxes, a box with at least this share of its area inside a larger kept box is dropped. It covers the rings that the hole filling cannot close. |
-| `figures.dir` | path below sibling `run/output` | Directory of the PNGs; required when one is switched on. |
-| `figures.tissue`, `figures.epithelium`, `figures.boxes` | boolean (default false) | One PNG per WSI and stage, `<case_id>_<stain_id>_<stage>.png`: the multi-class tissue segmentation (c9 colours, legend), the processed segmentation the boxes are made from (TUM ∪ BEN, holes filled), the level-0 boxes over it. `segnet` backend only. |
+| `segnet.checkpoints` | list of `{path, revision}` | Student checkpoints; `revision` is `sha256:<64 hex>` and is checked before loading. The probabilities of all are averaged; every extra network costs as much GPU time as the first (default: one). |
+| `segnet.roi_classes` | nonempty list[string] | Classes whose union is the epithelium mask; names from the checkpoint (`TUM`, `BEN`). |
+| `segnet.tile_um`, `segnet.margin_um` | multiples of 4 | The slide is read in tiles of `tile_um` at the student's 1 µm/px, with `margin_um` of context on every side. |
+| `segnet.tta_views` | 1..8 | Dihedral views per window. 1 is no test-time augmentation (default); SEGNET's own default is 8, and every view multiplies the GPU time. |
+| `segnet.batch_size` | positive integer | Windows per forward pass. Reduce after a CUDA out-of-memory error. |
+| `segnet.num_workers` | integer >= 0 | Processes that read the tiles while the GPU predicts (0: the main process reads). At most the CPUs of the job minus two. |
 
+### `figures` (`segnet` only; one PNG per WSI and stage)
+
+| Key | Type | Meaning |
+|---|---|---|
+| `figures.tissue` | boolean | The multi-class tissue segmentation: one colour per class, a legend. |
+| `figures.epithelium` | boolean | The epithelium mask the boxes are made from (`segnet.roi_classes`, holes filled). |
+| `figures.boxes` | boolean | The level-0 boxes of the ROIs over the epithelium; the title gives their number. |
+| `figures.dir` | path below `run/output` | Directory of the PNGs, `<case_id>_<stain_id>_<stage>.png`; required when a switch is on. |
+
+All switches are off by default.
+
+## `mrcps` only
+
+| Key | Type / range | Meaning |
+|---|---|---|
+| `model.path` | path below `reference/person_c/checkpoint/` | Read-only MRCPS checkpoint. |
+| `model.revision` | `sha256:<64 hex>` | Optional checksum; the default pins the approved checkpoint. |
+| `patch_size`, `stride` | positive integers, `stride <= patch_size` | Input size and grid spacing in read-level pixels; trained value 512. |
+| `low_resolution_ratio` | positive integer | Ratio of the low-resolution context; trained value 8. |
+| `batch_size` | positive integer | Patches per forward pass. |
+| `check_mpp` | positive number | Approximate MPP of the overview that screens the background. |
+| `background_lower`, `background_upper` | integers, `0 <= lower < upper <= 255` | Mean-RGB window of a tissue patch. |
+| `background_dilation_kernel` | positive integer | Square kernel that dilates the screened grid. |
+
+## `demo` only
+
+`magnification`, `demo_mpp` (`x`, `y`) and `demo_regions` (a list of `x`, `y`, `width`, `height`, `level`): the fixed boxes.

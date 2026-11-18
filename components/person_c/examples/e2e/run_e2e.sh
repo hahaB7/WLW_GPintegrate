@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Real WSI -> CONCH -> ROI run of Person C (needs a GPU, the assets under ../reference/person_c
+# Real WSI -> SEGNET -> ROI run of Person C (needs a GPU, the checkpoint under ../reference/person_c/checkpoint/segnet
 # and one slide with MPP metadata). Usage, from the repository root:
 #   SLIDE=/path/to/slide.svs PYTHON=python bash components/person_c/examples/e2e/run_e2e.sh
 # Writes ../run/output/work/E_rois_e2e.json and prints the ROI summary. Any failure exits non-zero.
@@ -19,7 +19,7 @@ json.dump(data, open(dst, "w"), indent=2)
 PY
 rm -f "$OUT"
 "$PYTHON" -m components.person_c.interest_pattern --input "$CASE" --output "$OUT" \
-  --config components/person_c/configs/region_proposal.json
+  --config components/person_c/configs/default.json
 "$PYTHON" - "$OUT" <<'PY'
 import json, sys
 art = json.load(open(sys.argv[1]))
