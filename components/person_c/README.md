@@ -140,6 +140,14 @@ change the ROIs. All are off by default (`figures` in the config).
 
 `<name>` is the stem of the slide's file name (`BRACS_1228`); the files go to `figures.dir` below `run/output`, whole or not at all.
 
+**Example** — a 1000 × 800 µm window of BRACS_1228 (full figures are about 50 MB each; here the upper left corner of the window is at (11 400, 1 400) of the 1 µm/px figure):
+
+<table><tr>
+<td><img src="docs/BRACS_1228_tissue.jpg" width="330"><br><sub><b>tissue</b> · TUM red, BEN orange, STR green, SEC pink, OTH dark (glass and lumen)</sub></td>
+<td><img src="docs/BRACS_1228_epithelium.jpg" width="330"><br><sub><b>epithelium</b> · TUM ∪ BEN, holes filled</sub></td>
+<td><img src="docs/BRACS_1228_boxes.jpg" width="330"><br><sub><b>boxes</b> · amber: ROIs of the method, lime: annotation ROIs</sub></td>
+</tr></table>
+
 **Reading the boxes figure**
 
 ```text
