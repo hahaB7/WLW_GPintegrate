@@ -24,6 +24,26 @@ Coordinates use an upper-left origin and half-open rectangles. `level0_info.xywh
 at level 0; `main_info` describes the virtual working-MPP image. See
 [configs/README.md](configs/README.md) for parameters.
 
+## SEGNET backend (`configs/segnet.json`)
+
+`backend: "segnet"` replaces the MRCPS segmentation by the student of PIPELINE/SEGNET (DeepLab v3+, ResNet-101,
+trained without annotation on the pseudo labels of the SCLIP teacher on BRACS slides; class set c9; three seeds,
+probabilities averaged). Everything after the mask is shared with MRCPS: `wsi_processing.level0_boxes`, the ROI
+geometry and E.
+
+```text
+ WSI -> tiles of 1792 um at 1 um/px (+112 um context) -> student: 224 px windows at half overlap, cosine-squared
+     blending, 8 dihedral views, mean of the seeds -> class of the highest probability per 4 um cell
+     -> union of segnet.roi_classes (TUM, BEN) -> mask at postprocess_mpp (8 um) -> level0_boxes
+```
+
+- The network code is `region/segnet_net.py` (a copy of SEGNET's `SegNet`, inference only); the code of the mask is
+  `region/segnet.py` (`load_model`, `infer_mask`). The weights are `reference/person_c/checkpoint/segnet/c9_sclip_bracs_s{0,1,2}.pt`,
+  pinned by `revision` in the config and checked before loading.
+- A tile with fewer than `segnet.min_tissue_frac` coloured pixels is glass and gives no ROI.
+- The student was trained on unlabeled BRACS slides; a slide of that set is not an independent test. The quality of the
+  ROIs is not measured yet.
+
 `configs/demo.json` is a path-free fixture backend for the local pipeline and does not perform WSI
 inference. Invalid CaseList input, missing WSI, unreadable MPP, missing/wrong checkpoint, and model
 errors fail without writing E.

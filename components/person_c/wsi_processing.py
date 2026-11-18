@@ -33,8 +33,8 @@ def validate_settings(config: dict[str, Any]) -> dict[str, Any]:
         raise ValueError("person_c config requires component_version")
     # The pre-existing integration fixture has demo_regions but no backend key.
     backend = config.get("backend", "demo" if "demo_regions" in config else "mrcps")
-    if backend not in {"demo", "mrcps"}:
-        raise ValueError("person_c backend must be demo or mrcps")
+    if backend not in {"demo", "mrcps", "segnet"}:
+        raise ValueError("person_c backend must be demo, mrcps or segnet")
     result = {**config, "backend": backend}
     whitelist = result.get("stain_type_whitelist")
     if (
@@ -51,19 +51,24 @@ def validate_settings(config: dict[str, Any]) -> dict[str, Any]:
         if not isinstance(result.get("demo_regions"), list) or not isinstance(result.get("demo_mpp"), dict):
             raise ValueError("person_c demo requires demo_regions and demo_mpp")
         return result
-    model = result.get("model")
-    if not isinstance(model, dict) or not isinstance(model.get("path"), str) or not model["path"]:
-        raise ValueError("person_c mrcps requires model.path")
-    for name in ("patch_size", "stride", "low_resolution_ratio", "batch_size", "background_dilation_kernel", "min_object_size"):
-        result[name] = integer(result.get(name), name, 1)
-    if result["stride"] > result["patch_size"]:
-        raise ValueError("person_c stride cannot exceed patch_size")
-    for name in ("check_mpp", "postprocess_mpp"):
-        result[name] = positive_number(result.get(name), name)
-    for name in ("background_lower", "background_upper", "hole_area_threshold"):
-        result[name] = integer(result.get(name), name)
-    if not 0 <= result["background_lower"] < result["background_upper"] <= 255:
-        raise ValueError("person_c background bounds must satisfy 0 <= lower < upper <= 255")
+    if backend == "mrcps":
+        model = result.get("model")
+        if not isinstance(model, dict) or not isinstance(model.get("path"), str) or not model["path"]:
+            raise ValueError("person_c mrcps requires model.path")
+        for name in ("patch_size", "stride", "low_resolution_ratio", "batch_size", "background_dilation_kernel"):
+            result[name] = integer(result.get(name), name, 1)
+        if result["stride"] > result["patch_size"]:
+            raise ValueError("person_c stride cannot exceed patch_size")
+        result["check_mpp"] = positive_number(result.get("check_mpp"), "check_mpp")
+        for name in ("background_lower", "background_upper"):
+            result[name] = integer(result.get(name), name)
+        if not 0 <= result["background_lower"] < result["background_upper"] <= 255:
+            raise ValueError("person_c background bounds must satisfy 0 <= lower < upper <= 255")
+    else:
+        result["segnet"] = validate_segnet(result.get("segnet"))
+    result["min_object_size"] = integer(result.get("min_object_size"), "min_object_size", 1)
+    result["postprocess_mpp"] = positive_number(result.get("postprocess_mpp"), "postprocess_mpp")
+    result["hole_area_threshold"] = integer(result.get("hole_area_threshold"), "hole_area_threshold")
     if result.get("device", "auto") not in {"auto", "cpu", "cuda"}:
         raise ValueError("person_c device must be auto, cpu, or cuda")
     result["device"] = result.get("device", "auto")
@@ -72,6 +77,34 @@ def validate_settings(config: dict[str, Any]) -> dict[str, Any]:
     result["save_roi_png"] = result.get("save_roi_png", False)
     if result["save_roi_png"] and not result.get("roi_output_dir"):
         raise ValueError("person_c roi_output_dir is required when save_roi_png is true")
+    return result
+
+
+def validate_segnet(cfg: Any) -> dict[str, Any]:
+    if not isinstance(cfg, dict):
+        raise ValueError("person_c segnet requires a segnet object")
+    checkpoints = cfg.get("checkpoints")
+    if not isinstance(checkpoints, list) or not checkpoints or any(
+        not isinstance(c, dict) or not isinstance(c.get("path"), str) or not c["path"]
+        or not isinstance(c.get("revision"), str) or not c["revision"].startswith("sha256:")
+        for c in checkpoints
+    ):
+        raise ValueError("person_c segnet.checkpoints must be a non-empty list of {path, revision: sha256:<digest>}")
+    classes = cfg.get("roi_classes")
+    if not isinstance(classes, list) or not classes or any(not isinstance(c, str) or not c for c in classes):
+        raise ValueError("person_c segnet.roi_classes must be a non-empty string list")
+    result = {**cfg}
+    for name in ("tile_um", "margin_um"):
+        result[name] = integer(cfg.get(name), f"segnet.{name}", 4)
+        if result[name] % 4:
+            raise ValueError(f"person_c segnet.{name} must be a multiple of 4")
+    result["tta_views"] = integer(cfg.get("tta_views"), "segnet.tta_views", 1)
+    if result["tta_views"] > 8:
+        raise ValueError("person_c segnet.tta_views must be 1..8")
+    result["batch_size"] = integer(cfg.get("batch_size"), "segnet.batch_size", 1)
+    fraction = cfg.get("min_tissue_frac")
+    if isinstance(fraction, bool) or not isinstance(fraction, (int, float)) or not 0 <= fraction <= 1:
+        raise ValueError("person_c segnet.min_tissue_frac must be a number in [0, 1]")
     return result
 
 

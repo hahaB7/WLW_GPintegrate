@@ -18,3 +18,33 @@ assets:
     size_bytes: 1865817773
     license_or_access_policy: "BRACS dataset terms and research storage access apply"
     purpose: "External real-WSI smoke test only; not included in the component folder"
+  - asset_id: person-c-segnet-c9-sclip-bracs-s0
+    type: model_weight
+    required: false
+    version: "SEGNET Unsup c9_224px_1um_sclipcrf_glvq5r2m20-bracs_wsi_s0, step 6000"
+    revision: "sha256:b13895d5cf7ca919cb6b78e43931a5e9174f7305573964c3ed1ac5cea5b3e95b"
+    sha256: "b13895d5cf7ca919cb6b78e43931a5e9174f7305573964c3ed1ac5cea5b3e95b"
+    size_bytes: 238008769
+    license_or_access_policy: "project-trained (no annotation, SCLIP pseudo labels on BRACS slides); follow the BRACS terms for redistribution"
+    contains_phi: false
+    configured_by: "configs/segnet.json:segnet.checkpoints"
+  - asset_id: person-c-segnet-c9-sclip-bracs-s1
+    type: model_weight
+    required: false
+    version: "SEGNET Unsup c9_224px_1um_sclipcrf_glvq5r2m20-bracs_wsi_s1, step 6000"
+    revision: "sha256:bf40c229eff6e754975b882c53ac211df15c1264c0fe3d536ba1e91d0d7f8223"
+    sha256: "bf40c229eff6e754975b882c53ac211df15c1264c0fe3d536ba1e91d0d7f8223"
+    size_bytes: 238008769
+    license_or_access_policy: "project-trained (no annotation, SCLIP pseudo labels on BRACS slides); follow the BRACS terms for redistribution"
+    contains_phi: false
+    configured_by: "configs/segnet.json:segnet.checkpoints"
+  - asset_id: person-c-segnet-c9-sclip-bracs-s2
+    type: model_weight
+    required: false
+    version: "SEGNET Unsup c9_224px_1um_sclipcrf_glvq5r2m20-bracs_wsi_s2, step 6000"
+    revision: "sha256:5e16f6df77a29ab6478d6941e9d06f8c8fb6a8660f0473eb1fab052441768440"
+    sha256: "5e16f6df77a29ab6478d6941e9d06f8c8fb6a8660f0473eb1fab052441768440"
+    size_bytes: 238008769
+    license_or_access_policy: "project-trained (no annotation, SCLIP pseudo labels on BRACS slides); follow the BRACS terms for redistribution"
+    contains_phi: false
+    configured_by: "configs/segnet.json:segnet.checkpoints"

@@ -7,7 +7,7 @@ run-specific configs outside this directory.
 | Key | Type / range | Meaning |
 |---|---|---|
 | `component_version` | nonempty string | Producer recorded in E and each selection event. |
-| `backend` | `mrcps` or `demo` | `mrcps` opens selected WSI and runs inference. `demo` uses fixed fixture boxes. |
+| `backend` | `mrcps`, `segnet` or `demo` | `mrcps` / `segnet` open selected WSI and run inference (`segnet`: the SEGNET student, `configs/segnet.json`). `demo` uses fixed fixture boxes. |
 | `stain_type_whitelist` | nonempty list[string] | Case-insensitive stain types allowed to open and process; default is `["HE"]`. |
 | `model.path` | nonempty path | Read-only MRCPS checkpoint. Required in `mrcps` mode. |
 | `model.revision` | `sha256:<64 hex>` | Optional runtime checksum check; the default pins the approved checkpoint. |
@@ -26,3 +26,14 @@ run-specific configs outside this directory.
 | `roi_output_dir` | path below sibling `run` | PNG directory when `save_roi_png=true`. |
 
 The legacy area-to-working-MPP ladder is 0.25, 0.5, 1, 2, 4, 8 and 16 µm/pixel for level-0 ROI areas up to 1, 4, 16, 64, 256, 1024 and over 1024 million pixels² respectively. Input and model revisions, resolved config, and WSI references should be snapshotted with each experiment. `demo` output is only a compatibility fixture and does not locate tissue.
+
+`segnet` backend (`configs/segnet.json`; the post-processing keys above `postprocess_mpp`, `hole_area_threshold`, `min_object_size` apply too; `background_*`, `patch_size`, `stride`, `low_resolution_ratio`, `check_mpp` and `model` are MRCPS only):
+
+| Key | Type / range | Meaning |
+|---|---|---|
+| `segnet.checkpoints` | list of `{path, revision}` | Student checkpoints below `reference/person_c/`; `revision` is `sha256:<64 hex>` and is checked. The probabilities of all are averaged. |
+| `segnet.roi_classes` | nonempty list[string] | Classes whose union is the mask (names in the checkpoint; `TUM`, `BEN`). |
+| `segnet.tile_um`, `segnet.margin_um` | multiples of 4 | Tile of the slide read at the student's 1 um/px, and its context on every side. |
+| `segnet.tta_views` | 1..8 | Dihedral views per window (SEGNET's own default is 8). |
+| `segnet.batch_size` | positive integer | Windows per forward pass. |
+| `segnet.min_tissue_frac` | 0..1 | A tile with a smaller share of coloured pixels is glass: no ROI. |

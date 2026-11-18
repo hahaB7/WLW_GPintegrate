@@ -1,0 +1,24 @@
+{
+  "component_version": "person-c/interest-pattern:0.5.0-segnet",
+  "backend": "segnet",
+  "stain_type_whitelist": ["HE"],
+  "segnet": {
+    "checkpoints": [
+      {"path": "../reference/person_c/checkpoint/segnet/c9_sclip_bracs_s0.pt", "revision": "sha256:b13895d5cf7ca919cb6b78e43931a5e9174f7305573964c3ed1ac5cea5b3e95b"},
+      {"path": "../reference/person_c/checkpoint/segnet/c9_sclip_bracs_s1.pt", "revision": "sha256:bf40c229eff6e754975b882c53ac211df15c1264c0fe3d536ba1e91d0d7f8223"},
+      {"path": "../reference/person_c/checkpoint/segnet/c9_sclip_bracs_s2.pt", "revision": "sha256:5e16f6df77a29ab6478d6941e9d06f8c8fb6a8660f0473eb1fab052441768440"}
+    ],
+    "roi_classes": ["TUM", "BEN"],
+    "tile_um": 1792,
+    "margin_um": 112,
+    "tta_views": 8,
+    "batch_size": 32,
+    "min_tissue_frac": 0.02
+  },
+  "device": "auto",
+  "postprocess_mpp": 8.0,
+  "hole_area_threshold": 1500,
+  "min_object_size": 100,
+  "save_roi_png": false,
+  "roi_output_dir": "../run/output/materialized/person_c/roi-images"
+}

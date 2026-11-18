@@ -92,7 +92,8 @@ def run(source: dict[str, Any], config: dict[str, Any]) -> dict[str, Any]:
     }
     allowed_stains = set(settings["stain_type_whitelist"])
     model = device = None
-    if settings["backend"] == "mrcps":
+    infer = wsi.infer_mask
+    if settings["backend"] in {"mrcps", "segnet"}:
         selected_stains = [
             stain
             for stain in iter_stains(payload)
@@ -102,7 +103,12 @@ def run(source: dict[str, Any], config: dict[str, Any]) -> dict[str, Any]:
             path = Path(stain["filepath"])
             if not path.is_file():
                 raise FileNotFoundError(f"person_c WSI is missing for stain {stain['stain_id']}: {path}")
-        if selected_stains:
+        if selected_stains and settings["backend"] == "segnet":
+            from .region import segnet
+
+            model, device = segnet.load_model(settings)
+            infer = segnet.infer_mask
+        elif selected_stains:
             model, device = wsi.load_model(settings)
 
     global_index = 0
@@ -118,7 +124,7 @@ def run(source: dict[str, Any], config: dict[str, Any]) -> dict[str, Any]:
             try:
                 with openslide.OpenSlide(str(path)) as slide:
                     mpp = wsi.slide_mpp(slide)
-                    mask = wsi.infer_mask(slide, mpp, settings, model, device)
+                    mask = infer(slide, mpp, settings, model, device)
                     boxes = wsi.level0_boxes(mask, mpp, slide.dimensions, settings)
                     rois = [
                         _make_roi(case_id, stain["stain_id"], box, slide, mpp,
