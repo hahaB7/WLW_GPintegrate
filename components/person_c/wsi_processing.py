@@ -103,15 +103,10 @@ def validate_segnet(cfg: Any) -> dict[str, Any]:
     if result["tta_views"] > 8:
         raise ValueError("person_c segnet.tta_views must be 1..8")
     result["batch_size"] = integer(cfg.get("batch_size"), "segnet.batch_size", 1)
+    result["num_workers"] = integer(cfg.get("num_workers"), "segnet.num_workers", 0)
     overlap = cfg.get("nested_overlap")
     if isinstance(overlap, bool) or not isinstance(overlap, (int, float)) or not 0 < overlap <= 1:
         raise ValueError("person_c segnet.nested_overlap must be a number in (0, 1]")
-    result["foreground_chroma"] = integer(cfg.get("foreground_chroma"), "segnet.foreground_chroma", 1)
-    if result["foreground_chroma"] > 255:
-        raise ValueError("person_c segnet.foreground_chroma must be 1..255")
-    fraction = cfg.get("min_foreground_frac")
-    if isinstance(fraction, bool) or not isinstance(fraction, (int, float)) or not 0 <= fraction <= 1:
-        raise ValueError("person_c segnet.min_foreground_frac must be a number in [0, 1]")
     return result
 
 

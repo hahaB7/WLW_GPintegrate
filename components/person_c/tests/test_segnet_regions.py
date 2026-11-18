@@ -26,7 +26,6 @@ class SegnetSettingsTests(unittest.TestCase):
         for path, value in (
             (("segnet", "tile_um"), 1790),
             (("segnet", "tta_views"), 9),
-            (("segnet", "min_foreground_frac"), 2),
             (("segnet", "checkpoints"), [{"path": "x.pt", "revision": "abc"}]),
             (("segnet", "roi_classes"), []),
         ):
@@ -34,6 +33,26 @@ class SegnetSettingsTests(unittest.TestCase):
             config[path[0]][path[1]] = value
             with self.assertRaises(ValueError, msg=str(path)):
                 wsi.validate_settings(config)
+
+
+class ReadTests(unittest.TestCase):
+    def test_a_level_one_percent_coarser_is_still_used(self) -> None:
+        from PIL import Image
+
+        from components.person_c.region.segnet import read_um
+
+        class Slide:
+            level_downsamples = [1.0, 4.0, 16.0]
+            levels_read: list[int] = []
+
+            def read_region(self, origin, level, size):
+                self.levels_read.append(level)
+                return Image.new("RGBA", size, (200, 100, 150, 255))
+
+        slide = Slide()
+        img = read_um(slide, (0.2524, 0.2524), 100, 100, 200, 120, 1.0)   # 3.96 px per um: the level of 4.0 is the one
+        self.assertEqual([1], slide.levels_read)
+        self.assertEqual((120, 200, 3), img.shape)
 
 
 class FigureTests(unittest.TestCase):

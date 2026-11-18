@@ -31,14 +31,13 @@ The legacy area-to-working-MPP ladder is 0.25, 0.5, 1, 2, 4, 8 and 16 µm/pixel 
 
 | Key | Type / range | Meaning |
 |---|---|---|
-| `segnet.checkpoints` | list of `{path, revision}` | Student checkpoints below `reference/person_c/`; `revision` is `sha256:<64 hex>` and is checked. The probabilities of all are averaged. |
+| `segnet.checkpoints` | list of `{path, revision}` | Student checkpoints below `reference/person_c/`; `revision` is `sha256:<64 hex>` and is checked. The probabilities of all are averaged (one is used by default; every extra network costs as much GPU time as the first). |
 | `segnet.roi_classes` | nonempty list[string] | Classes whose union is the mask (names in the checkpoint; `TUM`, `BEN`). |
 | `segnet.tile_um`, `segnet.margin_um` | multiples of 4 | Tile of the slide read at the student's 1 um/px, and its context on every side. |
-| `segnet.tta_views` | 1..8 | Dihedral views per window (SEGNET's own default is 8). |
+| `segnet.tta_views` | 1..8 | Dihedral views per window. 1 is no test-time augmentation (the default here); SEGNET's own default is 8, and every view multiplies the GPU time. |
 | `segnet.batch_size` | positive integer | Windows per forward pass. |
-| `segnet.min_foreground_frac` | 0..1 | A tile whose share of foreground (see `foreground_chroma`) is smaller is glass: it is not read and gives no ROI. |
+| `segnet.num_workers` | integer >= 0 | Processes that read the tiles of the slide while the GPU predicts (0: read in the main process). Keep it at most the CPUs of the job minus two. |
 | `segnet.nested_overlap` | (0, 1] | After the mask is cut into boxes, a box with at least this share of its area inside a larger kept box is dropped. It covers the rings that the hole filling cannot close. |
-| `segnet.foreground_chroma` | 1..255 | A pixel is foreground when its colour channels differ by more than this (glass is grey / white). The foreground decides which tiles are read: `min_foreground_frac` is its share of a tile. |
 | `figures.dir` | path below sibling `run/output` | Directory of the PNGs; required when one is switched on. |
 | `figures.tissue`, `figures.epithelium`, `figures.boxes` | boolean (default false) | One PNG per WSI and stage, `<case_id>_<stain_id>_<stage>.png`: the multi-class tissue segmentation (c9 colours, legend), the processed segmentation the boxes are made from (TUM ∪ BEN, holes filled), the level-0 boxes over it. `segnet` backend only. |
 

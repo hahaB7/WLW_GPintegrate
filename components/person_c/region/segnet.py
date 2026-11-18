@@ -143,8 +143,9 @@ def read_um(slide: Any, mpp0: tuple[float, float], x_um: int, y_um: int, w_um: i
 
     import cv2
 
-    ds = mpp / mpp0[0]
-    level = slide.get_best_level_for_downsample(ds)
+    from components.person_c import wsi_processing as wsi
+
+    level = wsi.read_level(slide, mpp0, mpp)          # the coarsest level that is not coarser than ``mpp`` (1 % tolerance)
     ds_level = slide.level_downsamples[level]
     x0, y0 = round(x_um / mpp0[0]), round(y_um / mpp0[1])
     w_l, h_l = max(1, round(w_um / mpp0[0] / ds_level)), max(1, round(h_um / mpp0[1] / ds_level))
@@ -154,62 +155,61 @@ def read_um(slide: Any, mpp0: tuple[float, float], x_um: int, y_um: int, w_um: i
     return cv2.resize(rgb, (round(w_um / mpp), round(h_um / mpp)), interpolation=cv2.INTER_AREA)
 
 
-def foreground_mask(slide: Any, mpp0: tuple[float, float], settings: Mapping[str, Any], shape: tuple[int, int]) -> np.ndarray:
-    """Foreground at ``postprocess_mpp``: pixels whose colour channels differ by more than ``segnet.foreground_chroma``
-    (glass is grey / white), small holes filled and dust removed with the thresholds of ``level0_boxes``.
-    It decides which tiles are read and keeps the stages inside the tissue; it is not a figure."""
-
-    import cv2
-    from skimage.morphology import remove_small_holes, remove_small_objects
-
-    from components.person_c import wsi_processing as wsi
-
-    level = wsi.read_level(slide, mpp0, float(settings["postprocess_mpp"]))
-    width, height = slide.level_dimensions[level]
-    rgb = wsi.read_rgb(slide, 0, 0, level, width, height)
-    chroma = (np.ptp(rgb.astype(np.int16), axis=2) > settings["segnet"]["foreground_chroma"]).astype(np.float32)
-    mask = cv2.resize(chroma, (shape[1], shape[0]), interpolation=cv2.INTER_AREA) > 0.5
-    mask = remove_small_holes(mask, area_threshold=settings["hole_area_threshold"])
-    return remove_small_objects(mask, min_size=settings["min_object_size"])
+UNLABELED = 255          # a cell that no tile covered (never happens for a whole slide)
 
 
-UNLABELED = 255          # not predicted: glass, or outside the foreground
+class TileReader:
+    """The tiles of a slide for ``torch.utils.data.DataLoader``: item i is ``(x0, y0, image)``, the tile with its
+    context at the student's mpp. Every worker opens its own slide (a slide cannot be shared between processes)."""
+
+    def __init__(self, path: str, mpp0: tuple[float, float], origins: list[tuple[int, int]], boxes: list[tuple[int, int, int, int]], mpp: float) -> None:
+        self.path, self.mpp0, self.origins, self.boxes, self.mpp, self.slide = path, mpp0, origins, boxes, mpp, None
+
+    def __len__(self) -> int:
+        return len(self.boxes)
+
+    def __getitem__(self, i: int) -> tuple[int, int, np.ndarray]:
+        import cv2
+        import openslide
+
+        if self.slide is None:
+            cv2.setNumThreads(1)                       # the workers share the CPUs: one thread each
+            self.slide = openslide.OpenSlide(self.path)
+        x0, y0, x1, y1 = self.boxes[i]
+        return x0, y0, read_um(self.slide, self.mpp0, x0, y0, x1 - x0, y1 - y0, self.mpp)
 
 
-def infer_stages(slide: Any, mpp0: tuple[float, float], settings: Mapping[str, Any], model: Mapping[str, Any], device: Any) -> dict[str, Any]:
+def infer_stages(path: str, slide: Any, mpp0: tuple[float, float], settings: Mapping[str, Any], model: Mapping[str, Any], device: Any) -> dict[str, Any]:
     """The stages at ``postprocess_mpp`` (shape as ``wsi_processing.mask_shape``):
-    ``tissue`` (stage 1: the multi-class tissue segmentation, the index of the class of every pixel in ``classes``,
-    ``UNLABELED`` outside the foreground) and ``epithelium`` (stage 2: the union of ``segnet.roi_classes``, holes
-    filled). The boxes (stage 3) are made from ``epithelium`` by the caller."""
+    ``tissue`` (stage 1: the multi-class tissue segmentation, the index of the class of every pixel in ``classes``;
+    the student itself labels the glass, there is no foreground step) and ``epithelium`` (stage 2: the union of
+    ``segnet.roi_classes``, holes filled). The boxes (stage 3) are made from ``epithelium`` by the caller.
+    The tiles are read by ``segnet.num_workers`` processes while the GPU predicts the previous ones."""
 
     import cv2
+    from torch.utils.data import DataLoader
 
     cfg = settings["segnet"]
     classes, mpp = model["classes"], model["mpp"]
     keep = [classes.index(c) for c in cfg["roi_classes"]]
-    tile, margin, views = cfg["tile_um"], cfg["margin_um"], cfg["tta_views"]
+    tile, margin = cfg["tile_um"], cfg["margin_um"]
     w0, h0 = slide.dimensions
     w_um, h_um = math.ceil(w0 * mpp0[0]), math.ceil(h0 * mpp0[1])
     target = float(settings["postprocess_mpp"])
-    out_shape = (math.ceil(h0 * mpp0[1] / target), math.ceil(w0 * mpp0[0] / target))
-    foreground = foreground_mask(slide, mpp0, settings, out_shape)
     cell = CELL_STRIDE * mpp
+    origins = [(tx, ty) for ty in range(0, h_um, tile) for tx in range(0, w_um, tile)]
+    boxes = [(max(tx - margin, 0), max(ty - margin, 0), min(tx + tile + margin, w_um), min(ty + tile + margin, h_um)) for tx, ty in origins]
+    workers = cfg["num_workers"]
+    loader = DataLoader(TileReader(path, mpp0, origins, boxes, mpp), batch_size=None, shuffle=False, num_workers=workers,
+                        prefetch_factor=2 if workers else None)
     labels = np.full((math.ceil(h_um / cell), math.ceil(w_um / cell)), UNLABELED, dtype=np.uint8)
-    for ty in range(0, h_um, tile):
-        for tx in range(0, w_um, tile):
-            core = foreground[int(ty / target):math.ceil((ty + tile) / target), int(tx / target):math.ceil((tx + tile) / target)]
-            if core.size == 0 or core.mean() < cfg["min_foreground_frac"]:
-                continue                                         # glass: nothing to label
-            x0, y0 = max(tx - margin, 0), max(ty - margin, 0)
-            x1, y1 = min(tx + tile + margin, w_um), min(ty + tile + margin, h_um)
-            img = read_um(slide, mpp0, x0, y0, x1 - x0, y1 - y0, mpp)
-            probs = predict_cells(img, model["nets"], model["window"], device, views, cfg["batch_size"])
-            label = probs.argmax(0).cpu().numpy().astype(np.uint8)
-            cx, cy = int((tx - x0) / cell), int((ty - y0) / cell)
-            part = label[cy:cy + int(tile / cell), cx:cx + int(tile / cell)]
-            gx, gy = int(tx / cell), int(ty / cell)
-            h, w = labels[gy:gy + part.shape[0], gx:gx + part.shape[1]].shape
-            labels[gy:gy + h, gx:gx + w] = part[:h, :w]
+    for (tx, ty), (x0, y0, img) in zip(origins, loader):
+        label = predict_cells(img.numpy(), model["nets"], model["window"], device, cfg["tta_views"], cfg["batch_size"]).argmax(0).cpu().numpy().astype(np.uint8)
+        cx, cy = int((tx - int(x0)) / cell), int((ty - int(y0)) / cell)
+        part = label[cy:cy + int(tile / cell), cx:cx + int(tile / cell)]
+        gx, gy = int(tx / cell), int(ty / cell)
+        h, w = labels[gy:gy + part.shape[0], gx:gx + part.shape[1]].shape
+        labels[gy:gy + h, gx:gx + w] = part[:h, :w]
+    out_shape = (math.ceil(h0 * mpp0[1] / target), math.ceil(w0 * mpp0[0] / target))
     tissue = cv2.resize(labels, (out_shape[1], out_shape[0]), interpolation=cv2.INTER_NEAREST)
-    tissue[~foreground] = UNLABELED
     return {"tissue": tissue, "epithelium": fill_holes(np.isin(tissue, keep)), "classes": classes}

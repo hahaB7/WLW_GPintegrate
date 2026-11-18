@@ -126,7 +126,7 @@ def run(source: dict[str, Any], config: dict[str, Any]) -> dict[str, Any]:
                 with openslide.OpenSlide(str(path)) as slide:
                     mpp = wsi.slide_mpp(slide)
                     if settings["backend"] == "segnet":
-                        stages = segnet.infer_stages(slide, mpp, settings, model, device)
+                        stages = segnet.infer_stages(str(path), slide, mpp, settings, model, device)
                         mask = stages["epithelium"]
                     else:
                         mask = wsi.infer_mask(slide, mpp, settings, model, device)

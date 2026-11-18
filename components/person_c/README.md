@@ -27,22 +27,21 @@ at level 0; `main_info` describes the virtual working-MPP image. See
 ## SEGNET backend (`configs/segnet.json`)
 
 `backend: "segnet"` replaces the MRCPS segmentation by the student of PIPELINE/SEGNET (DeepLab v3+, ResNet-101,
-trained without annotation on the pseudo labels of the SCLIP teacher on BRACS slides; class set c9; three seeds,
-probabilities averaged). Everything after the mask is shared with MRCPS: `wsi_processing.level0_boxes`, the ROI
+trained without annotation on the pseudo labels of the SCLIP teacher on BRACS slides; class set c9; one network, seed 0). Everything after the mask is shared with MRCPS: `wsi_processing.level0_boxes`, the ROI
 geometry and E.
 
 ```text
  WSI -> tiles of 1792 um at 1 um/px (+112 um context) -> student: 224 px windows at half overlap, cosine-squared
-     blending, 8 dihedral views, mean of the seeds -> class of the highest probability per 4 um cell
+     blending, no test-time augmentation (`segnet.tta_views` 1), one network -> class of the highest probability per 4 um cell
      -> union of segnet.roi_classes (TUM, BEN) -> mask at postprocess_mpp (8 um) -> level0_boxes
 ```
 
 - The network code is `region/segnet_net.py` (a copy of SEGNET's `SegNet`, inference only); the code of the mask is
-  `region/segnet.py` (`load_model`, `infer_mask`). The weights are `reference/person_c/checkpoint/segnet/c9_sclip_bracs_s{0,1,2}.pt`,
+  `region/segnet.py` (`load_model`, `infer_stages`). The weights are `reference/person_c/checkpoint/segnet/c9_sclip_bracs_s0.pt`,
   pinned by `revision` in the config and checked before loading.
 - The holes of the mask are filled, whatever their size, before the boxes are made: an object inside the hole of a ring is part of that ring and gets no box of its own. A box is the minimum bounding box of a connected object.
 - Rings that are not closed cannot be filled, so after `level0_boxes` a box with at least `segnet.nested_overlap` of its area inside a larger kept box is dropped (mrcps does not do this).
-- A foreground mask (colour-channel difference, `segnet.foreground_chroma`) decides which tiles are read (`segnet.min_foreground_frac`) and keeps the stages inside the tissue; it is not a figure.
+- There is no foreground step: every tile of the slide goes to the student, which labels the glass itself.
 - Figures for whoever follows the segmentation: `figures.tissue`, `figures.epithelium`, `figures.boxes` (all off by default) write one PNG per WSI and stage to `figures.dir` below `run/output`: the multi-class tissue segmentation (c9, one colour per class with a legend), the processed epithelium segmentation (TUM ∪ BEN, holes filled), and the boxes over it. Code: `region/figures.py`.
 - The student was trained on unlabeled BRACS slides; a slide of that set is not an independent test. The quality of the
   ROIs is not measured yet.
