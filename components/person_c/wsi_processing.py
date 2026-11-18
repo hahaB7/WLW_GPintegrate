@@ -102,9 +102,6 @@ def validate_segnet(cfg: Any) -> dict[str, Any]:
     if result["tta_views"] > 8:
         raise ValueError("person_c segnet.tta_views must be 1..8")
     result["batch_size"] = integer(cfg.get("batch_size"), "segnet.batch_size", 1)
-    overlap = cfg.get("nested_overlap")
-    if isinstance(overlap, bool) or not isinstance(overlap, (int, float)) or not 0 < overlap <= 1:
-        raise ValueError("person_c segnet.nested_overlap must be a number in (0, 1]")
     fraction = cfg.get("min_tissue_frac")
     if isinstance(fraction, bool) or not isinstance(fraction, (int, float)) or not 0 <= fraction <= 1:
         raise ValueError("person_c segnet.min_tissue_frac must be a number in [0, 1]")
@@ -301,19 +298,6 @@ def level0_boxes(mask: Any, mpp: tuple[float, float], size: tuple[int, int], set
         if x1 > x0 and y1 > y0:
             boxes.append([x0, y0, x1-x0, y1-y0])
     return boxes
-
-
-def drop_nested(boxes: list[list[int]], overlap: float) -> list[list[int]]:
-    """Keep the larger boxes first; drop a box when at least ``overlap`` of its area lies inside a box already kept."""
-    kept: list[list[int]] = []
-    for x, y, w, h in sorted(boxes, key=lambda b: -b[2] * b[3]):
-        inside = any(
-            max(0, min(x + w, kx + kw) - max(x, kx)) * max(0, min(y + h, ky + kh) - max(y, ky)) >= overlap * w * h
-            for kx, ky, kw, kh in kept
-        )
-        if not inside:
-            kept.append([x, y, w, h])
-    return sorted(kept, key=lambda b: (b[1], b[0]))
 
 
 def target_mpp(area: int) -> float:

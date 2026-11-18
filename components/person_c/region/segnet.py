@@ -31,6 +31,14 @@ def resample_mask(mask: np.ndarray, shape: tuple[int, int]) -> np.ndarray:
     return cv2.resize(mask.astype(np.float32), (shape[1], shape[0]), interpolation=cv2.INTER_AREA) > 0.5
 
 
+def fill_holes(mask: np.ndarray) -> np.ndarray:
+    """Fill every hole of the mask, whatever its size: what lies inside a ring belongs to the ring."""
+
+    from scipy import ndimage
+
+    return ndimage.binary_fill_holes(mask)
+
+
 def window_starts(n: int, win: int, step: int) -> list[int]:
     xs = list(range(0, max(n - win, 0) + 1, step))
     if xs[-1] != max(n - win, 0):
@@ -178,4 +186,5 @@ def infer_mask(slide: Any, mpp0: tuple[float, float], settings: Mapping[str, Any
             h, w = mask[gy:gy + part.shape[0], gx:gx + part.shape[1]].shape
             mask[gy:gy + h, gx:gx + w] = part[:h, :w]
     target = float(settings["postprocess_mpp"])
-    return resample_mask(mask, (math.ceil(h0 * mpp0[1] / target), math.ceil(w0 * mpp0[0] / target)))
+    resampled = resample_mask(mask, (math.ceil(h0 * mpp0[1] / target), math.ceil(w0 * mpp0[0] / target)))
+    return fill_holes(resampled)

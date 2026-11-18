@@ -126,8 +126,6 @@ def run(source: dict[str, Any], config: dict[str, Any]) -> dict[str, Any]:
                     mpp = wsi.slide_mpp(slide)
                     mask = infer(slide, mpp, settings, model, device)
                     boxes = wsi.level0_boxes(mask, mpp, slide.dimensions, settings)
-                    if settings["backend"] == "segnet":
-                        boxes = wsi.drop_nested(boxes, settings["segnet"]["nested_overlap"])
                     rois = [
                         _make_roi(case_id, stain["stain_id"], box, slide, mpp,
                                   global_index + index, index, settings)

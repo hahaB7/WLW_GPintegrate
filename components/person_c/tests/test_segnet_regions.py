@@ -7,7 +7,7 @@ from pathlib import Path
 import numpy as np
 
 from components.person_c import wsi_processing as wsi
-from components.person_c.region.segnet import resample_mask, window_starts
+from components.person_c.region.segnet import fill_holes, resample_mask, window_starts
 
 CONFIG = Path(__file__).resolve().parents[1] / "configs" / "segnet.json"
 
@@ -35,13 +35,16 @@ class SegnetSettingsTests(unittest.TestCase):
                 wsi.validate_settings(config)
 
 
-class NestedTests(unittest.TestCase):
-    def test_inner_and_mostly_inner_boxes_are_dropped(self) -> None:
-        big = [0, 0, 1000, 1000]
-        boxes = [[100, 100, 50, 50], big, [950, 100, 100, 100], [2000, 2000, 10, 10]]
-        # [950,100,100,100]: half inside -> kept at 0.9, dropped at 0.5
-        self.assertEqual([big, [950, 100, 100, 100], [2000, 2000, 10, 10]], wsi.drop_nested(boxes, 0.9))
-        self.assertEqual([big, [2000, 2000, 10, 10]], wsi.drop_nested(boxes, 0.5))
+class HoleTests(unittest.TestCase):
+    def test_a_ring_is_filled_with_what_is_inside_and_a_border_gap_is_not(self) -> None:
+        mask = np.zeros((60, 60), dtype=bool)
+        mask[5:50, 5:50] = True
+        mask[15:40, 15:40] = False          # the hole of a ring ...
+        mask[25:30, 25:30] = True           # ... with another object in it
+        mask[5:50, 54:58] = True            # a separate object
+        out = fill_holes(mask)
+        self.assertTrue(out[5:50, 5:50].all())
+        self.assertTrue(out[5:50, 54:58].all() and not out[:, 50:54].any())
 
 
 class MaskTests(unittest.TestCase):

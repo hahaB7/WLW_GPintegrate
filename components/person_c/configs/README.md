@@ -37,4 +37,3 @@ The legacy area-to-working-MPP ladder is 0.25, 0.5, 1, 2, 4, 8 and 16 µm/pixel 
 | `segnet.tta_views` | 1..8 | Dihedral views per window (SEGNET's own default is 8). |
 | `segnet.batch_size` | positive integer | Windows per forward pass. |
 | `segnet.min_tissue_frac` | 0..1 | A tile with a smaller share of coloured pixels is glass: no ROI. |
-| `segnet.nested_overlap` | (0, 1] | After the mask is cut into boxes, a box with at least this share of its area inside a larger kept box is dropped (an object inside another box is not counted again). |
