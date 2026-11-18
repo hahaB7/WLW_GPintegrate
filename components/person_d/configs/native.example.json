@@ -1,12 +1,12 @@
 {
-  "component_version": "person-d/visual-filter:0.2.0",
+  "component_version": "person-d/visual-filter:0.4.0",
   "mode": "native",
   "device": "cuda",
   "extraction": {
     "prompts_path": "../reference/person_d/template_ref/visual_attribute_prompts.json",
-    "prompts_sha256": "e61b7d784aa8959305c22db7eb71921d5487ab479ebbaa16abb3c3ca957099d4",
+    "prompts_sha256": "9474dcb890dc2f99c74c817242a048f4de59ec7ab425f76005a041ad8120ffa6",
     "example_dir": "../reference/person_d/template_ref/Example/ROI_Analysis",
-    "example_tree_sha256": "188b5fe0698cb2e5cbe48c24d2e4cc0923864dd76adb5d10cfe71fc81e32cbce",
+    "example_tree_sha256": "b4219bea309ffa8190d581df041b18b8a1eacd0bc0d3dfdb32279da9339317de",
     "plip": {
       "weight_path": "../reference/person_d/checkpoint/plip",
       "revision": "67ade53ddd32195868f422585f72698ef5d15094",
@@ -32,12 +32,17 @@
     "use_example_prototypes": true,
     "multi_select_margin": 0.03,
     "copy_na_labels": true,
+    "decision_thresholds": {
+      "PLIP": 0.2,
+      "CONCH": 0.2
+    },
     "enable_prompt_chunking": true,
     "token_safety_margin": 2,
     "fallback_words_per_chunk": 35
   },
   "matching": {
     "enable": false,
+    "selection_policy": "forward_all_informative",
     "label_map_path": "../reference/person_d/template_ref/criteria_label_map.json",
     "label_map_sha256": "e1f59e667358fbca6f6bfe70cbfc140cd6c0a4ed8f6661920b5562a042f46e38",
     "condition_weights": {

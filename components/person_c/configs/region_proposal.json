@@ -1,6 +1,6 @@
 {
   "component_version": "person-c/interest-pattern:0.5.0",
-  "backend": "segnet",
+  "mode": "region_proposal",
   "stain_type_whitelist": [
     "HE"
   ],

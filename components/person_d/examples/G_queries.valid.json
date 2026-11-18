@@ -16,20 +16,16 @@
         "source_path": "example://[caseList]ROIpseudoLabeling(DxItemFiltered[2])[NAS]forTest_v3.5_2609251007.json",
         "sha256": "e8491ba9fd70be2bbe5ac759cf2e4537df1344ae726a6c77aeb0fff17f7038c3"
       },
-      "type_level_visual_attrs": {
-        "source_name": "[typeLevel]visualAttrs_v1.2.1_2603241656.json",
-        "source_path": "example://[typeLevel]visualAttrs_v1.2.1_2603241656.json",
-        "sha256": "cee62d92732bb199ff1bf34b904802c758d5467fe9f5c879ee6d6944df209861"
-      },
-      "candidate_reference": {
-        "source_name": "candidateReference.json",
-        "source_path": "example://candidateReference.json",
-        "sha256": "2b646990421265cd8544c60c4986bf0bd4cfe0675ac9926d2e881ea813505e7e"
-      },
       "visualattrs_metadata": {
         "source_name": "[meta]visualAttrs_v1.2.1.json",
         "source_path": "example://[meta]visualAttrs_v1.2.1.json",
         "sha256": "bbb10a47fc33e10c5199a1b09634264c7549ccf596ed7c6c175971d1bbdffd2a"
+      },
+      "visual_attribute_template": {
+        "source_name": "visual_attribute_template_v1.2.1.json",
+        "source_path": "example://visual_attribute_template_v1.2.1.json",
+        "sha256": "bd9517d2d7a13f9f1eedba2da762960e3eb253a467666c61f0d4908b17744284",
+        "purpose": "condition-free schema for synthetic criteria fixtures"
       }
     },
     "case_list": [
@@ -108,14 +104,14 @@
                 {
                   "query_id": "case-001-query-001",
                   "dx_pair_id": "case-001-dx-001",
-                  "text": "Histologic_Type-Invasive Carcinoma(IC)",
+                  "text": "Synthetic criteria fixture for Person D matching tests.",
                   "criteria_status": "mapped",
                   "diagnosticCriteria": {
                     "version": "1.2.1",
                     "type": "diagnosticCriteria",
                     "includeReferences": [
-                      "visualAttrs(with condition)",
-                      "HistologicType_candidates"
+                      "visual_attribute_template",
+                      "synthetic_test_conditions"
                     ],
                     "typeLevel_idx": 0,
                     "DxItem": "Histologic_Type",
@@ -129,8 +125,8 @@
                       "Not_Mentioned"
                     ],
                     "optionTypes": [
-                      "morphology",
                       "ordinal",
+                      "morphology",
                       "opposition"
                     ],
                     "visualAttrs": {
@@ -146,10 +142,10 @@
                           "type": "ordinal",
                           "conditions": {
                             "Monomorphic": "Low_Possibly_True",
-                            "Mild": "High_Possibly_True",
+                            "Mild": "Not_Mentioned",
                             "Moderate": "High_Possibly_True",
-                            "Severe": "High_Possibly_True",
-                            "Unable to confirm": "Negligible"
+                            "Severe": "Not_Mentioned",
+                            "Unable to confirm": "Not_Mentioned"
                           }
                         },
                         "Cytological_Atypia": {
@@ -162,11 +158,11 @@
                           ],
                           "type": "ordinal",
                           "conditions": {
-                            "Absent": "Must_False",
-                            "Low-grade/Mild": "High_Possibly_True",
-                            "Intermediate-grade/Moderate": "High_Possibly_True",
+                            "Absent": "Not_Mentioned",
+                            "Low-grade/Mild": "Not_Mentioned",
+                            "Intermediate-grade/Moderate": "Not_Mentioned",
                             "High-grade/Severe": "High_Possibly_True",
-                            "Unable to confirm": "Negligible"
+                            "Unable to confirm": "Not_Mentioned"
                           }
                         },
                         "Chromatin": {
@@ -182,12 +178,12 @@
                           "type": "morphology",
                           "conditions": {
                             "Regular": "Must_False",
-                            "Vesicular": "High_Possibly_True",
-                            "Coarsely clumped": "High_Possibly_True",
+                            "Vesicular": "Not_Mentioned",
+                            "Coarsely clumped": "Not_Mentioned",
                             "Hyperchromatic": "High_Possibly_True",
-                            "Salt-and-pepper": "Low_Possibly_True",
-                            "Smudged": "Negligible",
-                            "Unable to confirm": "Negligible"
+                            "Salt-and-pepper": "Not_Mentioned",
+                            "Smudged": "Not_Mentioned",
+                            "Unable to confirm": "Not_Mentioned"
                           }
                         },
                         "Nuclear_Size": {
@@ -199,10 +195,10 @@
                           ],
                           "type": "opposition",
                           "conditions": {
-                            "Uniform": "Low_Possibly_True",
-                            "Enlargement": "High_Possibly_True",
-                            "Variable": "High_Possibly_True",
-                            "Unable to confirm": "Negligible"
+                            "Uniform": "Not_Mentioned",
+                            "Enlargement": "Not_Mentioned",
+                            "Variable": "Not_Mentioned",
+                            "Unable to confirm": "Not_Mentioned"
                           }
                         },
                         "Nuclear_Shape": {
@@ -216,12 +212,12 @@
                           ],
                           "type": "morphology",
                           "conditions": {
-                            "Uniform": "Low_Possibly_True",
-                            "Spindle": "Low_Possibly_True",
-                            "Irregular/Pleomorphic": "High_Possibly_True",
-                            "Vesicular": "High_Possibly_True",
-                            "Variable": "High_Possibly_True",
-                            "Unable to confirm": "Negligible"
+                            "Uniform": "Not_Mentioned",
+                            "Spindle": "Not_Mentioned",
+                            "Irregular/Pleomorphic": "Not_Mentioned",
+                            "Vesicular": "Not_Mentioned",
+                            "Variable": "Not_Mentioned",
+                            "Unable to confirm": "Not_Mentioned"
                           }
                         },
                         "Prominent_Nucleoli": {
@@ -232,9 +228,9 @@
                           ],
                           "type": "opposition",
                           "conditions": {
-                            "Absent": "High_Possibly_True",
-                            "Present": "High_Possibly_True",
-                            "Unable to confirm": "Negligible"
+                            "Absent": "Not_Mentioned",
+                            "Present": "Not_Mentioned",
+                            "Unable to confirm": "Not_Mentioned"
                           }
                         },
                         "Epithelial_Cell_Shape": {
@@ -250,14 +246,14 @@
                           ],
                           "type": "morphology",
                           "conditions": {
-                            "Bilayered": "Must_False",
+                            "Bilayered": "Not_Mentioned",
                             "Cuboidal": "High_Possibly_True",
                             "Columnar": "Low_Possibly_True",
-                            "Squamous": "Low_Possibly_True",
-                            "Polygonal": "High_Possibly_True",
-                            "Plasmacytoid": "High_Possibly_True",
-                            "Spindle": "Low_Possibly_True",
-                            "Unable to confirm": "Negligible"
+                            "Squamous": "Not_Mentioned",
+                            "Polygonal": "Not_Mentioned",
+                            "Plasmacytoid": "Not_Mentioned",
+                            "Spindle": "Not_Mentioned",
+                            "Unable to confirm": "Not_Mentioned"
                           }
                         },
                         "Polarity": {
@@ -269,10 +265,10 @@
                           ],
                           "type": "ordinal",
                           "conditions": {
-                            "Maintained": "Low_Possibly_True",
-                            "Partially lost": "High_Possibly_True",
-                            "Completely lost": "High_Possibly_True",
-                            "Unable to confirm": "Negligible"
+                            "Maintained": "Not_Mentioned",
+                            "Partially lost": "Not_Mentioned",
+                            "Completely lost": "Not_Mentioned",
+                            "Unable to confirm": "Not_Mentioned"
                           }
                         },
                         "Cytoplasmic_Features": {
@@ -287,13 +283,13 @@
                           ],
                           "type": "morphology",
                           "conditions": {
-                            "Amphophilic to Pale Eosinophilic": "High_Possibly_True",
-                            "Eosinophilic/Granular": "High_Possibly_True",
-                            "Clear/Glycogenated": "Low_Possibly_True",
-                            "Vacuolated/Foamy/Lipid-rich": "Low_Possibly_True",
-                            "Signet-ring": "Low_Possibly_True",
-                            "Hobnail": "Low_Possibly_True",
-                            "Unable to confirm": "Negligible"
+                            "Amphophilic to Pale Eosinophilic": "Not_Mentioned",
+                            "Eosinophilic/Granular": "Not_Mentioned",
+                            "Clear/Glycogenated": "Not_Mentioned",
+                            "Vacuolated/Foamy/Lipid-rich": "Not_Mentioned",
+                            "Signet-ring": "Not_Mentioned",
+                            "Hobnail": "Not_Mentioned",
+                            "Unable to confirm": "Not_Mentioned"
                           }
                         },
                         "Mitotic_Activity": {
@@ -305,10 +301,10 @@
                           ],
                           "type": "morphology",
                           "conditions": {
-                            "Inconspicuous": "Low_Possibly_True",
-                            "Present/Brisk": "High_Possibly_True",
-                            "Atypical figures present": "High_Possibly_True",
-                            "Unable to confirm": "Negligible"
+                            "Inconspicuous": "Not_Mentioned",
+                            "Present/Brisk": "Not_Mentioned",
+                            "Atypical figures present": "Not_Mentioned",
+                            "Unable to confirm": "Not_Mentioned"
                           }
                         }
                       },
@@ -333,21 +329,21 @@
                           ],
                           "type": "morphology",
                           "conditions": {
-                            "Absent, No special pattern": "Must_False",
+                            "Absent, No special pattern": "Not_Mentioned",
                             "Simple Tubular/Branching Structures": "Must_False",
                             "Solid": "High_Possibly_True",
-                            "Comedo": "Low_Possibly_True",
-                            "Cribriform": "High_Possibly_True",
-                            "Papillary": "Low_Possibly_True",
-                            "Trabecular/Cords": "High_Possibly_True",
-                            "Micropapillary": "High_Possibly_True",
-                            "Single-file/Linear cords": "High_Possibly_True",
-                            "Fenestrated": "Low_Possibly_True",
-                            "Tubular/Glandular": "High_Possibly_True",
-                            "Cystic/Microcystic": "Low_Possibly_True",
-                            "Syncytial": "Low_Possibly_True",
-                            "Nests/Morules": "High_Possibly_True",
-                            "Unable to confirm": "Negligible"
+                            "Comedo": "Not_Mentioned",
+                            "Cribriform": "Not_Mentioned",
+                            "Papillary": "Not_Mentioned",
+                            "Trabecular/Cords": "Not_Mentioned",
+                            "Micropapillary": "Not_Mentioned",
+                            "Single-file/Linear cords": "Not_Mentioned",
+                            "Fenestrated": "Not_Mentioned",
+                            "Tubular/Glandular": "Not_Mentioned",
+                            "Cystic/Microcystic": "Not_Mentioned",
+                            "Syncytial": "Not_Mentioned",
+                            "Nests/Morules": "Not_Mentioned",
+                            "Unable to confirm": "Not_Mentioned"
                           }
                         },
                         "Specific_Sub_Architectures": {
@@ -364,15 +360,15 @@
                           ],
                           "type": "morphology",
                           "conditions": {
-                            "Absent, No special pattern": "High_Possibly_True",
-                            "Rigid bridges": "Low_Possibly_True",
-                            "Arches": "Low_Possibly_True",
-                            "Bulbous": "Low_Possibly_True",
-                            "Thin/Stretched bridge": "Low_Possibly_True",
-                            "Bars": "Low_Possibly_True",
-                            "Microrosettes": "Low_Possibly_True",
-                            "One to several layers": "Low_Possibly_True",
-                            "Unable to confirm": "Negligible"
+                            "Absent, No special pattern": "Not_Mentioned",
+                            "Rigid bridges": "Not_Mentioned",
+                            "Arches": "Not_Mentioned",
+                            "Bulbous": "Not_Mentioned",
+                            "Thin/Stretched bridge": "Not_Mentioned",
+                            "Bars": "Not_Mentioned",
+                            "Microrosettes": "Not_Mentioned",
+                            "One to several layers": "Not_Mentioned",
+                            "Unable to confirm": "Not_Mentioned"
                           }
                         },
                         "Architectural_Atypia": {
@@ -384,10 +380,10 @@
                           ],
                           "type": "ordinal",
                           "conditions": {
-                            "Absent": "Must_False",
-                            "Mild/Moderate": "High_Possibly_True",
-                            "Severe": "High_Possibly_True",
-                            "Unable to confirm": "Negligible"
+                            "Absent": "Not_Mentioned",
+                            "Mild/Moderate": "Not_Mentioned",
+                            "Severe": "Not_Mentioned",
+                            "Unable to confirm": "Not_Mentioned"
                           }
                         },
                         "Lumina_Shape": {
@@ -399,10 +395,10 @@
                           ],
                           "type": "morphology",
                           "conditions": {
-                            "Round/Oval": "High_Possibly_True",
-                            "Slit-like/Compressed": "High_Possibly_True",
-                            "Irregular/Angulated": "High_Possibly_True",
-                            "Unable to confirm": "High_Possibly_True"
+                            "Round/Oval": "Not_Mentioned",
+                            "Slit-like/Compressed": "Not_Mentioned",
+                            "Irregular/Angulated": "Not_Mentioned",
+                            "Unable to confirm": "Not_Mentioned"
                           }
                         },
                         "Tumour_Border": {
@@ -415,11 +411,11 @@
                           ],
                           "type": "morphology",
                           "conditions": {
-                            "Absent, No tumour": "Must_False",
-                            "Well-circumscribed/Pushing": "Low_Possibly_True",
+                            "Absent, No tumour": "Not_Mentioned",
+                            "Well-circumscribed/Pushing": "High_Possibly_True",
                             "Irregular/Infiltrative": "Must_True",
-                            "Pseudoinfiltrative": "Must_False",
-                            "Unable to confirm": "Negligible"
+                            "Pseudoinfiltrative": "Not_Mentioned",
+                            "Unable to confirm": "Not_Mentioned"
                           }
                         },
                         "Myoepithelial_Cell_Layer": {
@@ -431,10 +427,10 @@
                           ],
                           "type": "morphology",
                           "conditions": {
-                            "Visibly Intact/Prominent": "Must_False",
-                            "Attenuated/Indiscernible": "Low_Possibly_True",
-                            "Visibly Absent": "Must_True",
-                            "Unable to confirm": "Negligible"
+                            "Visibly Intact/Prominent": "High_Possibly_True",
+                            "Attenuated/Indiscernible": "Must_True",
+                            "Visibly Absent": "Not_Mentioned",
+                            "Unable to confirm": "Not_Mentioned"
                           }
                         }
                       },
@@ -447,9 +443,9 @@
                           ],
                           "type": "opposition",
                           "conditions": {
-                            "Absent": "High_Possibly_True",
-                            "Present": "Low_Possibly_True",
-                            "Unable to confirm": "Negligible"
+                            "Absent": "Not_Mentioned",
+                            "Present": "Not_Mentioned",
+                            "Unable to confirm": "Not_Mentioned"
                           }
                         },
                         "Apical_Snout": {
@@ -460,9 +456,9 @@
                           ],
                           "type": "opposition",
                           "conditions": {
-                            "Absent": "High_Possibly_True",
-                            "Present": "Low_Possibly_True",
-                            "Unable to confirm": "Negligible"
+                            "Absent": "Not_Mentioned",
+                            "Present": "Not_Mentioned",
+                            "Unable to confirm": "Not_Mentioned"
                           }
                         },
                         "Endoluminal_Secretion": {
@@ -478,14 +474,14 @@
                           ],
                           "type": "morphology",
                           "conditions": {
-                            "Absent": "High_Possibly_True",
-                            "Physiological": "Must_False",
-                            "Eosinophilic/Proteinaceous": "Low_Possibly_True",
-                            "Mucinous": "Low_Possibly_True",
-                            "Cellular debris": "Low_Possibly_True",
-                            "Mucin pools/Extracellular mucin": "Low_Possibly_True",
-                            "Present, Not Otherwise Specified": "Low_Possibly_True",
-                            "Unable to confirm": "Negligible"
+                            "Absent": "Not_Mentioned",
+                            "Physiological": "Not_Mentioned",
+                            "Eosinophilic/Proteinaceous": "Not_Mentioned",
+                            "Mucinous": "Not_Mentioned",
+                            "Cellular debris": "Not_Mentioned",
+                            "Mucin pools/Extracellular mucin": "Not_Mentioned",
+                            "Present, Not Otherwise Specified": "Not_Mentioned",
+                            "Unable to confirm": "Not_Mentioned"
                           }
                         },
                         "Necrosis": {
@@ -498,11 +494,11 @@
                           ],
                           "type": "ordinal",
                           "conditions": {
-                            "Absent": "High_Possibly_True",
-                            "Focal/Punctate": "High_Possibly_True",
-                            "Comedonecrosis": "Low_Possibly_True",
-                            "Present, Not Otherwise Specified": "High_Possibly_True",
-                            "Unable to confirm": "Negligible"
+                            "Absent": "Not_Mentioned",
+                            "Focal/Punctate": "Not_Mentioned",
+                            "Comedonecrosis": "Not_Mentioned",
+                            "Present, Not Otherwise Specified": "Not_Mentioned",
+                            "Unable to confirm": "Not_Mentioned"
                           }
                         },
                         "Calcifications": {
@@ -520,16 +516,16 @@
                           ],
                           "type": "morphology",
                           "conditions": {
-                            "Absent": "High_Possibly_True",
-                            "Coarse/Popcorn": "Low_Possibly_True",
-                            "Psammomatous": "Low_Possibly_True",
-                            "Microcalcifications": "Low_Possibly_True",
-                            "Linear": "Low_Possibly_True",
-                            "Branching": "Low_Possibly_True",
-                            "Fine pleomorphic/Clustered": "Low_Possibly_True",
-                            "Amorphous": "Low_Possibly_True",
-                            "Present, Not Otherwise Specified": "Low_Possibly_True",
-                            "Unable to confirm": "Negligible"
+                            "Absent": "Not_Mentioned",
+                            "Coarse/Popcorn": "Not_Mentioned",
+                            "Psammomatous": "Not_Mentioned",
+                            "Microcalcifications": "Not_Mentioned",
+                            "Linear": "Not_Mentioned",
+                            "Branching": "Not_Mentioned",
+                            "Fine pleomorphic/Clustered": "Not_Mentioned",
+                            "Amorphous": "Not_Mentioned",
+                            "Present, Not Otherwise Specified": "Not_Mentioned",
+                            "Unable to confirm": "Not_Mentioned"
                           }
                         },
                         "Squamous_Sebaceous_Differentiation": {
@@ -542,11 +538,11 @@
                           ],
                           "type": "morphology",
                           "conditions": {
-                            "Absent": "High_Possibly_True",
-                            "Squamous": "Low_Possibly_True",
-                            "Sebaceous": "Negligible",
-                            "Present, Not Otherwise Specified": "Low_Possibly_True",
-                            "Unable to confirm": "Negligible"
+                            "Absent": "Not_Mentioned",
+                            "Squamous": "Not_Mentioned",
+                            "Sebaceous": "Not_Mentioned",
+                            "Present, Not Otherwise Specified": "Not_Mentioned",
+                            "Unable to confirm": "Not_Mentioned"
                           }
                         },
                         "Stromal_Characteristics": {
@@ -560,12 +556,12 @@
                           ],
                           "type": "morphology",
                           "conditions": {
-                            "Fibrofatty/Loose Intralobular": "Must_False",
+                            "Fibrofatty/Loose Intralobular": "Not_Mentioned",
                             "Desmoplastic/Fibrotic": "Must_True",
-                            "Fibroelastotic": "Low_Possibly_True",
-                            "Myxoid/Chondromyxoid": "Low_Possibly_True",
-                            "Oedematous": "Low_Possibly_True",
-                            "Unable to confirm": "Negligible"
+                            "Fibroelastotic": "High_Possibly_True",
+                            "Myxoid/Chondromyxoid": "Not_Mentioned",
+                            "Oedematous": "Not_Mentioned",
+                            "Unable to confirm": "Not_Mentioned"
                           }
                         },
                         "Tumour_Infiltrating_Lymphocytes": {
@@ -577,29 +573,29 @@
                           ],
                           "type": "ordinal",
                           "conditions": {
-                            "Absent/Sparse": "High_Possibly_True",
-                            "Mild/Moderate": "High_Possibly_True",
-                            "Prominent/Rich": "High_Possibly_True",
-                            "Unable to confirm": "Negligible"
+                            "Absent/Sparse": "Not_Mentioned",
+                            "Mild/Moderate": "Not_Mentioned",
+                            "Prominent/Rich": "Not_Mentioned",
+                            "Unable to confirm": "Not_Mentioned"
                           }
                         }
                       }
                     }
                   },
-                  "mapping_source": "[typeLevel]visualAttrs_v1.2.1_2603241656.json#sha256=cee62d92732bb199ff1bf34b904802c758d5467fe9f5c879ee6d6944df209861",
+                  "mapping_source": "synthetic://person-d-criteria-fixture;visual_attribute_template_v1.2.1.json#sha256=bd9517d2d7a13f9f1eedba2da762960e3eb253a467666c61f0d4908b17744284",
                   "chunk_ids": []
                 },
                 {
                   "query_id": "case-001-query-004",
                   "dx_pair_id": "case-001-dx-001",
-                  "text": "Histologic_Type-Invasive Carcinoma(IC) (synthetic acceptance query: every option High_Possibly_True)",
+                  "text": "Synthetic criteria fixture for Person D matching tests.",
                   "criteria_status": "mapped",
                   "diagnosticCriteria": {
                     "version": "1.2.1",
                     "type": "diagnosticCriteria",
                     "includeReferences": [
-                      "visualAttrs(with condition)",
-                      "HistologicType_candidates"
+                      "visual_attribute_template",
+                      "synthetic_test_conditions"
                     ],
                     "typeLevel_idx": 0,
                     "DxItem": "Histologic_Type",
@@ -613,8 +609,8 @@
                       "Not_Mentioned"
                     ],
                     "optionTypes": [
-                      "morphology",
                       "ordinal",
+                      "morphology",
                       "opposition"
                     ],
                     "visualAttrs": {
@@ -1070,20 +1066,20 @@
                       }
                     }
                   },
-                  "mapping_source": "[typeLevel]visualAttrs_v1.2.1_2603241656.json#sha256=cee62d92732bb199ff1bf34b904802c758d5467fe9f5c879ee6d6944df209861",
+                  "mapping_source": "synthetic://person-d-criteria-fixture;visual_attribute_template_v1.2.1.json#sha256=bd9517d2d7a13f9f1eedba2da762960e3eb253a467666c61f0d4908b17744284",
                   "chunk_ids": []
                 },
                 {
                   "query_id": "case-001-query-005",
                   "dx_pair_id": "case-001-dx-001",
-                  "text": "Histologic_Type-Invasive Carcinoma(IC) (synthetic acceptance query: every option Low_Possibly_True)",
+                  "text": "Synthetic criteria fixture for Person D matching tests.",
                   "criteria_status": "mapped",
                   "diagnosticCriteria": {
                     "version": "1.2.1",
                     "type": "diagnosticCriteria",
                     "includeReferences": [
-                      "visualAttrs(with condition)",
-                      "HistologicType_candidates"
+                      "visual_attribute_template",
+                      "synthetic_test_conditions"
                     ],
                     "typeLevel_idx": 0,
                     "DxItem": "Histologic_Type",
@@ -1097,8 +1093,8 @@
                       "Not_Mentioned"
                     ],
                     "optionTypes": [
-                      "morphology",
                       "ordinal",
+                      "morphology",
                       "opposition"
                     ],
                     "visualAttrs": {
@@ -1554,7 +1550,7 @@
                       }
                     }
                   },
-                  "mapping_source": "[typeLevel]visualAttrs_v1.2.1_2603241656.json#sha256=cee62d92732bb199ff1bf34b904802c758d5467fe9f5c879ee6d6944df209861",
+                  "mapping_source": "synthetic://person-d-criteria-fixture;visual_attribute_template_v1.2.1.json#sha256=bd9517d2d7a13f9f1eedba2da762960e3eb253a467666c61f0d4908b17744284",
                   "chunk_ids": []
                 }
               ]
@@ -1582,14 +1578,14 @@
                 {
                   "query_id": "case-001-query-002",
                   "dx_pair_id": "case-001-dx-002",
-                  "text": "Microcalcification-Present",
+                  "text": "Synthetic criteria fixture for Person D matching tests.",
                   "criteria_status": "mapped",
                   "diagnosticCriteria": {
                     "version": "1.2.1",
                     "type": "diagnosticCriteria",
                     "includeReferences": [
-                      "visualAttrs(with condition)",
-                      "HistologicType_candidates"
+                      "visual_attribute_template",
+                      "synthetic_test_conditions"
                     ],
                     "typeLevel_idx": 0,
                     "DxItem": "Histologic_Type",
@@ -1603,8 +1599,8 @@
                       "Not_Mentioned"
                     ],
                     "optionTypes": [
-                      "morphology",
                       "ordinal",
+                      "morphology",
                       "opposition"
                     ],
                     "visualAttrs": {
@@ -1620,10 +1616,10 @@
                           "type": "ordinal",
                           "conditions": {
                             "Monomorphic": "Low_Possibly_True",
-                            "Mild": "High_Possibly_True",
+                            "Mild": "Not_Mentioned",
                             "Moderate": "High_Possibly_True",
-                            "Severe": "High_Possibly_True",
-                            "Unable to confirm": "Negligible"
+                            "Severe": "Not_Mentioned",
+                            "Unable to confirm": "Not_Mentioned"
                           }
                         },
                         "Cytological_Atypia": {
@@ -1636,11 +1632,11 @@
                           ],
                           "type": "ordinal",
                           "conditions": {
-                            "Absent": "Must_False",
-                            "Low-grade/Mild": "High_Possibly_True",
-                            "Intermediate-grade/Moderate": "High_Possibly_True",
+                            "Absent": "Not_Mentioned",
+                            "Low-grade/Mild": "Not_Mentioned",
+                            "Intermediate-grade/Moderate": "Not_Mentioned",
                             "High-grade/Severe": "High_Possibly_True",
-                            "Unable to confirm": "Negligible"
+                            "Unable to confirm": "Not_Mentioned"
                           }
                         },
                         "Chromatin": {
@@ -1656,12 +1652,12 @@
                           "type": "morphology",
                           "conditions": {
                             "Regular": "Must_False",
-                            "Vesicular": "High_Possibly_True",
-                            "Coarsely clumped": "High_Possibly_True",
+                            "Vesicular": "Not_Mentioned",
+                            "Coarsely clumped": "Not_Mentioned",
                             "Hyperchromatic": "High_Possibly_True",
-                            "Salt-and-pepper": "Low_Possibly_True",
-                            "Smudged": "Negligible",
-                            "Unable to confirm": "Negligible"
+                            "Salt-and-pepper": "Not_Mentioned",
+                            "Smudged": "Not_Mentioned",
+                            "Unable to confirm": "Not_Mentioned"
                           }
                         },
                         "Nuclear_Size": {
@@ -1673,10 +1669,10 @@
                           ],
                           "type": "opposition",
                           "conditions": {
-                            "Uniform": "Low_Possibly_True",
-                            "Enlargement": "High_Possibly_True",
-                            "Variable": "High_Possibly_True",
-                            "Unable to confirm": "Negligible"
+                            "Uniform": "Not_Mentioned",
+                            "Enlargement": "Not_Mentioned",
+                            "Variable": "Not_Mentioned",
+                            "Unable to confirm": "Not_Mentioned"
                           }
                         },
                         "Nuclear_Shape": {
@@ -1690,12 +1686,12 @@
                           ],
                           "type": "morphology",
                           "conditions": {
-                            "Uniform": "Low_Possibly_True",
-                            "Spindle": "Low_Possibly_True",
-                            "Irregular/Pleomorphic": "High_Possibly_True",
-                            "Vesicular": "High_Possibly_True",
-                            "Variable": "High_Possibly_True",
-                            "Unable to confirm": "Negligible"
+                            "Uniform": "Not_Mentioned",
+                            "Spindle": "Not_Mentioned",
+                            "Irregular/Pleomorphic": "Not_Mentioned",
+                            "Vesicular": "Not_Mentioned",
+                            "Variable": "Not_Mentioned",
+                            "Unable to confirm": "Not_Mentioned"
                           }
                         },
                         "Prominent_Nucleoli": {
@@ -1706,9 +1702,9 @@
                           ],
                           "type": "opposition",
                           "conditions": {
-                            "Absent": "High_Possibly_True",
-                            "Present": "High_Possibly_True",
-                            "Unable to confirm": "Negligible"
+                            "Absent": "Not_Mentioned",
+                            "Present": "Not_Mentioned",
+                            "Unable to confirm": "Not_Mentioned"
                           }
                         },
                         "Epithelial_Cell_Shape": {
@@ -1724,14 +1720,14 @@
                           ],
                           "type": "morphology",
                           "conditions": {
-                            "Bilayered": "Must_False",
+                            "Bilayered": "Not_Mentioned",
                             "Cuboidal": "High_Possibly_True",
                             "Columnar": "Low_Possibly_True",
-                            "Squamous": "Low_Possibly_True",
-                            "Polygonal": "High_Possibly_True",
-                            "Plasmacytoid": "High_Possibly_True",
-                            "Spindle": "Low_Possibly_True",
-                            "Unable to confirm": "Negligible"
+                            "Squamous": "Not_Mentioned",
+                            "Polygonal": "Not_Mentioned",
+                            "Plasmacytoid": "Not_Mentioned",
+                            "Spindle": "Not_Mentioned",
+                            "Unable to confirm": "Not_Mentioned"
                           }
                         },
                         "Polarity": {
@@ -1743,10 +1739,10 @@
                           ],
                           "type": "ordinal",
                           "conditions": {
-                            "Maintained": "Low_Possibly_True",
-                            "Partially lost": "High_Possibly_True",
-                            "Completely lost": "High_Possibly_True",
-                            "Unable to confirm": "Negligible"
+                            "Maintained": "Not_Mentioned",
+                            "Partially lost": "Not_Mentioned",
+                            "Completely lost": "Not_Mentioned",
+                            "Unable to confirm": "Not_Mentioned"
                           }
                         },
                         "Cytoplasmic_Features": {
@@ -1761,13 +1757,13 @@
                           ],
                           "type": "morphology",
                           "conditions": {
-                            "Amphophilic to Pale Eosinophilic": "High_Possibly_True",
-                            "Eosinophilic/Granular": "High_Possibly_True",
-                            "Clear/Glycogenated": "Low_Possibly_True",
-                            "Vacuolated/Foamy/Lipid-rich": "Low_Possibly_True",
-                            "Signet-ring": "Low_Possibly_True",
-                            "Hobnail": "Low_Possibly_True",
-                            "Unable to confirm": "Negligible"
+                            "Amphophilic to Pale Eosinophilic": "Not_Mentioned",
+                            "Eosinophilic/Granular": "Not_Mentioned",
+                            "Clear/Glycogenated": "Not_Mentioned",
+                            "Vacuolated/Foamy/Lipid-rich": "Not_Mentioned",
+                            "Signet-ring": "Not_Mentioned",
+                            "Hobnail": "Not_Mentioned",
+                            "Unable to confirm": "Not_Mentioned"
                           }
                         },
                         "Mitotic_Activity": {
@@ -1779,10 +1775,10 @@
                           ],
                           "type": "morphology",
                           "conditions": {
-                            "Inconspicuous": "Low_Possibly_True",
-                            "Present/Brisk": "High_Possibly_True",
-                            "Atypical figures present": "High_Possibly_True",
-                            "Unable to confirm": "Negligible"
+                            "Inconspicuous": "Not_Mentioned",
+                            "Present/Brisk": "Not_Mentioned",
+                            "Atypical figures present": "Not_Mentioned",
+                            "Unable to confirm": "Not_Mentioned"
                           }
                         }
                       },
@@ -1807,21 +1803,21 @@
                           ],
                           "type": "morphology",
                           "conditions": {
-                            "Absent, No special pattern": "Must_False",
+                            "Absent, No special pattern": "Not_Mentioned",
                             "Simple Tubular/Branching Structures": "Must_False",
                             "Solid": "High_Possibly_True",
-                            "Comedo": "Low_Possibly_True",
-                            "Cribriform": "High_Possibly_True",
-                            "Papillary": "Low_Possibly_True",
-                            "Trabecular/Cords": "High_Possibly_True",
-                            "Micropapillary": "High_Possibly_True",
-                            "Single-file/Linear cords": "High_Possibly_True",
-                            "Fenestrated": "Low_Possibly_True",
-                            "Tubular/Glandular": "High_Possibly_True",
-                            "Cystic/Microcystic": "Low_Possibly_True",
-                            "Syncytial": "Low_Possibly_True",
-                            "Nests/Morules": "High_Possibly_True",
-                            "Unable to confirm": "Negligible"
+                            "Comedo": "Not_Mentioned",
+                            "Cribriform": "Not_Mentioned",
+                            "Papillary": "Not_Mentioned",
+                            "Trabecular/Cords": "Not_Mentioned",
+                            "Micropapillary": "Not_Mentioned",
+                            "Single-file/Linear cords": "Not_Mentioned",
+                            "Fenestrated": "Not_Mentioned",
+                            "Tubular/Glandular": "Not_Mentioned",
+                            "Cystic/Microcystic": "Not_Mentioned",
+                            "Syncytial": "Not_Mentioned",
+                            "Nests/Morules": "Not_Mentioned",
+                            "Unable to confirm": "Not_Mentioned"
                           }
                         },
                         "Specific_Sub_Architectures": {
@@ -1838,15 +1834,15 @@
                           ],
                           "type": "morphology",
                           "conditions": {
-                            "Absent, No special pattern": "High_Possibly_True",
-                            "Rigid bridges": "Low_Possibly_True",
-                            "Arches": "Low_Possibly_True",
-                            "Bulbous": "Low_Possibly_True",
-                            "Thin/Stretched bridge": "Low_Possibly_True",
-                            "Bars": "Low_Possibly_True",
-                            "Microrosettes": "Low_Possibly_True",
-                            "One to several layers": "Low_Possibly_True",
-                            "Unable to confirm": "Negligible"
+                            "Absent, No special pattern": "Not_Mentioned",
+                            "Rigid bridges": "Not_Mentioned",
+                            "Arches": "Not_Mentioned",
+                            "Bulbous": "Not_Mentioned",
+                            "Thin/Stretched bridge": "Not_Mentioned",
+                            "Bars": "Not_Mentioned",
+                            "Microrosettes": "Not_Mentioned",
+                            "One to several layers": "Not_Mentioned",
+                            "Unable to confirm": "Not_Mentioned"
                           }
                         },
                         "Architectural_Atypia": {
@@ -1858,10 +1854,10 @@
                           ],
                           "type": "ordinal",
                           "conditions": {
-                            "Absent": "Must_False",
-                            "Mild/Moderate": "High_Possibly_True",
-                            "Severe": "High_Possibly_True",
-                            "Unable to confirm": "Negligible"
+                            "Absent": "Not_Mentioned",
+                            "Mild/Moderate": "Not_Mentioned",
+                            "Severe": "Not_Mentioned",
+                            "Unable to confirm": "Not_Mentioned"
                           }
                         },
                         "Lumina_Shape": {
@@ -1873,10 +1869,10 @@
                           ],
                           "type": "morphology",
                           "conditions": {
-                            "Round/Oval": "High_Possibly_True",
-                            "Slit-like/Compressed": "High_Possibly_True",
-                            "Irregular/Angulated": "High_Possibly_True",
-                            "Unable to confirm": "High_Possibly_True"
+                            "Round/Oval": "Not_Mentioned",
+                            "Slit-like/Compressed": "Not_Mentioned",
+                            "Irregular/Angulated": "Not_Mentioned",
+                            "Unable to confirm": "Not_Mentioned"
                           }
                         },
                         "Tumour_Border": {
@@ -1889,11 +1885,11 @@
                           ],
                           "type": "morphology",
                           "conditions": {
-                            "Absent, No tumour": "Must_False",
-                            "Well-circumscribed/Pushing": "Low_Possibly_True",
+                            "Absent, No tumour": "Not_Mentioned",
+                            "Well-circumscribed/Pushing": "High_Possibly_True",
                             "Irregular/Infiltrative": "Must_True",
-                            "Pseudoinfiltrative": "Must_False",
-                            "Unable to confirm": "Negligible"
+                            "Pseudoinfiltrative": "Not_Mentioned",
+                            "Unable to confirm": "Not_Mentioned"
                           }
                         },
                         "Myoepithelial_Cell_Layer": {
@@ -1905,10 +1901,10 @@
                           ],
                           "type": "morphology",
                           "conditions": {
-                            "Visibly Intact/Prominent": "Must_False",
-                            "Attenuated/Indiscernible": "Low_Possibly_True",
-                            "Visibly Absent": "Must_True",
-                            "Unable to confirm": "Negligible"
+                            "Visibly Intact/Prominent": "High_Possibly_True",
+                            "Attenuated/Indiscernible": "Must_True",
+                            "Visibly Absent": "Not_Mentioned",
+                            "Unable to confirm": "Not_Mentioned"
                           }
                         }
                       },
@@ -1921,9 +1917,9 @@
                           ],
                           "type": "opposition",
                           "conditions": {
-                            "Absent": "High_Possibly_True",
-                            "Present": "Low_Possibly_True",
-                            "Unable to confirm": "Negligible"
+                            "Absent": "Not_Mentioned",
+                            "Present": "Not_Mentioned",
+                            "Unable to confirm": "Not_Mentioned"
                           }
                         },
                         "Apical_Snout": {
@@ -1934,9 +1930,9 @@
                           ],
                           "type": "opposition",
                           "conditions": {
-                            "Absent": "High_Possibly_True",
-                            "Present": "Low_Possibly_True",
-                            "Unable to confirm": "Negligible"
+                            "Absent": "Not_Mentioned",
+                            "Present": "Not_Mentioned",
+                            "Unable to confirm": "Not_Mentioned"
                           }
                         },
                         "Endoluminal_Secretion": {
@@ -1952,14 +1948,14 @@
                           ],
                           "type": "morphology",
                           "conditions": {
-                            "Absent": "High_Possibly_True",
-                            "Physiological": "Must_False",
-                            "Eosinophilic/Proteinaceous": "Low_Possibly_True",
-                            "Mucinous": "Low_Possibly_True",
-                            "Cellular debris": "Low_Possibly_True",
-                            "Mucin pools/Extracellular mucin": "Low_Possibly_True",
-                            "Present, Not Otherwise Specified": "Low_Possibly_True",
-                            "Unable to confirm": "Negligible"
+                            "Absent": "Not_Mentioned",
+                            "Physiological": "Not_Mentioned",
+                            "Eosinophilic/Proteinaceous": "Not_Mentioned",
+                            "Mucinous": "Not_Mentioned",
+                            "Cellular debris": "Not_Mentioned",
+                            "Mucin pools/Extracellular mucin": "Not_Mentioned",
+                            "Present, Not Otherwise Specified": "Not_Mentioned",
+                            "Unable to confirm": "Not_Mentioned"
                           }
                         },
                         "Necrosis": {
@@ -1972,11 +1968,11 @@
                           ],
                           "type": "ordinal",
                           "conditions": {
-                            "Absent": "High_Possibly_True",
-                            "Focal/Punctate": "High_Possibly_True",
-                            "Comedonecrosis": "Low_Possibly_True",
-                            "Present, Not Otherwise Specified": "High_Possibly_True",
-                            "Unable to confirm": "Negligible"
+                            "Absent": "Not_Mentioned",
+                            "Focal/Punctate": "Not_Mentioned",
+                            "Comedonecrosis": "Not_Mentioned",
+                            "Present, Not Otherwise Specified": "Not_Mentioned",
+                            "Unable to confirm": "Not_Mentioned"
                           }
                         },
                         "Calcifications": {
@@ -1994,16 +1990,16 @@
                           ],
                           "type": "morphology",
                           "conditions": {
-                            "Absent": "High_Possibly_True",
-                            "Coarse/Popcorn": "Low_Possibly_True",
-                            "Psammomatous": "Low_Possibly_True",
-                            "Microcalcifications": "Low_Possibly_True",
-                            "Linear": "Low_Possibly_True",
-                            "Branching": "Low_Possibly_True",
-                            "Fine pleomorphic/Clustered": "Low_Possibly_True",
-                            "Amorphous": "Low_Possibly_True",
-                            "Present, Not Otherwise Specified": "Low_Possibly_True",
-                            "Unable to confirm": "Negligible"
+                            "Absent": "Not_Mentioned",
+                            "Coarse/Popcorn": "Not_Mentioned",
+                            "Psammomatous": "Not_Mentioned",
+                            "Microcalcifications": "Not_Mentioned",
+                            "Linear": "Not_Mentioned",
+                            "Branching": "Not_Mentioned",
+                            "Fine pleomorphic/Clustered": "Not_Mentioned",
+                            "Amorphous": "Not_Mentioned",
+                            "Present, Not Otherwise Specified": "Not_Mentioned",
+                            "Unable to confirm": "Not_Mentioned"
                           }
                         },
                         "Squamous_Sebaceous_Differentiation": {
@@ -2016,11 +2012,11 @@
                           ],
                           "type": "morphology",
                           "conditions": {
-                            "Absent": "High_Possibly_True",
-                            "Squamous": "Low_Possibly_True",
-                            "Sebaceous": "Negligible",
-                            "Present, Not Otherwise Specified": "Low_Possibly_True",
-                            "Unable to confirm": "Negligible"
+                            "Absent": "Not_Mentioned",
+                            "Squamous": "Not_Mentioned",
+                            "Sebaceous": "Not_Mentioned",
+                            "Present, Not Otherwise Specified": "Not_Mentioned",
+                            "Unable to confirm": "Not_Mentioned"
                           }
                         },
                         "Stromal_Characteristics": {
@@ -2034,12 +2030,12 @@
                           ],
                           "type": "morphology",
                           "conditions": {
-                            "Fibrofatty/Loose Intralobular": "Must_False",
+                            "Fibrofatty/Loose Intralobular": "Not_Mentioned",
                             "Desmoplastic/Fibrotic": "Must_True",
-                            "Fibroelastotic": "Low_Possibly_True",
-                            "Myxoid/Chondromyxoid": "Low_Possibly_True",
-                            "Oedematous": "Low_Possibly_True",
-                            "Unable to confirm": "Negligible"
+                            "Fibroelastotic": "High_Possibly_True",
+                            "Myxoid/Chondromyxoid": "Not_Mentioned",
+                            "Oedematous": "Not_Mentioned",
+                            "Unable to confirm": "Not_Mentioned"
                           }
                         },
                         "Tumour_Infiltrating_Lymphocytes": {
@@ -2051,16 +2047,16 @@
                           ],
                           "type": "ordinal",
                           "conditions": {
-                            "Absent/Sparse": "High_Possibly_True",
-                            "Mild/Moderate": "High_Possibly_True",
-                            "Prominent/Rich": "High_Possibly_True",
-                            "Unable to confirm": "Negligible"
+                            "Absent/Sparse": "Not_Mentioned",
+                            "Mild/Moderate": "Not_Mentioned",
+                            "Prominent/Rich": "Not_Mentioned",
+                            "Unable to confirm": "Not_Mentioned"
                           }
                         }
                       }
                     }
                   },
-                  "mapping_source": "[typeLevel]visualAttrs_v1.2.1_2603241656.json#sha256=cee62d92732bb199ff1bf34b904802c758d5467fe9f5c879ee6d6944df209861",
+                  "mapping_source": "synthetic://person-d-criteria-fixture;visual_attribute_template_v1.2.1.json#sha256=bd9517d2d7a13f9f1eedba2da762960e3eb253a467666c61f0d4908b17744284",
                   "chunk_ids": []
                 },
                 {
@@ -2069,7 +2065,7 @@
                   "text": "Microcalcification-Present (synthetic unmapped query)",
                   "criteria_status": "unmapped",
                   "diagnosticCriteria": null,
-                  "mapping_source": "[typeLevel]visualAttrs_v1.2.1_2603241656.json#sha256=cee62d92732bb199ff1bf34b904802c758d5467fe9f5c879ee6d6944df209861",
+                  "mapping_source": "synthetic://person-d-criteria-fixture;visual_attribute_template_v1.2.1.json#sha256=bd9517d2d7a13f9f1eedba2da762960e3eb253a467666c61f0d4908b17744284",
                   "chunk_ids": []
                 }
               ]
@@ -2082,9 +2078,7 @@
       "visualAttrs": {
         "Cellular_and_Nuclear": {
           "Cell_Pleomorphism": {
-            "normal": [
-              "Monomorphic"
-            ],
+            "type": "ordinal",
             "options": [
               "Monomorphic",
               "Mild",
@@ -2092,12 +2086,10 @@
               "Severe",
               "Unable to confirm"
             ],
-            "type": "ordinal"
+            "normal": []
           },
           "Cytological_Atypia": {
-            "normal": [
-              "Absent"
-            ],
+            "type": "ordinal",
             "options": [
               "Absent",
               "Low-grade/Mild",
@@ -2105,12 +2097,10 @@
               "High-grade/Severe",
               "Unable to confirm"
             ],
-            "type": "ordinal"
+            "normal": []
           },
           "Chromatin": {
-            "normal": [
-              "Regular"
-            ],
+            "type": "morphology",
             "options": [
               "Regular",
               "Vesicular",
@@ -2120,24 +2110,20 @@
               "Smudged",
               "Unable to confirm"
             ],
-            "type": "morphology"
+            "normal": []
           },
           "Nuclear_Size": {
-            "normal": [
-              "Uniform"
-            ],
+            "type": "opposition",
             "options": [
               "Uniform",
               "Enlargement",
               "Variable",
               "Unable to confirm"
             ],
-            "type": "opposition"
+            "normal": []
           },
           "Nuclear_Shape": {
-            "normal": [
-              "Uniform"
-            ],
+            "type": "morphology",
             "options": [
               "Uniform",
               "Spindle",
@@ -2146,25 +2132,19 @@
               "Variable",
               "Unable to confirm"
             ],
-            "type": "morphology"
+            "normal": []
           },
           "Prominent_Nucleoli": {
-            "normal": [
-              "Absent"
-            ],
+            "type": "opposition",
             "options": [
               "Absent",
               "Present",
               "Unable to confirm"
             ],
-            "type": "opposition"
+            "normal": []
           },
           "Epithelial_Cell_Shape": {
-            "normal": [
-              "Bilayered",
-              "Cuboidal",
-              "Columnar"
-            ],
+            "type": "morphology",
             "options": [
               "Bilayered",
               "Cuboidal",
@@ -2175,24 +2155,20 @@
               "Spindle",
               "Unable to confirm"
             ],
-            "type": "morphology"
+            "normal": []
           },
           "Polarity": {
-            "normal": [
-              "Maintained"
-            ],
+            "type": "ordinal",
             "options": [
               "Maintained",
               "Partially lost",
               "Completely lost",
               "Unable to confirm"
             ],
-            "type": "ordinal"
+            "normal": []
           },
           "Cytoplasmic_Features": {
-            "normal": [
-              "Amphophilic to Pale Eosinophilic"
-            ],
+            "type": "morphology",
             "options": [
               "Amphophilic to Pale Eosinophilic",
               "Eosinophilic/Granular",
@@ -2202,27 +2178,22 @@
               "Hobnail",
               "Unable to confirm"
             ],
-            "type": "morphology"
+            "normal": []
           },
           "Mitotic_Activity": {
-            "normal": [
-              "Inconspicuous"
-            ],
+            "type": "morphology",
             "options": [
               "Inconspicuous",
               "Present/Brisk",
               "Atypical figures present",
               "Unable to confirm"
             ],
-            "type": "morphology"
+            "normal": []
           }
         },
         "Architecture": {
           "Pattern": {
-            "normal": [
-              "Absent, No special pattern",
-              "Simple Tubular/Branching Structures"
-            ],
+            "type": "morphology",
             "options": [
               "Absent, No special pattern",
               "Simple Tubular/Branching Structures",
@@ -2240,12 +2211,10 @@
               "Nests/Morules",
               "Unable to confirm"
             ],
-            "type": "morphology"
+            "normal": []
           },
           "Specific_Sub_Architectures": {
-            "normal": [
-              "Absent, No special pattern"
-            ],
+            "type": "morphology",
             "options": [
               "Absent, No special pattern",
               "Rigid bridges",
@@ -2257,36 +2226,30 @@
               "One to several layers",
               "Unable to confirm"
             ],
-            "type": "morphology"
+            "normal": []
           },
           "Architectural_Atypia": {
-            "normal": [
-              "Absent"
-            ],
+            "type": "ordinal",
             "options": [
               "Absent",
               "Mild/Moderate",
               "Severe",
               "Unable to confirm"
             ],
-            "type": "ordinal"
+            "normal": []
           },
           "Lumina_Shape": {
-            "normal": [
-              "Round/Oval"
-            ],
+            "type": "morphology",
             "options": [
               "Round/Oval",
               "Slit-like/Compressed",
               "Irregular/Angulated",
               "Unable to confirm"
             ],
-            "type": "morphology"
+            "normal": []
           },
           "Tumour_Border": {
-            "normal": [
-              "Absent, No tumour"
-            ],
+            "type": "morphology",
             "options": [
               "Absent, No tumour",
               "Well-circumscribed/Pushing",
@@ -2294,49 +2257,40 @@
               "Pseudoinfiltrative",
               "Unable to confirm"
             ],
-            "type": "morphology"
+            "normal": []
           },
           "Myoepithelial_Cell_Layer": {
-            "normal": [
-              "Visibly Intact/Prominent"
-            ],
+            "type": "morphology",
             "options": [
               "Visibly Intact/Prominent",
               "Attenuated/Indiscernible",
               "Visibly Absent",
               "Unable to confirm"
             ],
-            "type": "morphology"
+            "normal": []
           }
         },
         "Special_Features": {
           "Apocrine_Differentiation": {
-            "normal": [
-              "Absent"
-            ],
+            "type": "opposition",
             "options": [
               "Absent",
               "Present",
               "Unable to confirm"
             ],
-            "type": "opposition"
+            "normal": []
           },
           "Apical_Snout": {
-            "normal": [
-              "Absent"
-            ],
+            "type": "opposition",
             "options": [
               "Absent",
               "Present",
               "Unable to confirm"
             ],
-            "type": "opposition"
+            "normal": []
           },
           "Endoluminal_Secretion": {
-            "normal": [
-              "Absent",
-              "Physiological"
-            ],
+            "type": "morphology",
             "options": [
               "Absent",
               "Physiological",
@@ -2347,12 +2301,10 @@
               "Present, Not Otherwise Specified",
               "Unable to confirm"
             ],
-            "type": "morphology"
+            "normal": []
           },
           "Necrosis": {
-            "normal": [
-              "Absent"
-            ],
+            "type": "ordinal",
             "options": [
               "Absent",
               "Focal/Punctate",
@@ -2360,12 +2312,10 @@
               "Present, Not Otherwise Specified",
               "Unable to confirm"
             ],
-            "type": "ordinal"
+            "normal": []
           },
           "Calcifications": {
-            "normal": [
-              "Absent"
-            ],
+            "type": "morphology",
             "options": [
               "Absent",
               "Coarse/Popcorn",
@@ -2378,12 +2328,10 @@
               "Present, Not Otherwise Specified",
               "Unable to confirm"
             ],
-            "type": "morphology"
+            "normal": []
           },
           "Squamous_Sebaceous_Differentiation": {
-            "normal": [
-              "Absent"
-            ],
+            "type": "morphology",
             "options": [
               "Absent",
               "Squamous",
@@ -2391,12 +2339,10 @@
               "Present, Not Otherwise Specified",
               "Unable to confirm"
             ],
-            "type": "morphology"
+            "normal": []
           },
           "Stromal_Characteristics": {
-            "normal": [
-              "Fibrofatty/Loose Intralobular"
-            ],
+            "type": "morphology",
             "options": [
               "Fibrofatty/Loose Intralobular",
               "Desmoplastic/Fibrotic",
@@ -2405,63 +2351,20 @@
               "Oedematous",
               "Unable to confirm"
             ],
-            "type": "morphology"
+            "normal": []
           },
           "Tumour_Infiltrating_Lymphocytes": {
-            "normal": [
-              "Absent/Sparse"
-            ],
+            "type": "ordinal",
             "options": [
               "Absent/Sparse",
               "Mild/Moderate",
               "Prominent/Rich",
               "Unable to confirm"
             ],
-            "type": "ordinal"
+            "normal": []
           }
         }
-      },
-      "Histologic_Type_candidate": [
-        "Usual ductal hyperplasia",
-        "Columnar cell lesions, including flat epithelial atypia",
-        "Atypical ductal hyperplasia",
-        "Sclerosing adenosis",
-        "Apocrine adenosis and adenoma",
-        "Microglandular adenosis",
-        "Radial scar / complex sclerosing lesion",
-        "Tubular adenoma",
-        "Lactating adenoma",
-        "Ductal adenoma",
-        "Pleomorphic adenoma",
-        "Adenomyoepithelioma",
-        "Malignant adenomyoepithelioma",
-        "Intraductal papilloma",
-        "Papillary ductal carcinoma in situ",
-        "Encapsulated papillary carcinoma",
-        "Solid papillary carcinoma (in situ and invasive)",
-        "Invasive papillary carcinoma",
-        "Atypical lobular hyperplasia",
-        "Lobular carcinoma in situ",
-        "Ductal carcinoma in situ",
-        "Invasive breast carcinoma of no special type",
-        "Microinvasive carcinoma",
-        "Invasive lobular carcinoma",
-        "Tubular carcinoma",
-        "Cribriform carcinoma",
-        "Mucinous carcinoma",
-        "Mucinous cystadenocarcinoma",
-        "Invasive micropapillary carcinoma",
-        "Carcinoma with apocrine differentiation",
-        "Metaplastic carcinoma",
-        "Acinic cell carcinoma",
-        "Adenoid cystic carcinoma",
-        "Secretory carcinoma",
-        "Mucoepidermoid carcinoma",
-        "Polymorphous adenocarcinoma",
-        "Tall cell carcinoma with reversed polarity",
-        "Neuroendocrine tumour",
-        "Neuroendocrine carcinoma"
-      ]
+      }
     }
   }
 }

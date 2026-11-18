@@ -7,33 +7,27 @@ assets:
     license: internal-research-use
     expected_mount_path: /reference/person_a/template_ref/DxStructuredCandidates_integrated.json
   - name: histologic-type-mapping
-    revision: stage2-condition-2026-10
-    sha256: c430e01da46d99463249e28de098d5e039998cf1e812cb9bbb70fc96d3281ae2
+    revision: inference-mapping-2026-11
+    sha256: 11e8763eba23e5b7c0b976e8d0ea49e24a136d5709601632633feb7a05c00e1a
     license: internal-research-use
     expected_mount_path: /reference/person_a/template_ref/Histologic_Type_mappingTable.json
-  - name: visual-attribute-candidates
-    revision: derived-from-stage2-condition-type-level-2026-10
-    sha256: 8ad1e14309200264ec4ec48f3948ab2490d9b3b111191f3aee2de13578d28f2d
+  - name: visual-attribute-template
+    revision: inference-schema-1.2.1-2026-11
+    sha256: bd9517d2d7a13f9f1eedba2da762960e3eb253a467666c61f0d4908b17744284
     license: internal-research-use
-    expected_mount_path: /reference/person_a/template_ref/candidateReference.json
-    note: Derived from the matching Stage 2 condition type-level option tree; Polarity retains the canonical ordinal type.
-  - name: type-level-visual-attributes
-    revision: 1.2.1-stage2-condition-2026-10
-    sha256: cee62d92732bb199ff1bf34b904802c758d5467fe9f5c879ee6d6944df209861
+    expected_mount_path: /reference/person_a/template_ref/visual_attribute_template_v1.2.1.json
+    note: Condition-free inference schema; subtype conditions are generated at runtime.
+  - name: query-generation-smoke-evidence
+    revision: condition-free-adh-smoke-2026-11
+    sha256: 5ec8570e07e9efcd877c3312e08194cae1b39bedd5c063360e92265d0fc7dd89
     license: internal-research-use
-    expected_mount_path: /reference/person_a/template_ref/[typeLevel]visualAttrs_v1.2.1_2603241656.json
-    note: Its SHA-256 is the typelevel_sha256 embedded in the condition chunks and checkpoint.
-  - name: learnable-query-attribute-vocabulary
-    revision: nano5-stage2-condition-2026-10
-    sha256: 1a5e205dd95f6cbb3209049879bbe0789d959dc562dc3076f435cc0cd688776f
-    license: internal-research-use
-    expected_mount_path: /reference/person_a/template_ref/chunks_with_attribute_condition.json
+    expected_mount_path: /reference/person_a/template_ref/query_generation_smoke_evidence.json
   - name: learnable-query-soft-prompt
-    revision: stage2-64sp-50epoch-option-conditions-best
-    sha256: c6d528818e82ea2ac87dc16960aec703653e194ec827da7082311b938287e9a2
+    revision: inference-only-metadata-v2
+    sha256: ba2583cbb9d336171cd6afe1c79c25997bb4a7958b5e00f3e167b271f09c0ef7
     license: internal-research-use
     expected_mount_path: /reference/person_a/checkpoint/soft_prompt_stage2_64SP_50epoch_chunk_option_conditions_retrieval_mixed_best.pt
-    note: Gemma 3 1B, soft prompt shape 64x1152, selected at training epoch 21.
+    note: Gemma 3 1B, soft prompt shape 64x1152; inference metadata references only the condition-free template.
   - name: medgemma-report-extractor
     revision: 91850547d9f0b2fdd21aa7c5f4f3d1a8a52c243b
     sha256: null

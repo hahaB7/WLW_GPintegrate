@@ -1,4 +1,4 @@
-# Fixed local models (Person A 0.9.0)
+# Fixed local models (Person A 0.10.0)
 
 Production reads complete, self-contained model directories from read-only
 `reference/person_a/checkpoint/`. It does not reconstruct an HF cache, download

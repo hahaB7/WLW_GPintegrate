@@ -7,7 +7,7 @@ from pathlib import Path
 
 from components.person_a.reference_data import (
     load_histologic_mapping,
-    load_visual_references,
+    load_visual_template,
 )
 from contracts.paths import REFERENCE_ROOT
 
@@ -20,39 +20,38 @@ class ReferenceDataTests(unittest.TestCase):
         with tempfile.TemporaryDirectory(dir=PERSON_A_REFERENCE) as temp_dir:
             path = Path(temp_dir) / "mapping.json"
             path.write_text(
-                json.dumps({"Histologic_Type_mappingTable": {"Custom": "Target"}}),
+                json.dumps(
+                    {
+                        "Histologic_Type_mappingTable": {
+                            "Custom": {"DxResult": "Target", "typeLevel_idx": 9}
+                        }
+                    }
+                ),
                 encoding="utf-8",
             )
             mapping, provenance = load_histologic_mapping(
                 path, integrity_mode="record_only"
             )
-            self.assertEqual({"Custom": "Target"}, mapping)
+            self.assertEqual(
+                {"Custom": {"DxResult": "Target", "typeLevel_idx": 9}},
+                mapping,
+            )
             self.assertEqual("mapping.json", provenance["source_name"])
             self.assertEqual("record_only", provenance["integrity_mode"])
 
-    def test_type_level_filename_revision_and_polarity_are_canonicalized(self) -> None:
-        candidate_path = PERSON_A_REFERENCE / "candidateReference.json"
-        type_level_path = (
-            PERSON_A_REFERENCE / "[typeLevel]visualAttrs_v1.2.1_2603241656.json"
+    def test_inference_template_is_condition_free_and_integrity_verified(self) -> None:
+        path = PERSON_A_REFERENCE / "visual_attribute_template_v1.2.1.json"
+        template, provenance = load_visual_template(path)
+        self.assertTrue(provenance["integrity_verified"])
+        self.assertEqual("1.2.1", template["version"])
+        self.assertEqual("visualAttributeTemplate", template["type"])
+        self.assertEqual(
+            "ordinal",
+            template["visualAttrs"]["Cellular_and_Nuclear"]["Polarity"]["type"],
         )
-        _, type_levels, provenance = load_visual_references(
-            candidate_path, type_level_path
-        )
-        self.assertTrue(
-            provenance["candidate_reference"]["integrity_verified"]
-        )
-        self.assertTrue(
-            provenance["type_level_visual_attrs"]["integrity_verified"]
-        )
-        self.assertTrue(type_levels)
-        self.assertTrue(all(item["version"] == "1.2.1" for item in type_levels))
-        self.assertTrue(
-            all(
-                item["visualAttrs"]["Cellular_and_Nuclear"]["Polarity"]["type"]
-                == "ordinal"
-                for item in type_levels
-            )
-        )
+        for features in template["visualAttrs"].values():
+            for definition in features.values():
+                self.assertNotIn("conditions", definition)
 
 
 if __name__ == "__main__":

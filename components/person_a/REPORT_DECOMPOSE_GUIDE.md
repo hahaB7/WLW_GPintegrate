@@ -84,7 +84,7 @@ docker run --rm --gpus all --network none `
   -v "C:/lab_20/reference:/reference:ro" `
   -v "C:/lab_20/run:/run" `
   -v "D:/hospital-data:/data/reports:ro" `
-  wlw/person-a:0.9.0 `
+  wlw/person-a:0.10.0 `
   --input /run/input/pipeline/case-001.json `
   --output /run/output/work/D_dx_pairs.json `
   --config /app/components/person_a/configs/report_decompose.default.json

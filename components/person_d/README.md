@@ -1,7 +1,7 @@
 # Person D: Visual Attribute Extraction and Matching Filter
 
-Owner: person_D. Component version `0.2.0` (`component.yaml`, config `component_version`
-`person-d/visual-filter:0.2.0`, image tag `wlw/person-d:0.2.0`).
+Owner: person_D. Component version `0.4.0` (`component.yaml`, config `component_version`
+`person-d/visual-filter:0.4.0`, image tag `wlw/person-d:0.4.0`).
 
 `visual_filter` consumes `E.ROIs@2.0` and `G.VisualAttributeQueries@2.0` and writes
 `H.MatchedROIs@2.0` (schemas in `contracts/schemas/`). Every E ROI is kept with its upstream
@@ -21,7 +21,7 @@ only where no query exists to link to.
 | Mode | Config | Behavior |
 |---|---|---|
 | `example` | `configs/example.json` | Contract-only stub for the repository pipeline test. No image or model; every ROI is `skipped` (`example_stub_no_evaluation`). |
-| `native` | `configs/native.example.json` | PLIP + CONCH visual attribute extraction, then matching against G `diagnosticCriteria`. |
+| `native` | `configs/native.json` | PLIP + CONCH visual attribute extraction, then matching against G `diagnosticCriteria`. |
 | `native` (smoke) | `configs/native.smoke.json` | Same path with random-initialised CONCH weights, for verifying the pipeline without gated CONCH access. Decisions have no diagnostic meaning. |
 
 ## Input validation (both modes)
@@ -66,12 +66,12 @@ loader uses, checks the accepted vocabulary mapping (next section), and exits 1 
 missing or differs:
 
 ```bash
-python -m components.person_d.verify_assets --config components/person_d/configs/native.example.json
+python -m components.person_d.verify_assets --config components/person_d/configs/native.json
 ```
 
 ## Vocabulary to diagnosticCriteria mapping
 
-Prompt asset 1.1.0 has 24 attributes with 105 options; diagnosticCriteria 1.2.1 has 138 options for
+Prompt asset 1.2.0 has 24 attributes with 123 scored or fallback options; diagnosticCriteria 1.2.1 has 138 options for
 the same attributes. [`MAPPING.md`](MAPPING.md) lists, per attribute, every vocabulary label, the
 criteria option it reaches and the rule that applied, and classifies every criteria option that no
 label reaches. It is generated from `mapping_acceptance.json`, the accepted mapping for this criteria
@@ -79,14 +79,15 @@ version:
 
 | Finding | Count | Behaviour |
 |---|---:|---|
-| Unmapped vocabulary option | 1 | `Pattern` `one to several layers`: criteria 1.2.1 lists it under `Specific_Sub_Architectures`. The label is dropped. |
+| Unmapped vocabulary option | 0 | `One to several layers` is now filed under `Specific_Sub_Architectures`. |
 | Vocabulary option mapped to several criteria options | 1 | `Epithelial_Cell_Shape` `Cuboidal/Columnar` maps to `Cuboidal` and `Columnar`: it counts once when both carry the same condition and is dropped as ambiguous when they differ. |
-| Unreachable criteria option, not a prediction target | 16 | 14 `Unable to confirm` (the backend shows it cannot assess an attribute through model disagreement) and 2 generic `Present, Not Otherwise Specified`. |
-| Unreachable criteria option, not covered | 17 | 16 options the `pipeline_quilt_1m.py` vocabulary has no label for, and 1 it files under another attribute. The backend can never predict them. |
+| Unreachable criteria option, not a prediction target | 14 | Only `Unable to confirm` remains outside the scored vocabulary; low confidence is represented by `Absent`, `N/A`, or no effective label. |
+| Unreachable morphology, NOS, or misplaced criteria option | 0 | Prompt asset 1.2.0 covers all such diagnosticCriteria 1.2.1 options. |
 
-A Must_True or Must_False condition on an unreachable option cannot be verified, so it never counts
-as passed (Native method, step 3); any other condition on an unreachable option never contributes to
-the score. `tests/test_mapping.py` checks that the acceptance file covers every criteria option,
+A condition on an unreachable option cannot itself be hit. Under the production
+`forward_all_informative` policy it does not block other observed evidence; the retained
+`strict_match` compatibility policy still audits unreachable Must conditions as unverified.
+`tests/test_mapping.py` checks that the acceptance file covers every criteria option,
 follows the mapping rule, classifies every unreachable option, matches `MAPPING.md`, and matches the
 reference assets when they are present; `verify_assets` checks the assets against it as well. A
 change to the prompt asset or the label map therefore needs a new acceptance file and
@@ -103,31 +104,28 @@ change to the prompt asset or the label map therefore needs a new acceptance fil
    attributes), PLIP and CONCH each score every
    option as `image_score_weight * image-to-option-prompt + example_score_weight *
    image-to-example-prototype + text_score_weight * custom-prompt-to-option`. Long option prompts are
-   chunked and averaged. Single-select attributes take the arg-max; `Pattern` and
-   `Specific_Sub_Architectures` keep options within `multi_select_margin` of the best. Only labels both
-   models agree on are kept (`roi.visualAttrs`); per-model predictions and scores go to
-   `roi.visualAttrs_info.models`.
-3. **Visual Attribute Matching Filter** (`matching_filter.py`): agreed labels map to criteria options
-   through `criteria_label_map.json`, then exact, then case-insensitive matching. An attribute is
-   evaluated when it maps to at least one informative condition. The decision is taken in this order:
-   1. fewer than `min_evaluated_attributes` evaluated attributes: `skipped` (`insufficient_visual_evidence`);
-   2. a Must_False option, or an evaluated Must_True attribute without a Must_True option whose
-      Must_True options the vocabulary can all reach: `rejected` (`must_condition_failed`);
-   3. an unverified Must condition: an attribute with a Must_True option that was not evaluated (not
-      extracted, models disagree, unmapped or ambiguous label), or a Must_True / Must_False option
-      that no vocabulary label can reach. It never counts as passed. With
-      `unverified_must_true: skip` (default) the query is `skipped` (`insufficient_visual_evidence`);
-      with `reject` it is `rejected` (`must_condition_failed`). This is checked before the score
-      because a verified condition could change it;
-   4. the mean `condition_weights` score `>= score_threshold`: `selected` (`visual_attributes_match`),
-      otherwise `rejected` (`score_below_threshold`).
+   chunked and averaged. After similarity fusion, each model applies its configured
+   `decision_thresholds` using the lab_20 decision semantics: a low winning similarity gives
+   `Absent` when available, otherwise `N/A`, otherwise no effective label. `Absent` is inferred and
+   does not win by its own similarity. Single-select attributes take the threshold-qualified arg-max;
+   `Pattern` and `Specific_Sub_Architectures` apply the threshold first and then keep options within
+   `multi_select_margin` of the best. Only labels both
+   models agree on are kept (`roi.visualAttrs`); per-model predictions, threshold/fallback decision
+   audits, and scores go to `roi.visualAttrs_info.models`. Model agreement is not a forwarding
+   requirement in the next step.
+3. **Visual Attribute Matching Filter** (`matching_filter.py`): each PLIP and CONCH prediction is
+   independently mapped to criteria options through `criteria_label_map.json`, then exact, then
+   case-insensitive matching. Under production policy `forward_all_informative`, an ROI/query is
+   `selected` (`informative_visual_attributes_forwarded`) when either model maps at least
+   `min_evaluated_attributes` unique attributes to any of `Must_True`, `High_Possibly_True`,
+   `Low_Possibly_True`, or `Must_False`. Condition polarity, model disagreement, missing Must
+   conditions, unreachable Must options, and the historical weighted score do not block forwarding.
+   If neither model supplies informative evidence it is `skipped` (`insufficient_visual_evidence`).
 
-   `selected` therefore requires every Must_True attribute of the criteria to be evaluated and
-   satisfied, and every Must_True and Must_False option to be reachable. `must_true_passed` and
-   `must_false_passed` are `false` whenever the condition failed or is unverified. Per-attribute
-   decisions (with `unreachable_must` where it applies), `evaluated_count`, `must_true_unverified`
-   and `must_unverifiable` are stored in `roi.visualAttrs_info.matching.<query_id>`, so the causes
-   of `insufficient_visual_evidence` stay distinguishable.
+   `roi.visualAttrs_info.matching.<query_id>` records `condition_hits` with model, attribute, label,
+   and criteria option; per-model mapped attributes and audit scores; consensus attributes and score;
+   Must/reachability diagnostics; and the exact selection policy. The former Must/score-gated behavior
+   remains available only as `selection_policy: strict_match` for compatibility testing.
 
 Other `skipped` reasons: `stain_not_in_reference_wsi`, `no_visual_attr_query`, `query_unmapped`,
 `no_diagnostic_pair`. Models load only when at least one reference-WSI ROI has a mapped query.
@@ -145,7 +143,7 @@ Other `skipped` reasons: `stain_not_in_reference_wsi`, `no_visual_attr_query`, `
 | Minimum VRAM | Verified on 8 GB; lower capacity not validated (measured peak below: 2.31 GiB reserved) |
 | Suggested timeout | GPU: 300 s plus 1 s per ROI (derived from the measurements below). CPU: no per-ROI figure; allow at least 900 s for the canonical example. |
 
-Measurements. All use this version (0.2.0), `configs/native.example.json` (`cpu` instead of `cuda`
+Historical baseline measurements below use version 0.2.0, `configs/native.example.json` (`cpu` instead of `cuda`
 for the CPU row), the official PLIP and CONCH checkpoints, prompt asset 1.1.0 and few-shot tree 1.0.1
 (440 images), on one host: NVIDIA GeForce RTX 5060 Laptop GPU 8 GB, driver 592.00, Windows 11,
 torch 2.11.0+cu128; the image runs in the Docker Desktop VM (12 vCPU, 7.6 GiB). Each figure is a
@@ -174,9 +172,9 @@ with revision, SHA-256, size, and license in `external-assets.yaml`:
 |---|---|---|
 | `reference/person_d/checkpoint/plip/` | `vinid/plip` revision `67ade53d`: `pytorch_model.bin` and the five support files `from_pretrained` reads | `pytorch_model.bin` `98a7f8d2a1f4a8fc8f6dedb3a16ff7efbe02a7ef67c93904c80bca9767c69630`; the five support files in `external-assets.yaml` |
 | `reference/person_d/checkpoint/conch/pytorch_model.bin` | `MahmoodLab/CONCH` revision `f9ca9f87` (gated, CC BY-NC-ND 4.0) | `40a9644b9ba0e83a74576e0a5e5f7313599fa9c9cdaf3c20f8a3e271b0e9ae7c` |
-| `reference/person_d/template_ref/visual_attribute_prompts.json` | Vocabulary (24 attributes), option descriptions, prompts (1.1.0) | `e61b7d784aa8959305c22db7eb71921d5487ab479ebbaa16abb3c3ca957099d4` |
+| `reference/person_d/template_ref/visual_attribute_prompts.json` | Vocabulary (24 attributes), option descriptions, prompts (1.2.0) | `9474dcb890dc2f99c74c817242a048f4de59ec7ab425f76005a041ad8120ffa6` |
 | `reference/person_d/template_ref/criteria_label_map.json` | Label aliases for diagnosticCriteria 1.2.1 (1.0.0) | `e1f59e667358fbca6f6bfe70cbfc140cd6c0a4ed8f6661920b5562a042f46e38` |
-| `reference/person_d/template_ref/Example/ROI_Analysis/` | Few-shot example images 1.0.1 (440 files, all used by the loader, de-identified) from WHO Classification of Tumours, Breast Tumours, 5th ed. (IARC, 2019); copyrighted, internal research and testing only | tree `188b5fe0698cb2e5cbe48c24d2e4cc0923864dd76adb5d10cfe71fc81e32cbce` (algorithm in `external-assets.yaml`) |
+| `reference/person_d/template_ref/Example/ROI_Analysis/` | Few-shot example images 1.1.0 (557 files, all used by the loader, de-identified) from WHO Classification of Tumours, Breast Tumours, 5th ed. (IARC, 2019); copyrighted, internal research and testing only | tree `b4219bea309ffa8190d581df041b18b8a1eacd0bc0d3dfdb32279da9339317de` (algorithm in `external-assets.yaml`) |
 
 Weights load from local files only; the image sets `HF_HUB_OFFLINE=1`.
 
@@ -210,30 +208,30 @@ python -m components.person_d.visual_filter \
   --input ../run/output/work/E_rois.json \
   --input ../run/output/work/G_queries.json \
   --output ../run/output/work/H_matches.json \
-  --config components/person_d/configs/native.example.json
+  --config components/person_d/configs/native.json
 ```
 
 ## Docker
 
 ```bash
-docker build --no-cache -f components/person_d/Dockerfile -t wlw/person-d:0.2.0 .
+docker build --no-cache -f components/person_d/Dockerfile -t wlw/person-d:0.4.0 .
 
 docker run --rm --gpus all \
   -v "$(pwd)/../reference:/reference:ro" \
   -v "$(pwd)/../run:/run" \
-  wlw/person-d:0.2.0 \
+  wlw/person-d:0.4.0 \
   --input /run/input/person_d/E_rois.json \
   --input /run/input/person_d/G_queries.json \
   --output /run/output/person_d/H_matches.json \
-  --config /app/components/person_d/configs/native.example.json
+  --config /app/components/person_d/configs/native.json
 ```
 
 The image holds only what a run needs: `contracts/`, the Person D modules, `mapping_acceptance.json`,
 `component.yaml` and `configs/`. Tests, examples and the synthetic TIFF are in the `test` target:
 
 ```bash
-docker build -f components/person_d/Dockerfile --target test -t wlw/person-d:0.2.0-test .
-docker run --rm --entrypoint python3 wlw/person-d:0.2.0-test \
+docker build -f components/person_d/Dockerfile --target test -t wlw/person-d:0.4.0-test .
+docker run --rm --entrypoint python3 wlw/person-d:0.4.0-test \
   -m unittest discover -s components/person_d/tests -t .
 ```
 
@@ -274,10 +272,11 @@ produces, and `examples/person_c_integration/README.md` has the steps, the fixtu
 - **WSI**: generated: a synthetic pyramidal generic tiled TIFF (30000 × 20000 px, levels 1/4/16,
   MPP 0.25) with tissue-like texture inside the four ROI boxes, mounted read-only at
   `/example/example-he.svs`.
-- **Run**: image `wlw/person-d:0.2.0`, UID 1000, GPU, `configs/native.example.json`, few-shot tree
-  1.0.1; about 2 min.
+- **Run**: historical image `wlw/person-d:0.2.0`, UID 1000, GPU,
+  `configs/native.example.json`, few-shot tree 1.0.1; about 2 min. Re-benchmark 0.4.0 before using
+  these numbers for capacity planning.
 
-Results:
+Historical 0.2.0 `strict_match` results:
 
 - Every ROI passes the `roi_wh` / MPP check and is read at exactly `main_info.roi_wh` (800 × 550,
   1500 × 1300, 2048 × 1229, 500 × 500); the large ROI is read from the 4× level in 0.84 s.
@@ -287,7 +286,11 @@ Results:
   key. On all four ROIs: query 001 `skipped` (`insufficient_visual_evidence`: its 3 Must_True
   attributes are not evaluated, and 3 attributes carry Must_False options the vocabulary cannot
   reach), 004 `selected`, 005 `rejected` (`score_below_threshold`), with 5 to 9 evaluated attributes
-  per ROI; all 12 follow the `score_rule` of `examples/H_matches.native.structure.json`.
+  per ROI; these outcomes describe the archived historical strict rule, not the current canonical
+  structure.
+- Under 0.4.0 production `forward_all_informative`, query 001, 004 and 005 instead forward whenever
+  either model supplies an informative condition hit; this integration benchmark has not yet been
+  rerun with 0.4.0.
 - OpenSlide 3.4.1 in the image does not report an MPP for a generic TIFF; person_d uses the MPPs
   in E, so this does not affect the result.
 
@@ -316,17 +319,14 @@ fails.
   have not been validated against pathologist labels.
 - This is a research component. Passing the container, model, mapping and integration tests says
   nothing about diagnostic accuracy, and no clinical use is claimed.
-- 17 criteria 1.2.1 options are not covered by the vocabulary (`MAPPING.md`). A criteria that puts
-  Must_True or Must_False on one of them cannot be `selected`. The Invasive Carcinoma criteria of the
-  canonical example do so with four Must_False options (`Pattern` `Absent, No special pattern` and
-  `Simple Tubular/Branching Structures`, `Epithelial_Cell_Shape` `Bilayered`, `Endoluminal_Secretion`
-  `Physiological`), so those queries are `skipped` or `rejected`, never `selected`. CLEE (person_e)
-  only takes ROIs with a `selected` event, so such criteria give it no eligible ROI. Covering these
-  options needs new vocabulary labels and is left to the vocabulary and criteria owners.
-- A Must_True attribute is also unverified when the two models disagree on it.
-- `Cuboidal/Columnar` is ambiguous when `Cuboidal` and `Columnar` carry different conditions;
-  `Pattern` `one to several layers` has no criteria option under `Pattern` and is unmapped.
-- 49 of the 105 vocabulary options have no example images and receive no prototype score: 14 options
+- Prompt asset 1.2.0 covers every morphology, NOS, and correctly filed criteria option. The remaining
+  14 unreachable options are `Unable to confirm`, which are intentionally represented by low-score
+  fallback or model disagreement rather than learned visual classes (`MAPPING.md`).
+- `forward_all_informative` intentionally favors recall: one model can forward an ROI even when the
+  other model disagrees or supplies only uninformative evidence. Downstream Person E must decide the
+  evidential value; Person D's Must and signed scores are audit-only in this policy.
+- `Cuboidal/Columnar` remains ambiguous when `Cuboidal` and `Columnar` carry different conditions.
+- 49 of the 123 vocabulary options have no example images and receive no prototype score: 14 options
   of the original 17 attributes and all 35 options of the 7 added attributes.
 - GPU floating-point differences can change scores near ties and therefore near-tie predictions.
 - Unsupported inputs: slide formats that OpenSlide 3.4.1 cannot open, `roi_path` crops that Pillow
@@ -341,6 +341,16 @@ fails.
 
 ## Changelog
 
+- `0.4.0`: production matching uses `forward_all_informative`: either PLIP or CONCH may forward an
+  ROI by hitting any Must_True, High_Possibly_True, Low_Possibly_True, or Must_False condition.
+  Model disagreement, Must polarity, and signed score no longer block forwarding; per-model
+  condition hits and the former strict audit are preserved in H.
+- `0.3.0`: prompt asset 1.2.0 expands the vocabulary from 105 to 123 options, covers all 16 missing
+  morphology options and both generic NOS options, and moves `One to several layers` to the correct
+  attribute; few-shot tree 1.1.0 supplies independently managed WHO-corpus exemplars for all 19
+  added or relocated targets without importing Dynamic/Golden evaluation ROIs; per-model
+  threshold/fallback decisions follow lab_20 semantics while preserving PLIP+CONCH fusion and
+  architecture multi-select.
 - `0.2.0`: native PLIP + CONCH extraction and matching filter, weight SHA-256 checks, smoke config,
   native canonical example with a synthetic slide; an unverified Must_True is never `selected`
   (`unverified_must_true: skip` by default); one event per query; the same input validation for

@@ -50,50 +50,97 @@ def load_histologic_mapping(
     configured_path: str | Path,
     *,
     integrity_mode: str = "enforce",
-) -> tuple[dict[str, str], dict[str, Any]]:
+) -> tuple[dict[str, dict[str, Any]], dict[str, Any]]:
     document, provenance = load_reference(
         configured_path, integrity_mode=integrity_mode
     )
-    return document["Histologic_Type_mappingTable"], provenance
+    mapping = document.get("Histologic_Type_mappingTable")
+    if not isinstance(mapping, dict):
+        raise ValueError("Histologic Type mapping table must be an object")
+    for result_class, entry in mapping.items():
+        if not isinstance(result_class, str) or not result_class:
+            raise ValueError("Histologic Type mapping keys must be non-empty strings")
+        if not isinstance(entry, dict):
+            raise ValueError(
+                f"Histologic Type mapping {result_class!r} must be an object"
+            )
+        dx_result = entry.get("DxResult")
+        type_level_idx = entry.get("typeLevel_idx")
+        if not isinstance(dx_result, str) or not dx_result:
+            raise ValueError(
+                f"Histologic Type mapping {result_class!r} needs DxResult"
+            )
+        if not isinstance(type_level_idx, int) or type_level_idx < 0:
+            raise ValueError(
+                f"Histologic Type mapping {result_class!r} needs a non-negative "
+                "typeLevel_idx"
+            )
+    return mapping, provenance
 
 
-def load_visual_references(
-    candidate_path: str | Path,
-    type_level_path: str | Path,
+def load_visual_template(
+    configured_path: str | Path,
     *,
     integrity_mode: str = "enforce",
-) -> tuple[dict[str, Any], list[dict[str, Any]], dict[str, dict[str, Any]]]:
-    candidate_document, candidate_provenance = load_reference(
-        candidate_path, integrity_mode=integrity_mode
-    )
-    type_levels_document, type_level_provenance = load_reference(
-        type_level_path, integrity_mode=integrity_mode
-    )
-    candidate = candidate_document["visualAttrs"]
-    type_levels = deepcopy(type_levels_document)
+) -> tuple[dict[str, Any], dict[str, Any]]:
+    """Load the condition-free visual schema used by inference.
 
-    for type_level in type_levels:
-        # The filename is canonical for this reference revision.  The embedded
-        # version was confirmed to be stale, and Polarity is canonically ordinal.
-        type_level["version"] = "1.2.1"
-        type_level["visualAttrs"]["Cellular_and_Nuclear"]["Polarity"]["type"] = "ordinal"
-        for category, features in type_level["visualAttrs"].items():
-            for feature, definition in features.items():
-                reference = candidate[category][feature]
-                if definition["options"] != reference["options"]:
-                    raise ValueError(
-                        f"Type-level options differ from candidateReference at {category}.{feature}"
-                    )
-                if definition["type"] != reference["type"]:
-                    raise ValueError(
-                        f"Type-level option type differs from candidateReference at {category}.{feature}"
-                    )
-                if set(definition["conditions"]) != set(definition["options"]):
-                    raise ValueError(
-                        f"Type-level conditions do not cover every option at {category}.{feature}"
-                    )
+    The inference template is deliberately incapable of carrying subtype-level
+    conditions.  Those values must be supplied by the query generator.
+    """
 
-    return candidate_document, type_levels, {
-        "candidate_reference": candidate_provenance,
-        "type_level_visual_attrs": type_level_provenance,
-    }
+    document, provenance = load_reference(
+        configured_path, integrity_mode=integrity_mode
+    )
+    if not isinstance(document, dict):
+        raise ValueError("Visual attribute template must be an object")
+    if document.get("version") != "1.2.1":
+        raise ValueError("Visual attribute template version must be '1.2.1'")
+    if document.get("type") != "visualAttributeTemplate":
+        raise ValueError(
+            "Visual attribute template type must be 'visualAttributeTemplate'"
+        )
+    condition_labels = document.get("conditionLabels")
+    if not isinstance(condition_labels, list) or not condition_labels:
+        raise ValueError("Visual attribute template needs conditionLabels")
+    if len(condition_labels) != len(set(condition_labels)) or not all(
+        isinstance(label, str) and label for label in condition_labels
+    ):
+        raise ValueError(
+            "Visual attribute template conditionLabels must be unique strings"
+        )
+    visual_attrs = document.get("visualAttrs")
+    if not isinstance(visual_attrs, dict) or not visual_attrs:
+        raise ValueError("Visual attribute template needs visualAttrs")
+    for category, features in visual_attrs.items():
+        if not isinstance(features, dict) or not features:
+            raise ValueError(
+                f"Visual attribute template category {category!r} must be an object"
+            )
+        for feature, definition in features.items():
+            if not isinstance(definition, dict):
+                raise ValueError(
+                    f"Visual attribute template {category}.{feature} must be an object"
+                )
+            if "conditions" in definition:
+                raise ValueError(
+                    f"Inference template must not contain conditions at "
+                    f"{category}.{feature}"
+                )
+            options = definition.get("options")
+            option_type = definition.get("type")
+            if (
+                not isinstance(options, list)
+                or not options
+                or len(options) != len(set(options))
+                or not all(isinstance(option, str) and option for option in options)
+            ):
+                raise ValueError(
+                    f"Visual attribute template {category}.{feature} needs unique "
+                    "non-empty options"
+                )
+            if not isinstance(option_type, str) or not option_type:
+                raise ValueError(
+                    f"Visual attribute template {category}.{feature} needs type"
+                )
+    return deepcopy(document), provenance

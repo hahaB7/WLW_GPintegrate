@@ -1,20 +1,20 @@
 # Person C configuration
 
-| File | Backend | Use |
+| File | `mode` | Use |
 |---|---|---|
-| `default.json` | `segnet` | the SEGNET student (the default of the pipeline) |
-| `demo.json` | `demo` | fixed boxes, no slide; pipeline and contract tests only |
+| `region_proposal.json` | `region_proposal` | the SEGNET student; the pipeline's production profile reads exactly this name and mode |
+| `example.json` | `example` | no slide is opened; the pipeline's example profile and the contract tests |
 
 Paths in a config are relative to `components/person_c/`: checkpoints must resolve below sibling `reference/person_c/`,
 every output directory below sibling `run/output/`. Do not create run-specific configs outside this directory.
 Snapshot the config, the checkpoint revision and the WSI references with each experiment.
 
-## `segnet` and `demo`
+## `region_proposal` and `example`
 
 | Key | Type / range | Meaning |
 |---|---|---|
 | `component_version` | nonempty string | Producer recorded in E and in each selection event. |
-| `backend` | `segnet`, `demo` | See above. |
+| `mode` | `region_proposal`, `example` | See above. |
 | `stain_type_whitelist` | nonempty list[string] | Case-insensitive stain types that are opened; the others keep `roi_list = []`. Default `["HE"]`. |
 | `device` | `auto`, `cpu`, `cuda` | `auto` uses CUDA when available; an explicit `cuda` fails when it is not. |
 | `postprocess_mpp` | positive number | MPP of the mask the boxes are made from (8 µm/px). |
@@ -26,7 +26,7 @@ Snapshot the config, the checkpoint revision and the WSI references with each ex
 The working MPP of `main_info` follows from the box area in level-0 pixels²: up to 1, 4, 16, 64, 256, 1024 million
 0.25, 0.5, 1, 2, 4, 8 µm/px, larger 16.
 
-## `segnet` only
+## `region_proposal` only
 
 | Key | Type / range | Meaning |
 |---|---|---|
@@ -37,7 +37,7 @@ The working MPP of `main_info` follows from the box area in level-0 pixels²: up
 | `segnet.batch_size` | positive integer | Windows per forward pass. Reduce after a CUDA out-of-memory error. |
 | `segnet.num_workers` | integer >= 0 | Processes that read the tiles while the GPU predicts (0: the main process reads). At most the CPUs of the job minus two. |
 
-### `figures` (`segnet` only; one PNG per WSI and stage)
+### `figures` (`region_proposal` only; one JPEG per WSI and stage)
 
 | Key | Type | Meaning |
 |---|---|---|
@@ -48,6 +48,6 @@ The working MPP of `main_info` follows from the box area in level-0 pixels²: up
 
 All switches are off by default.
 
-## `demo` only
+## `example` only
 
 `magnification`, `demo_mpp` (`x`, `y`) and `demo_regions` (a list of `x`, `y`, `width`, `height`, `level`): the fixed boxes.

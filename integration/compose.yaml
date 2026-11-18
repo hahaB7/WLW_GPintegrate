@@ -13,7 +13,7 @@ x-common: &common
 services:
   report-decompose:
     <<: *common
-    image: wlw/person-a:lab22-integrated
+    image: wlw/person-a:0.10.0-lab23-production
     build:
       context: ..
       dockerfile: components/person_a/Dockerfile
@@ -27,7 +27,7 @@ services:
 
   interest-pattern:
     <<: *common
-    image: wlw/person-c:0.4.0-final-20261027
+    image: wlw/person-c:0.1.0-lab23-production
     gpus: all
     build:
       context: ..
@@ -38,11 +38,11 @@ services:
       - --output
       - /run/output/pipeline/cases/${CASE_ID:-S1202317}/E_rois.json
       - --config
-      - /app/components/person_c/configs/default.json
+      - /app/components/person_c/configs/region_proposal.json
 
   knowledge-retrieval:
     <<: *common
-    image: wlw/person-b:final-main-42ce738
+    image: wlw/person-b:0.5.0-lab23-production
     gpus: all
     build:
       context: ..
@@ -62,7 +62,7 @@ services:
 
   query-generation:
     <<: *common
-    image: wlw/person-a:lab22-integrated
+    image: wlw/person-a:0.10.0-lab23-production
     gpus: all
     build:
       context: ..
@@ -79,11 +79,11 @@ services:
       - --output
       - /run/output/pipeline/cases/${CASE_ID:-S1202317}/G_queries.json
       - --config
-      - /app/components/person_a/configs/query_generation.default.json
+      - /app/components/person_a/configs/query_generation.production.json
 
   visual-filter:
     <<: *common
-    image: wlw/person-d:lab22-integrated
+    image: wlw/person-d:0.2.0-lab23-production
     gpus: all
     build:
       context: ..
@@ -101,11 +101,11 @@ services:
       - --output
       - /run/output/pipeline/cases/${CASE_ID:-S1202317}/H_matches.json
       - --config
-      - /app/components/person_d/configs/native.example.json
+      - /app/components/person_d/configs/native.json
 
   clee:
     <<: *common
-    image: wlw/person-e:final-main-42ce738
+    image: wlw/person-e:1.1.0-lab23-production
     gpus: all
     build:
       context: ..

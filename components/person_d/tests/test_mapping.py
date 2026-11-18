@@ -99,11 +99,11 @@ class MappingAcceptanceTests(unittest.TestCase):
         self.assertEqual(
             {
                 "attributes": 24,
-                "prompt_options": 105,
+                "prompt_options": 123,
                 "criteria_options": 138,
-                "unmapped_prompt_options": 1,
+                "unmapped_prompt_options": 0,
                 "multi_mapped_prompt_options": 1,
-                "unreachable_criteria_options": 33,
+                "unreachable_criteria_options": 14,
             },
             summary,
         )
@@ -118,7 +118,7 @@ class MappingAcceptanceTests(unittest.TestCase):
         self.assertTrue(any(error.startswith("Cellular_and_Nuclear.Chromatin") for error in errors))
 
         document = copy.deepcopy(_label_map_document(self.acceptance))
-        document["attribute_aliases"]["Architecture.Pattern"]["one to several layers"] = ["Solid"]
+        document["attribute_aliases"]["Architecture.Pattern"]["Solid"] = ["Cribriform"]
         errors = check_acceptance(self.acceptance, _vocabulary(self.acceptance), document)
         self.assertIn("label map attribute_aliases differ from the accepted mapping", errors)
         self.assertTrue(any(error.startswith("Architecture.Pattern") for error in errors))

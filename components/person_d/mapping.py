@@ -12,7 +12,9 @@ Standard library only.
 
 from __future__ import annotations
 
+import hashlib
 import json
+from collections import Counter
 from pathlib import Path
 from typing import Any, Dict, List, Mapping
 
@@ -20,6 +22,9 @@ from components.person_d.matching_filter import LabelMap
 
 
 ACCEPTANCE_PATH = Path(__file__).resolve().parent / "mapping_acceptance.json"
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
+PROMPT_ASSET_PATH = PROJECT_ROOT.parent / "reference/person_d/template_ref/visual_attribute_prompts.json"
+LABEL_MAP_PATH = PROJECT_ROOT.parent / "reference/person_d/template_ref/criteria_label_map.json"
 RULES = ("attribute_alias", "global_alias", "exact", "case_insensitive", "unmapped")
 MUST_CONDITIONS = ("Must_True", "Must_False")
 
@@ -111,6 +116,80 @@ def load_acceptance(path: Path = ACCEPTANCE_PATH) -> Dict[str, Any]:
     return json.loads(path.read_text(encoding="utf-8"))
 
 
+def refresh_acceptance(path: Path = ACCEPTANCE_PATH) -> Dict[str, Any]:
+    """Refresh mechanically derivable acceptance fields after a vocabulary change.
+
+    Unreachable-option classifications remain a reviewed input: every option that is still
+    unreachable must already have a category in the previous acceptance document.
+    """
+
+    previous = load_acceptance(path)
+    prompt_document = json.loads(PROMPT_ASSET_PATH.read_text(encoding="utf-8"))
+    label_map_document = json.loads(LABEL_MAP_PATH.read_text(encoding="utf-8"))
+    criteria_options = {
+        key: list(entry["criteria_options"])
+        for key, entry in previous["attributes"].items()
+    }
+    audited = audit(
+        prompt_document["attributes"],
+        LabelMap.from_document(label_map_document),
+        criteria_options,
+    )
+
+    attributes: Dict[str, Dict[str, Any]] = {}
+    category_counts: Counter[str] = Counter()
+    for key, current in audited.items():
+        old_entry = previous["attributes"][key]
+        unreachable = {}
+        for option in current["unreachable"]:
+            info = old_entry.get("unreachable", {}).get(option)
+            if info is None:
+                raise ValueError(
+                    f"New unreachable criteria option requires reviewed classification: {key}={option}"
+                )
+            unreachable[option] = info
+            category_counts[info["category"]] += 1
+        entry: Dict[str, Any] = {
+            "prompt_options": current["prompt_options"],
+            "criteria_options": current["criteria_options"],
+            "mapping": current["mapping"],
+            "unreachable": unreachable,
+        }
+        notes = {
+            label: note
+            for label, note in old_entry.get("prompt_option_notes", {}).items()
+            if label in current["mapping"]
+        }
+        if notes:
+            entry["prompt_option_notes"] = notes
+        attributes[key] = entry
+
+    summary = summarize(audited)
+    summary["unreachable_by_category"] = {
+        name: category_counts[name]
+        for name in previous["unreachable_categories"]
+        if category_counts[name]
+    }
+    refreshed = {
+        "criteria_version": previous["criteria_version"],
+        "prompt_asset": {
+            "version": prompt_document["version"],
+            "sha256": hashlib.sha256(PROMPT_ASSET_PATH.read_bytes()).hexdigest(),
+        },
+        "label_map": {
+            "version": label_map_document["version"],
+            "sha256": hashlib.sha256(LABEL_MAP_PATH.read_bytes()).hexdigest(),
+            "global_aliases": label_map_document["global_aliases"],
+            "attribute_aliases": label_map_document["attribute_aliases"],
+        },
+        "summary": summary,
+        "unreachable_categories": previous["unreachable_categories"],
+        "attributes": attributes,
+    }
+    path.write_text(json.dumps(refreshed, indent=2) + "\n", encoding="utf-8", newline="\n")
+    return refreshed
+
+
 def check_acceptance(
     acceptance: Mapping[str, Any],
     vocabulary: Mapping[str, Mapping[str, List[str]]],
@@ -184,19 +263,17 @@ def render_markdown(acceptance: Mapping[str, Any]) -> str:
         "",
         "1. A vocabulary label reaches criteria options through, in order: the label map attribute alias,",
         "   the label map global alias, an exact match, a case-insensitive match (`LabelMap.resolve`).",
-        "2. An **unmapped** vocabulary label is dropped. When it was the only agreed label, the attribute is",
-        "   not evaluated (`unmapped_label`).",
+        "2. An **unmapped** vocabulary label is dropped. When it was a model's only label, that model does",
+        "   not provide informative evidence for the attribute (`unmapped_label`).",
         "3. A vocabulary label **mapped to several** criteria options counts once when those options carry",
         "   the same condition in the query's criteria; when their conditions differ the label is ambiguous",
         "   and dropped (`ambiguous_label`).",
-        "4. An **unreachable** criteria option is one no vocabulary label reaches, so the backend can never",
-        "   predict it. In matching:",
-        "   - a `Must_True` or `Must_False` condition on an unreachable option cannot be verified. It never",
-        "     counts as passed: the query is `skipped` (`insufficient_visual_evidence`) under",
-        "     `unverified_must_true: skip`, or `rejected` (`must_condition_failed`) under `reject`, and is",
-        "     never `selected`. A verified failure on another attribute still rejects first;",
-        "   - a miss on an attribute whose `Must_True` option is unreachable is unverified, not failed;",
-        "   - any other condition on an unreachable option simply never contributes to the score.",
+        "4. An **unreachable** criteria option is one no vocabulary label reaches, so it cannot itself",
+        "   produce a condition hit. Under the production `forward_all_informative` policy it does not",
+        "   block other observed evidence: PLIP or CONCH hitting any reachable `Must_True`, `Must_False`,",
+        "   `High_Possibly_True`, or `Low_Possibly_True` option forwards the ROI. Under the retained",
+        "   `strict_match` compatibility policy, unreachable Must options remain unverified and block",
+        "   selection according to `unverified_must_true`.",
         "",
         "## Unreachable criteria options by category",
         "",
@@ -243,8 +320,14 @@ def main() -> None:
 
     parser = argparse.ArgumentParser(description="丁: render the vocabulary to diagnosticCriteria mapping")
     parser.add_argument("--write", action="store_true", help="Write MAPPING.md next to this module")
+    parser.add_argument(
+        "--refresh-acceptance",
+        action="store_true",
+        help="Refresh accepted mappings and digests while retaining reviewed unreachable categories",
+    )
     args = parser.parse_args()
-    text = render_markdown(load_acceptance())
+    acceptance = refresh_acceptance() if args.refresh_acceptance else load_acceptance()
+    text = render_markdown(acceptance)
     if args.write:
         MARKDOWN_PATH.write_text(text, encoding="utf-8", newline="\n")
         print(f"wrote {MARKDOWN_PATH}")

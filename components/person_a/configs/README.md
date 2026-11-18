@@ -3,11 +3,20 @@
 - `example.json`: deterministic public contract smoke test; no external assets.
 - `report_decompose.default.json`: production report extraction. VGHTC uses Regex;
   CGMH uses Regex and invokes MedGemma according to the configured fallback rules.
-- `query_generation.default.json`: deterministic reference mapping to G.
+- `query_generation.default.json`: default learnable Query Generation profile;
+  it contains no condition-reference backend or fallback.
 - `query_generation.learnable.json`: Gemma plus the Stage 2 condition soft-prompt;
   it predicts one of six condition labels for every canonical visual option.
   The checked-in profile uses CPU offload for low-memory GPUs; an HPC runtime
   config may set `device_map_strategy` to `single_device`.
+- `query_generation.production.json`: the production pipeline profile for a
+  24 GB GPU. It uses the same pinned Gemma and Stage 2 soft prompt with
+  `device_map_strategy: single_device`; no token limit or model behavior is
+  reduced relative to `query_generation.learnable.json`. Strictly invalid
+  generations are rejected; when enabled, `retry_with_canonical_dx` retries
+  with the already-verified histologic mapping target and records both attempts
+  (including response hashes) in G provenance. It never substitutes
+  pre-authored diagnostic conditions.
 - `query_generation.single_device.json`: the same pinned model and soft prompt,
   placing the whole model on one GPU. Used by the reproducible delivery smoke
   test; sufficient free VRAM is required. It keeps dtype `auto`.
@@ -16,6 +25,8 @@ Production configs set `asset_integrity` to `enforce`. Every canonical
 reference/checkpoint path must be declared in `external-assets.yaml`, and the
 runtime fails before inference when its SHA-256 differs. `record_only` is
 reserved for synthetic tests or explicitly versioned experimental assets.
+The visual attribute template is condition-free; all output conditions are
+produced by the learned backend.
 
 Production paths are logical sibling paths under `../reference/person_a/`.
 Both production model blocks require an explicit `model_path` under `checkpoint/`:

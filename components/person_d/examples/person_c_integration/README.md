@@ -41,7 +41,7 @@
      -v "$(pwd)/../reference:/reference:ro" \
      -v "$(pwd)/../run:/run" \
      -v "$(pwd)/../run/input/person_d/integration_c/example-he.tiff:/example/example-he.svs:ro" \
-     wlw/person-d:0.2.0 \
+     wlw/person-d:0.4.0 \
      --input /run/input/person_d/integration_c/E_rois.json \
      --input /run/input/person_d/integration_c/G_queries.json \
      --output /run/output/person_d/integration_c/H_matches.json \
@@ -81,8 +81,9 @@ imagecodecs 2026.3.6（Windows 11）產生的 artifact：
 - H 通過 schema；`roi_id` 與順序、上游 `selection_history`、`level0_info`、`main_info`、`filepath` 不變；
   沒有 ROI 的 IHC stain 保留（`roi_num` 0）。
 - 12 筆 query-level event（4 ROI × 3 query），每筆都有 `dx_pair_id`、`query_id`、`criteria_status`。
-- query 004 為 `selected`／`visual_attributes_match`，query 005 為 `rejected`／`score_below_threshold`；
-  query 001（真實 criteria）不會是 `selected`。所有經過 matching 的 event 符合
+- production policy 下，query 001、004、005 只要 PLIP 或 CONCH 任一模型命中任一 informative
+  condition，皆為 `selected`／`informative_visual_attributes_forwarded`；模型分歧、Must polarity 與
+  signed score 不阻擋。所有經過 matching 的 event 符合
   `examples/H_matches.native.structure.json` 的 `score_rule`。
 
 實測結果記錄在 `components/person_d/README.md` 的 "Integration with person_c (#1)"。

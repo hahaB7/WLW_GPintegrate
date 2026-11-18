@@ -15,6 +15,32 @@ from contracts.paths import sibling_logical_path
 from contracts.runtime import cli_parser, load_config, load_inputs, write_artifact
 
 
+def _reject_legacy_condition_provenance(payload: Mapping[str, Any]) -> None:
+    """Prevent pre-isolation H artifacts from re-entering inference."""
+
+    references = payload.get("reference_versions", {})
+    if not isinstance(references, Mapping):
+        return
+    learned = references.get("learnable_query_generation", {})
+    legacy = "type_level_visual_attrs" in references or (
+        isinstance(learned, Mapping) and "attribute_reference" in learned
+    )
+    if legacy:
+        raise ValueError(
+            "H provenance predates the condition-free inference template; "
+            "regenerate G and H before running Person E"
+        )
+    condition_free = isinstance(
+        references.get("visual_attribute_template"), Mapping
+    )
+    example_stub = isinstance(references.get("example_query_stub"), Mapping)
+    if not condition_free and not example_stub:
+        raise ValueError(
+            "H provenance does not establish a condition-free inference "
+            "template; regenerate G and H before running Person E"
+        )
+
+
 def _mapped_case_result(
     record: Mapping[str, Any],
     DxItem: str,
@@ -249,6 +275,7 @@ def main() -> None:
     d_artifact = inputs["D.DxPairs"]
     h_artifact = inputs["H.MatchedROIs"]
     config = load_config(args.config)
+    _reject_legacy_condition_provenance(h_artifact["payload"])
     case_id = ensure_same_case(d_artifact, h_artifact)
     d_case = single_case(d_artifact)
     h_case = single_case(h_artifact)

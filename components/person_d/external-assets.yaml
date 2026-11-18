@@ -22,7 +22,7 @@ assets:
     size_bytes: 605241933
     license_or_access_policy: "Not declared on the Hugging Face model card; confirm before use or redistribution"
     contains_phi: false
-    configured_by: "configs/native.example.json:extraction.plip (weight_path, sha256, support_files_sha256)"
+    configured_by: "configs/native.json:extraction.plip (weight_path, sha256, support_files_sha256)"
 
   - asset_id: conch-vit-b-16
     type: model_weight
@@ -36,7 +36,7 @@ assets:
     size_bytes: 802235437
     license_or_access_policy: "CC BY-NC-ND 4.0; gated access"
     contains_phi: false
-    configured_by: "configs/native.example.json:extraction.conch.checkpoint_path"
+    configured_by: "configs/native.json:extraction.conch.checkpoint_path"
 
   - asset_id: conch-vit-b-16-smoke-random
     type: model_weight
@@ -54,16 +54,16 @@ assets:
   - asset_id: person-d-visual-attribute-prompts
     type: template
     required: true
-    version: "1.1.0"
-    # 1.0.0 (sha256 dbce02ca...) had the 17 attributes of pipeline_quilt_1m.py; 1.1.0 adds the other
-    # 7 diagnosticCriteria 1.2.1 attributes with their criteria options and new option descriptions.
-    source: "pipeline_quilt_1m.py (ROI_ANALYSIS, MULTI_SELECT_ATTRIBUTES, ROI_ANALYSIS_PROMPT_DESCRIPTIONS, PLIP/CONCH prompts); diagnosticCriteria 1.2.1 options"
+    version: "1.2.0"
+    # 1.2.0 covers every diagnosticCriteria 1.2.1 morphology and NOS option; only the 14
+    # non-prediction-target 'Unable to confirm' options remain outside the scored vocabulary.
+    source: "pipeline_quilt_1m.py (ROI_ANALYSIS, MULTI_SELECT_ATTRIBUTES, ROI_ANALYSIS_PROMPT_DESCRIPTIONS, PLIP/CONCH prompts); diagnosticCriteria 1.2.1 options; lab_20 visualRetrieval descriptions"
     logical_path: "reference/person_d/template_ref/visual_attribute_prompts.json"
-    sha256: "e61b7d784aa8959305c22db7eb71921d5487ab479ebbaa16abb3c3ca957099d4"
-    size_bytes: 18859
+    sha256: "9474dcb890dc2f99c74c817242a048f4de59ec7ab425f76005a041ad8120ffa6"
+    size_bytes: 22253
     license_or_access_policy: "Authored by person_D for this project; Apache-2.0 (repository LICENSE)"
     contains_phi: false
-    configured_by: "configs/native.example.json:extraction.prompts_path"
+    configured_by: "configs/native.json:extraction.prompts_path"
 
   - asset_id: person-d-criteria-label-map
     type: template
@@ -75,25 +75,25 @@ assets:
     size_bytes: 738
     license_or_access_policy: "Authored by person_D for this project; Apache-2.0 (repository LICENSE)"
     contains_phi: false
-    configured_by: "configs/native.example.json:matching.label_map_path"
+    configured_by: "configs/native.json:matching.label_map_path"
 
   - asset_id: person-d-roi-analysis-examples
     type: template
     required: true
-    # 1.0.0 (tree 5a4ba948...) had Architecture/Specific_Sub_Architectures/breastmalignanttubularJornsmicro07.jpg
-    # outside an option folder, where the prototype loader ignored it; 1.0.1 files the same image as
-    # Architecture/Specific_Sub_Architectures/Rigid bridges/04.jpg. No other file changed.
-    version: "1.0.1"
+    # 1.1.0 adds independently managed WHO-corpus exemplars for prompt asset 1.2.0, relocates
+    # One to several layers to Specific_Sub_Architectures, and does not import Dynamic/Golden ROIs.
+    # See reference/person_d/template_ref/FEW_SHOT_CURATION.md.
+    version: "1.1.0"
     # Origin and de-identification as stated by the asset owner (person_D).
     source: "WHO Classification of Tumours, Breast Tumours, 5th edition, Volume 2 (IARC, 2019), illustrations of usual ductal hyperplasia, flat epithelial atypia, atypical ductal hyperplasia, ductal carcinoma in situ and invasive carcinoma; https://publications.iarc.who.int/Book-And-Report-Series/Who-Classification-Of-Tumours/Breast-Tumours-2019"
     logical_path: "reference/person_d/template_ref/Example/ROI_Analysis"
-    file_count: 440
+    file_count: 557
     # Files the prototype loader reads; a file outside <group>/<attribute>/<option>/ fails the run.
-    loader_usable_file_count: 440
-    size_bytes: 514721813
+    loader_usable_file_count: 557
+    size_bytes: 626951292
     verification:
       tree_hash_algorithm: "sha256 of '\\n'-joined '<file-sha256>  <relative-posix-path>' lines sorted by case-sensitive path"
-      tree_sha256: "188b5fe0698cb2e5cbe48c24d2e4cc0923864dd76adb5d10cfe71fc81e32cbce"
+      tree_sha256: "b4219bea309ffa8190d581df041b18b8a1eacd0bc0d3dfdb32279da9339317de"
     license_or_access_policy: "Copyrighted IARC/WHO publication; shared only in the project's restricted reference-asset folder for internal research and testing; must not be passed on, committed, or included in the image"
     contains_phi: false
-    configured_by: "configs/native.example.json:extraction.example_dir"
+    configured_by: "configs/native.json:extraction.example_dir"

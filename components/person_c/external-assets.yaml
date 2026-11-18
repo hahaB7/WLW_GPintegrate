@@ -17,4 +17,4 @@ assets:
     size_bytes: 238008769
     license_or_access_policy: "project-trained (no annotation, SCLIP pseudo labels on BRACS slides); follow the BRACS terms for redistribution"
     contains_phi: false
-    configured_by: "configs/default.json:segnet.checkpoints"
+    configured_by: "configs/region_proposal.json:segnet.checkpoints"

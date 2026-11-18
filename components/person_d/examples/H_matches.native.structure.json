@@ -1,9 +1,10 @@
 {
-  "description": "native-mode structure for E_rois.valid.json + G_queries.valid.json; one event per ROI and query; queries 001/002 (real criteria with Must_False options the vocabulary cannot reach) list the allowed values and can never be selected; synthetic queries 004/005 must be selected/rejected; every matched event must follow score_rule (configs/native.example.json matching)",
+  "description": "native-mode structure for E_rois.valid.json + G_queries.valid.json; one event per ROI and query; every mapped reference-WSI query with evidence from either model is forwarded; every matched event must follow score_rule (configs/native.json matching)",
   "case_id": "case-001",
-  "producer": "person-d/visual-filter:0.2.0",
+  "producer": "person-d/visual-filter:0.4.0",
   "models_loaded": true,
   "score_rule": {
+    "selection_policy": "forward_all_informative",
     "condition_weights": {
       "Must_True": 1.0,
       "High_Possibly_True": 1.0,
@@ -96,41 +97,29 @@
       "roi_id": "case-001-case-001-he-roi-001",
       "dx_pair_id": "case-001-dx-001",
       "query_id": "case-001-query-001",
-      "status_in": [
-        "rejected",
-        "skipped"
-      ],
-      "reason_in": [
-        "must_condition_failed",
-        "insufficient_visual_evidence"
-      ]
+      "status": "selected",
+      "reason": "informative_visual_attributes_forwarded"
     },
     {
       "roi_id": "case-001-case-001-he-roi-001",
       "dx_pair_id": "case-001-dx-001",
       "query_id": "case-001-query-004",
       "status": "selected",
-      "reason": "visual_attributes_match"
+      "reason": "informative_visual_attributes_forwarded"
     },
     {
       "roi_id": "case-001-case-001-he-roi-001",
       "dx_pair_id": "case-001-dx-001",
       "query_id": "case-001-query-005",
-      "status": "rejected",
-      "reason": "score_below_threshold"
+      "status": "selected",
+      "reason": "informative_visual_attributes_forwarded"
     },
     {
       "roi_id": "case-001-case-001-he-roi-001",
       "dx_pair_id": "case-001-dx-002",
       "query_id": "case-001-query-002",
-      "status_in": [
-        "rejected",
-        "skipped"
-      ],
-      "reason_in": [
-        "must_condition_failed",
-        "insufficient_visual_evidence"
-      ]
+      "status": "selected",
+      "reason": "informative_visual_attributes_forwarded"
     },
     {
       "roi_id": "case-001-case-001-he-roi-001",
@@ -143,41 +132,29 @@
       "roi_id": "case-001-case-001-he-roi-002",
       "dx_pair_id": "case-001-dx-001",
       "query_id": "case-001-query-001",
-      "status_in": [
-        "rejected",
-        "skipped"
-      ],
-      "reason_in": [
-        "must_condition_failed",
-        "insufficient_visual_evidence"
-      ]
+      "status": "selected",
+      "reason": "informative_visual_attributes_forwarded"
     },
     {
       "roi_id": "case-001-case-001-he-roi-002",
       "dx_pair_id": "case-001-dx-001",
       "query_id": "case-001-query-004",
       "status": "selected",
-      "reason": "visual_attributes_match"
+      "reason": "informative_visual_attributes_forwarded"
     },
     {
       "roi_id": "case-001-case-001-he-roi-002",
       "dx_pair_id": "case-001-dx-001",
       "query_id": "case-001-query-005",
-      "status": "rejected",
-      "reason": "score_below_threshold"
+      "status": "selected",
+      "reason": "informative_visual_attributes_forwarded"
     },
     {
       "roi_id": "case-001-case-001-he-roi-002",
       "dx_pair_id": "case-001-dx-002",
       "query_id": "case-001-query-002",
-      "status_in": [
-        "rejected",
-        "skipped"
-      ],
-      "reason_in": [
-        "must_condition_failed",
-        "insufficient_visual_evidence"
-      ]
+      "status": "selected",
+      "reason": "informative_visual_attributes_forwarded"
     },
     {
       "roi_id": "case-001-case-001-he-roi-002",

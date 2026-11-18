@@ -40,7 +40,7 @@ the image. Configs and artifacts name them by the logical path `reference/person
 
 | Asset | Logical path | SHA-256 |
 |---|---|---|
-| Corpus snapshot | `reference/person_b/checkpoint/rag_database` | `ffd76f0893866aad7b2dd0f71bce76c90d1de8faf245eb2414a500637c01bc30` |
+| Corpus snapshot | `reference/person_b/rag_database` | `ffd76f0893866aad7b2dd0f71bce76c90d1de8faf245eb2414a500637c01bc30` |
 | Embedding model | `reference/person_b/checkpoint/embedding-model-medembed-large-v0.1` | `a31db9d8ad309438808f3e5faf1af7425f4192c679aa091f0514f647860554c5` |
 | Knowledge base `kb-who-breast-5e-medembed-v1` | `reference/person_b/checkpoint/kb-who-breast-5e-medembed-v1` | `f762740d56faddca51e8a9c83d8302a68d9d644eb3b4dc1e6916ebe4de0a74b9` |
 
@@ -70,7 +70,7 @@ sibling `run/`; configs must be under `components/person_b/configs/`.
 ```bash
 # 1. RAG_database folder -> A (shared by all cases)
 python -m components.person_b.prepare_literature \
-  --source ../reference/person_b/checkpoint/rag_database \
+  --source ../reference/person_b/rag_database \
   --output ../run/input/pipeline/A_literature.json \
   --config components/person_b/configs/prepare_literature.rag_database.json
 

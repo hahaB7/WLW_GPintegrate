@@ -1,6 +1,6 @@
 name: person_a_report_and_query
 owner: person_A
-version: 0.9.0
+version: 0.10.0
 inputs: [CaseListInput@1.0, D.DxPairs@2.0, F.Chunks@2.0]
 outputs: [D.DxPairs@2.0, G.VisualAttributeQueries@2.0]
 runtime:
@@ -27,7 +27,7 @@ runtime:
   query_generation_model_revision: dcc83ea841ab6100d6b47a070329e1ba4cf78752
   query_generation_model_mount: /reference/person_a/checkpoint/gemma-3-1b-it
   query_generation_checkpoint_mount: /reference/person_a/checkpoint/soft_prompt_stage2_64SP_50epoch_chunk_option_conditions_retrieval_mixed_best.pt
-  query_generation_attribute_reference_mount: /reference/person_a/template_ref/chunks_with_attribute_condition.json
+  query_generation_template_mount: /reference/person_a/template_ref/visual_attribute_template_v1.2.1.json
 entrypoints:
   - python -m components.person_a.report_decompose
   - python -m components.person_a.query_generation

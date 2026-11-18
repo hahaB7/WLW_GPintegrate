@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from copy import deepcopy
-import hashlib
 import json
 from pathlib import Path
 import os
@@ -347,28 +346,28 @@ class LocalModelTests(unittest.TestCase):
     def gemma(self):
         checkpoint = self.directory / "soft-prompt.pt"
         checkpoint.write_bytes(b"synthetic prompt")
-        attributes = self.directory / "attributes.json"
-        attributes.write_text(json.dumps([{
-            "text": "example", "attribute": {"Group": {"Feature": {"Present": "Must_True"}}},
-            "attribute_condition_metadata": {
-                "target_format": TARGET_FORMAT, "typelevel_sha256": "a" * 64,
-                "text_sha256": hashlib.sha256(b"example").hexdigest(),
+        return LearnableSoftPromptGenerator(
+            {
+                "model_name": self.model_id,
+                "model_revision": self.revision,
+                "model_path": str(self.root),
+                "checkpoint_path": str(checkpoint),
+                "asset_integrity": "record_only",
+                "require_cuda": False,
             },
-        }]), encoding="utf-8")
-        return LearnableSoftPromptGenerator({
-            "model_name": self.model_id, "model_revision": self.revision,
-            "model_path": str(self.root), "checkpoint_path": str(checkpoint),
-            "attribute_reference_path": str(attributes),
-            "asset_integrity": "record_only", "require_cuda": False,
-        })
+            condition_schema={"Group": {"Feature": {"Present": "Not_Mentioned"}}},
+            template_provenance={
+                "source_name": "visual_attribute_template.json",
+                "sha256": "a" * 64,
+            },
+        )
 
     def checkpoint(self, generator):
         tensor = MagicMock(ndim=2, shape=(64, 1152))
         return {
             "soft_prompt": tensor, "model_name": self.model_id,
             "model_revision": self.revision, "target_format": TARGET_FORMAT,
-            "typelevel_sha256": generator.provenance["attribute_reference"]["typelevel_sha256"],
-            "chunk_data_sha256": generator.provenance["attribute_reference"]["chunk_data_sha256"],
+            "template_sha256": generator.provenance["visual_attribute_template"]["sha256"],
             "condition_labels": sorted(CONDITION_LABELS),
         }
 

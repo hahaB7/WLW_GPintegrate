@@ -1,0 +1,20 @@
+{
+  "component_version": "person-a/query-generation:0.10.0",
+  "asset_integrity": "enforce",
+  "histologic_mapping_path": "../reference/person_a/template_ref/Histologic_Type_mappingTable.json",
+  "visual_attribute_template_path": "../reference/person_a/template_ref/visual_attribute_template_v1.2.1.json",
+  "backend": {
+    "mode": "learnable_soft_prompt",
+    "model_name": "google/gemma-3-1b-it",
+    "model_revision": "dcc83ea841ab6100d6b47a070329e1ba4cf78752",
+    "checkpoint_path": "../reference/person_a/checkpoint/soft_prompt_stage2_64SP_50epoch_chunk_option_conditions_retrieval_mixed_best.pt",
+    "required_chunk_count": 3,
+    "retry_with_canonical_dx": true,
+    "max_input_len": 8192,
+    "max_new_tokens": 8192,
+    "dtype": "auto",
+    "require_cuda": true,
+    "device_map_strategy": "single_device",
+    "model_path": "../reference/person_a/checkpoint/gemma-3-1b-it"
+  }
+}

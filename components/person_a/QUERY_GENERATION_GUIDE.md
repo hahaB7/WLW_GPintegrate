@@ -14,20 +14,28 @@ D and F must share `case_id`. F chunks are joined to a diagnosis by
 ## Backends
 
 - `example`: deterministic public contract fixture.
-- `reference`: map Histologic Type to mounted type-level visual criteria.
 - `learnable_soft_prompt`: run Gemma with the mounted Stage 2 `.pt`; use exactly
   three F chunks for each mapped Histologic Type.
 
 The learned backend emits every canonical visual option with one condition:
 `Must_True`, `Must_False`, `High_Possibly_True`, `Low_Possibly_True`,
-`Negligible`, or `Not_Mentioned`. Output with missing/extra options or illegal
-conditions is rejected before G is written.
+`Negligible`, or `Not_Mentioned`. Runtime projects parsed model output onto the
+condition-free canonical template. Unexpected nodes are discarded; missing
+nodes, wrong structural types, and illegal condition values are replaced with
+`Not_Mentioned`.
 
 Schema-valid F is not itself a guarantee of usable evidence or valid model
-output. Generic/uninformative chunk text can produce malformed generations;
-the runtime rejects them without repairing JSON or writing a partial artifact.
-The local-delivery smoke uses three known ADH chunks from the mounted fixed
-reference vocabulary to check execution, not retrieval/generalization quality.
+output. Generic/uninformative chunk text can produce malformed JSON, which the
+runtime rejects without repairing or writing a partial artifact. Schema or
+condition mismatches do not trigger a retry: the normalized first result is
+accepted. The production profile may rerun only an unparseable response with
+the canonical mapped diagnosis instead of the raw report phrase. Attempt
+status, response hashes, input strategies, missing/unexpected/wrong-type paths,
+invalid values, and filled condition paths are recorded under
+`reference_versions.learnable_query_generation.generation_attempts`.
+This is a model retry. There is no condition-reference fallback.
+The local-delivery smoke uses three condition-free ADH evidence texts from a
+dedicated smoke asset to check execution, not retrieval/generalization quality.
 
 ## Required external files
 
@@ -38,9 +46,8 @@ reference/person_a/
 │   └── soft_prompt_stage2_64SP_50epoch_chunk_option_conditions_retrieval_mixed_best.pt
 └── template_ref/
     ├── Histologic_Type_mappingTable.json
-    ├── candidateReference.json
-    ├── [typeLevel]visualAttrs_v1.2.1_2603241656.json
-    └── chunks_with_attribute_condition.json
+    ├── visual_attribute_template_v1.2.1.json
+    └── query_generation_smoke_evidence.json
 ```
 
 Mount `reference/` at `/reference:ro`. The configured `model_path` is
@@ -59,16 +66,6 @@ duplicate rank within one DxPair, or a chunk whose `dx_pair_id` is absent from
 D is rejected. G records the selected IDs and ranks in provenance.
 
 ## Run without Docker
-
-Reference backend:
-
-```bash
-python -m components.person_a.query_generation \
-  --input ../run/output/work/D_dx_pairs.json \
-  --input ../run/output/work/F_chunks.json \
-  --output ../run/output/work/G_queries.json \
-  --config components/person_a/configs/query_generation.default.json
-```
 
 Learned backend:
 
@@ -90,7 +87,7 @@ docker run --rm --gpus all --network none \
   -v "$(pwd)/../reference:/reference:ro" \
   -v "$(pwd)/../run:/run" \
   --entrypoint python \
-  wlw/person-a:0.9.0 \
+  wlw/person-a:0.10.0 \
   -m components.person_a.query_generation \
   --input /run/output/work/D_dx_pairs.json \
   --input /run/output/work/F_chunks.json \
@@ -112,7 +109,9 @@ CPU offload and overhead; hardware minima remain unverified.
 - F has unique chunk IDs and unique retrieval ranks per DxPair, with no foreign
   `dx_pair_id` values.
 - Query `dx_pair_id` and `chunk_ids` identify the actual inputs used.
-- Every visual option receives exactly one legal condition.
+- Every canonical visual option receives exactly one legal condition after
+  schema normalization.
+- Every dropped or filled model path is recorded in generation provenance.
 - G passes `G_visual_attribute_queries.schema.json` and preserves D metadata.
-- Missing assets, model/GPU failures, or invalid model output exit non-zero and
-  do not leave a partial G.
+- Missing assets, model/GPU failures, or unparseable model output exit non-zero
+  and do not leave a partial G.

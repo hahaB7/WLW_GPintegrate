@@ -1,7 +1,7 @@
 # 丁（Person D）：Visual Attribute Filter 準備與交付
 
-丁負責合併 `[E]` ROI 與 `[G]` query，產生 `[H]` matching artifact。目前 stub 不讀 WSI、不做
-visual attribute 推論，只建立合法 H shell；正式交付應替換內部方法但保留所有 ROI 與稽核事件。
+丁負責合併 `[E]` ROI 與 `[G]` query，產生 `[H]` matching artifact。Native mode 使用 PLIP／CONCH
+抽取 visual attributes，並保留所有 ROI 與可稽核事件。
 
 ## 1. Input／output 規格
 
@@ -13,7 +13,7 @@ visual attribute 推論，只建立合法 H shell；正式交付應替換內部�
 - H 必須保留 E 的所有 ROI，不可只輸出 selected ROI。
 - 每個已處理 ROI 應保留上游 `selection_history`，再追加合法的
   `visual_attributes_matching_filter` event。
-- query unmapped、非 reference WSI、推論失敗與條件不符的語意須分成 skipped／rejected，不得靜默丟棄。
+- query unmapped、非 reference WSI、缺少 informative evidence 與推論失敗不得靜默丟棄。
 - 讀取 WSI 時使用 E 的 `stains[].filepath` 與 ROI geometry；不得建立另一套未記錄的 WSI root。
 
 Canonical schemas：
@@ -159,7 +159,7 @@ schema 所有 required fields，不能把省略字串送入 runtime。
                         "action": "legality_evaluated",
                         "status": "selected",
                         "selected": true,
-                        "reason": "visual_attributes_match",
+                        "reason": "informative_visual_attributes_forwarded",
                         "producer": "person-d/visual-filter:<version>",
                         "query_id": "query-001",
                         "dx_pair_id": "case-001-dx-001",
@@ -255,7 +255,7 @@ components/person_d/examples/
 config 不放在 `examples/`：`contracts/paths.py` 只接受 `components/person_d/configs/` 下的 config，
 canonical example 使用 `configs/example.json` 與 `configs/native.example.json`。
 
-範例需覆蓋 selected、rejected、skipped、unmapped query、非 reference WSI 與空 ROI case；所有輸出 ROI
+範例需覆蓋 selected、skipped、模型分歧、四種 informative conditions、unmapped query、非 reference WSI 與空 ROI case；所有輸出 ROI
 數量和 ID 必須與 E 一致。使用合成 slide，不提交 PHI。模型非決定性時定義 score 容許誤差與最終狀態
 判定方式。
 

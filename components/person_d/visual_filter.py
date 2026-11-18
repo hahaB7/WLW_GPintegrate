@@ -17,7 +17,12 @@ from typing import Any, Callable, Mapping
 from components.person_d.assets import check_digest, required_digest
 from components.person_d.geometry import roi_geometry
 from components.person_d.mapping import load_acceptance
-from components.person_d.matching_filter import LabelMap, MatchingSettings, match_query
+from components.person_d.matching_filter import (
+    FORWARDED_CONDITIONS,
+    LabelMap,
+    MatchingSettings,
+    match_query,
+)
 from contracts.metadata import ensure_same_case, single_case
 from contracts.paths import resolve_person_reference_path, sibling_logical_path
 from contracts.runtime import cli_parser, load_config, load_inputs, write_artifact
@@ -25,6 +30,32 @@ from contracts.runtime import cli_parser, load_config, load_inputs, write_artifa
 
 STAGE = "visual_attributes_matching_filter"
 NATIVE_BACKEND = "plip+conch"
+
+
+def _reject_legacy_condition_provenance(payload: Mapping[str, Any]) -> None:
+    """Prevent pre-isolation G artifacts from re-entering inference."""
+
+    references = payload.get("reference_versions", {})
+    if not isinstance(references, Mapping):
+        return
+    learned = references.get("learnable_query_generation", {})
+    legacy = "type_level_visual_attrs" in references or (
+        isinstance(learned, Mapping) and "attribute_reference" in learned
+    )
+    if legacy:
+        raise ValueError(
+            "G provenance predates the condition-free inference template; "
+            "regenerate G before running Person D"
+        )
+    condition_free = isinstance(
+        references.get("visual_attribute_template"), Mapping
+    )
+    example_stub = isinstance(references.get("example_query_stub"), Mapping)
+    if not condition_free and not example_stub:
+        raise ValueError(
+            "G provenance does not establish a condition-free inference "
+            "template; regenerate G before running Person D"
+        )
 
 
 def _producer(config: dict[str, Any]) -> str:
@@ -211,6 +242,7 @@ def validate_inputs(e_artifact: dict[str, Any], g_artifact: dict[str, Any]) -> s
     accept or reject the same E/G pair.
     """
 
+    _reject_legacy_condition_provenance(g_artifact["payload"])
     case_id = ensure_same_case(e_artifact, g_artifact)
     e_mode, g_mode = e_artifact["payload"]["data_mode"], g_artifact["payload"]["data_mode"]
     if e_mode != g_mode:
@@ -230,6 +262,12 @@ def _model_summary(models: dict[str, Any]) -> dict[str, Any]:
             category: {
                 attribute: {
                     "prediction": info["prediction"],
+                    "decision": {
+                        **info["decision"],
+                        "best_scored_similarity": round(
+                            info["decision"]["best_scored_similarity"], 6
+                        ),
+                    },
                     "scores": {option: round(score, 6) for option, score in info["scores"].items()},
                 }
                 for attribute, info in attributes.items()
@@ -329,9 +367,16 @@ def build_native_artifact(
                             label_map,
                             settings,
                             vocabulary,
+                            model_predictions=extraction["models"],
                         )
                         details: dict[str, Any] = {"backend": NATIVE_BACKEND}
-                        if result["status"] != "skipped":
+                        if settings.selection_policy == "forward_all_informative":
+                            if result["status"] == "selected":
+                                details.update(
+                                    matched_attributes=result["forwarded_attributes"],
+                                    failed_attributes=[],
+                                )
+                        elif result["status"] != "skipped":
                             details.update(
                                 score=result["score"],
                                 threshold=settings.score_threshold,
@@ -348,7 +393,15 @@ def build_native_artifact(
                             key: result[key]
                             for key in (
                                 "status",
+                                "reason",
+                                "selection_policy",
                                 "evaluated_count",
+                                "consensus_evaluated_count",
+                                "consensus_score",
+                                "model_scores",
+                                "forwarded_attributes",
+                                "condition_hits",
+                                "model_attributes",
                                 "must_true_unverified",
                                 "must_unverifiable",
                                 "attributes",
@@ -395,6 +448,18 @@ def build_native_artifact(
                 "comparison": ">=",
                 "min_evaluated_attributes": settings.min_evaluated_attributes,
                 "unverified_must_true": settings.unverified_must_true,
+                "selection_policy": settings.selection_policy,
+                "forwarded_conditions": list(FORWARDED_CONDITIONS),
+                "model_disagreement_policy": (
+                    "either_model_can_forward"
+                    if settings.selection_policy == "forward_all_informative"
+                    else "consensus_required"
+                ),
+                "score_role": (
+                    "audit_only"
+                    if settings.selection_policy == "forward_all_informative"
+                    else "selection_gate"
+                ),
             }
             if matching_enabled and settings is not None
             else {"enabled": False, "behavior": "passthrough"}

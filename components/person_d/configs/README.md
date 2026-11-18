@@ -3,9 +3,13 @@
 `example.json` (`mode: example`) is the contract-only stub used by the repository pipeline test. It
 contains no WSI setting, model or prompt path, threshold, or device choice and runs no model.
 
-`native.example.json` (`mode: native`) runs PLIP + CONCH visual attribute extraction and the matching
-filter. Reference paths must stay below sibling `reference/person_d/`; ROI crops and relative WSI paths
-resolve below sibling `run/`. Weights load from local files only.
+`native.json` is the production profile. It runs PLIP + CONCH visual attribute extraction and enables
+the matching filter. Reference paths must stay below sibling `reference/person_d/`; ROI crops and
+relative WSI paths resolve below sibling `run/`. Weights load from local files only.
+
+`native.example.json` uses the same official models and extraction assets but deliberately sets
+`matching.enable=false` so downstream integration fixtures can exercise Person E. It is not a
+production profile and must not be selected by the no-argument pipeline.
 
 `native.smoke.json` is identical except that CONCH points to random-initialised `conch_ViT-B-16`
 weights. It exercises the complete native path (OpenSlide, both models, matching) on a clean machine
@@ -33,11 +37,13 @@ python -c "import json, torch; from pathlib import Path; from conch.open_clip_cu
 | `extraction.example_score_weight` | Weight of image-to-example-prototype similarity; used when `use_example_prototypes` is true. |
 | `extraction.multi_select_margin` | Multi-select attributes keep options within this margin of the best score. |
 | `extraction.copy_na_labels` | Keep agreed `N/A` labels. |
+| `extraction.decision_thresholds` | Per-model minimum winning fused similarity. Below it, lab_20-style fallback returns `Absent` when available, otherwise `N/A`, otherwise no effective label. `Absent` is not a scored winning alternative. Multi-select attributes apply the threshold before `multi_select_margin`. |
 | `extraction.enable_prompt_chunking`, `token_safety_margin`, `fallback_words_per_chunk` | Long option prompts are split into chunks whose embeddings are averaged. |
 | `matching.enable` | Boolean switch for the matching filter; defaults to `true` when omitted. When `false`, PLIP/CONCH extraction still runs, the label map is not loaded, and mapped queries on reference-WSI ROIs pass through as `selected` with reason `matching_disabled_passthrough`. This bypass is intended for controlled downstream integration tests, not diagnostic filtering. |
+| `matching.selection_policy` | `forward_all_informative` selects when either PLIP or CONCH maps at least the configured number of unique attributes to any informative condition; model agreement and condition polarity are not gates. `strict_match` retains the historical consensus/Must/score behavior for compatibility testing. |
 | `matching.label_map_path` | Extraction-label to diagnosticCriteria-option aliases; its `criteria_version` must equal G `diagnosticCriteria.version`. |
 | `matching.label_map_sha256` | Required SHA-256 of the label map, checked at the start of every native run; a mismatch fails. |
-| `matching.condition_weights` | Weight in [-1, 1] for each informative condition: `Must_True`, `High_Possibly_True`, `Low_Possibly_True`, `Must_False`. |
-| `matching.score_threshold` | Selected requires `score >= score_threshold`, within [-1, 1]. |
-| `matching.min_evaluated_attributes` | Fewer evaluated attributes yields `skipped` with `insufficient_visual_evidence`. |
-| `matching.unverified_must_true` | What happens when a Must condition cannot be verified, either because an attribute with a Must_True option was not evaluated or because a Must_True / Must_False option cannot be reached by any vocabulary label (`MAPPING.md`): `skip` gives `skipped` / `insufficient_visual_evidence`, `reject` gives `rejected` / `must_condition_failed`. Either way the query is never `selected`. |
+| `matching.condition_weights` | Audit weight in [-1, 1] for each informative condition. It gates selection only under `strict_match`. |
+| `matching.score_threshold` | Historical score threshold within [-1, 1]; audit-only under `forward_all_informative`, selection gate under `strict_match`. |
+| `matching.min_evaluated_attributes` | Under production policy, minimum unique attributes for which either model supplies informative evidence; fewer yields `skipped` with `insufficient_visual_evidence`. |
+| `matching.unverified_must_true` | Compatibility behavior for unverified Must conditions under `strict_match`; audit-only under `forward_all_informative`. |

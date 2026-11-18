@@ -10,7 +10,11 @@ from components.person_e.adapter import (
     load_checkpoint_support,
     run_fixture_backend,
 )
-from components.person_e.clee import _merge_pseudo_dx_pair, _prediction_event
+from components.person_e.clee import (
+    _merge_pseudo_dx_pair,
+    _prediction_event,
+    _reject_legacy_condition_provenance,
+)
 from contracts.paths import REFERENCE_ROOT
 
 
@@ -45,6 +49,31 @@ class CLEEAdapterTests(unittest.TestCase):
         config["fallback_top_k"] = 0
         with self.assertRaisesRegex(ValueError, "fallback_top_k"):
             load_checkpoint_support(config)
+
+    def test_legacy_condition_provenance_is_rejected(self) -> None:
+        accepted = {
+            "reference_versions": {
+                "visual_attribute_template": {"condition_free": True}
+            }
+        }
+        _reject_legacy_condition_provenance(accepted)
+
+        legacy_variants = (
+            {"type_level_visual_attrs": {"legacy": True}},
+            {"learnable_query_generation": {"attribute_reference": {"legacy": True}}},
+        )
+        for legacy in legacy_variants:
+            with self.subTest(legacy=legacy):
+                payload = {"reference_versions": legacy}
+                with self.assertRaisesRegex(
+                    ValueError, "predates the condition-free"
+                ):
+                    _reject_legacy_condition_provenance(payload)
+
+        with self.assertRaisesRegex(ValueError, "does not establish"):
+            _reject_legacy_condition_provenance(
+                {"reference_versions": {"unknown_source": {}}}
+            )
 
     def test_by_dxresult_policy_resolves_threshold_or_records_item_fallback(
         self,

@@ -30,6 +30,7 @@ SETTINGS = {
     "enable_prompt_chunking": True,
     "token_safety_margin": 2,
     "fallback_words_per_chunk": 35,
+    "decision_thresholds": {"PLIP": 0.2, "CONCH": 0.2},
 }
 TEMPLATE = "Attribute: {attribute}. Label: {option}. Visual definition: {description}"
 
@@ -79,6 +80,7 @@ class VisualAttributeExtractionTests(unittest.TestCase):
             vocabulary=self.vocabulary,
             settings=self.settings,
             option_prompt_template=TEMPLATE,
+            model_name="PLIP",
             custom_text_prompts=["A histopathology ROI image."],
             example_dir=self.example_dir,
         )
@@ -104,6 +106,79 @@ class VisualAttributeExtractionTests(unittest.TestCase):
         )
         self.assertEqual(["N/A"], classifier._predict_multi(options, torch.tensor([0.9, 0.1, 0.1])))
 
+    def test_lab20_style_threshold_fallback(self) -> None:
+        import torch
+
+        classifier = self._classifier()
+        self.assertEqual(
+            "Absent",
+            classifier._predict_single(
+                ["Absent", "Low", "High"], torch.tensor([0.99, 0.10, 0.19])
+            ),
+        )
+        self.assertEqual(
+            "N/A",
+            classifier._predict_single(
+                ["N/A", "Low", "High"], torch.tensor([0.10, 0.11, 0.19])
+            ),
+        )
+        self.assertIsNone(
+            classifier._predict_single(
+                ["Low", "High"], torch.tensor([0.10, 0.19])
+            )
+        )
+        self.assertEqual(
+            "High",
+            classifier._predict_single(
+                ["Absent", "Low", "High"], torch.tensor([0.99, 0.10, 0.20])
+            ),
+        )
+
+    def test_decision_threshold_config_requires_both_models(self) -> None:
+        invalid = dict(SETTINGS)
+        invalid["decision_thresholds"] = {"PLIP": 0.2}
+        with self.assertRaisesRegex(ValueError, "define exactly"):
+            self.extraction.ExtractionSettings.from_config(invalid)
+
+    def test_decision_threshold_config_rejects_invalid_values(self) -> None:
+        for value in (True, float("nan"), 1.1):
+            with self.subTest(value=value):
+                invalid = dict(SETTINGS)
+                invalid["decision_thresholds"] = {"PLIP": value, "CONCH": 0.2}
+                with self.assertRaisesRegex(ValueError, "finite number within"):
+                    self.extraction.ExtractionSettings.from_config(invalid)
+
+    def test_multi_select_applies_threshold_before_margin(self) -> None:
+        import torch
+
+        classifier = self._classifier()
+        options = ["N/A", "Solid", "Cribriform"]
+        self.assertEqual(
+            ["N/A"], classifier._predict_multi(options, torch.tensor([0.10, 0.19, 0.18]))
+        )
+        self.assertEqual(
+            ["Solid"], classifier._predict_multi(options, torch.tensor([0.10, 0.21, 0.19]))
+        )
+
+    def test_both_models_low_without_fallback_produce_no_consensus(self) -> None:
+        plip = {
+            "Architecture": {"Pattern": {"prediction": []}},
+            "Cellular_and_Nuclear": {"Chromatin": {"prediction": None}},
+        }
+        conch = {
+            "Architecture": {"Pattern": {"prediction": []}},
+            "Cellular_and_Nuclear": {"Chromatin": {"prediction": None}},
+        }
+        self.assertEqual(
+            {
+                "Architecture": {"Pattern": []},
+                "Cellular_and_Nuclear": {"Chromatin": []},
+            },
+            self.extraction.get_consistent_labels(
+                self.vocabulary, plip, conch, True
+            ),
+        )
+
     def test_consistent_labels_require_model_agreement(self) -> None:
         plip = {
             "Architecture": {"Pattern": {"prediction": ["Solid", "Cribriform"]}},
@@ -126,7 +201,14 @@ class VisualAttributeExtractionTests(unittest.TestCase):
         self.assertEqual({"Pattern"}, set(result["Architecture"]))
         self.assertEqual(set(VOCABULARY["attributes"]["Architecture"]["Pattern"]),
                          set(result["Architecture"]["Pattern"]["scores"]))
-        self.assertIn(result["Cellular_and_Nuclear"]["Chromatin"]["prediction"], ["Regular", "Hyperchromatic"])
+        self.assertIn(
+            result["Cellular_and_Nuclear"]["Chromatin"]["prediction"],
+            ["Regular", "Hyperchromatic", None],
+        )
+        self.assertEqual(
+            0.2,
+            result["Cellular_and_Nuclear"]["Chromatin"]["decision"]["threshold"],
+        )
 
     def test_weight_sha256_mismatch_fails(self) -> None:
         weight = self.example_dir.parent / "weights.bin"

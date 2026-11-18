@@ -9,18 +9,22 @@ rectangles (ROIs) of the epithelium. Person D (`visual_filter`) reopens the slid
 | Component version | `0.5.0` (producer string `person-c/interest-pattern:0.5.0`) |
 | Input / output | `CaseListInput@1.0`, one case per call / `E.ROIs@2.0` |
 | Entry point | `python -m components.person_c.interest_pattern --input ... --output ... --config ...` |
-| Default config | `configs/default.json` (backend `segnet`) |
+| Production config | `configs/region_proposal.json` (mode `region_proposal`) |
 
-## 1. Backends
+## 1. Modes
 
-One algorithm finds the epithelium: the SEGNET student (`backend: "segnet"`, `configs/default.json`, section 2). The only
-other backend is `demo` (`configs/demo.json`): fixed boxes from the config, no slide is opened, for the pipeline and
-contract tests. Everything after the mask (boxes, ROI records, E) is shared.
+`mode` in the config selects what the component does; the pipeline reads it (`pipeline/run_pipeline.py` requires
+`region_proposal` in its production profile and `configs/region_proposal.json` / `configs/example.json` by name).
 
-`stain_type_whitelist` (default `["HE"]`) selects the stains that are opened. Every other stain stays in E with
-`roi_num = 0` and `roi_list = []`.
+| Config | `mode` | What it does |
+|---|---|---|
+| `configs/region_proposal.json` | `region_proposal` | Finds the regions of the epithelium with the SEGNET student (section 2). The mode names the stage (region proposal), not the algorithm. |
+| `configs/example.json` | `example` | No slide is opened: no ROIs, or the fixed boxes of `demo_regions` if the config has them. For the pipeline's `example` profile and the contract tests. |
 
-## 2. The `segnet` backend
+Everything after the mask (boxes, ROI records, E) is shared. `stain_type_whitelist` (default `["HE"]`) selects the stains that are
+opened. Every other stain stays in E with `roi_num = 0` and `roi_list = []`.
+
+## 2. Mode `region_proposal`
 
 ```text
  WSI ─> tiles of 1792 um at 1 um/px (+112 um context), read by worker processes
@@ -60,12 +64,12 @@ contract tests. Everything after the mask (boxes, ROI records, E) is shared.
   `[cx / W, cy / H, w / W, h / H]` of the image of that record (contract clarification CCR-C-001).
   `area` is `width × height` in the pixels of that record.
 - **Identity.** `roi_id` is `<case_id>-<stain_id>-roi-<16 hex>`, the hash of the case, the stain and the level-0 box.
-  `global_idx` counts the ROIs of the case in stain order, `local_idx` those of the stain. With `segnet` the ROIs of a
+  `global_idx` counts the ROIs of the case in stain order, `local_idx` those of the stain. The ROIs of a
   stain are ordered by (top, left).
 - **Selection history.** One event per ROI: stage `interest_pattern_extraction`, owner `person_C`, action
   `candidate_generated`, status `selected`. `DxPair`, `visualAttrs` and `visualAttrs_info` are `null`.
 - **Empty.** A stain without objects gives `roi_num = 0`; a case without any ROI is a valid E.
-- **`save_roi_png`** (`segnet`): `true` writes the crop of every ROI below `run/output` and sets
+- **`save_roi_png`** (`region_proposal`): `true` writes the crop of every ROI below `run/output` and sets
   `main_info.roi_path`; otherwise downstream components reopen the slide.
 - **Failure.** A case with more than one entry, a missing slide, a missing MPP, a missing or wrong checkpoint, an
   unavailable CUDA device that was asked for, a model error, or an E that violates the contract ends with a non-zero exit
@@ -81,7 +85,7 @@ See [configs/README.md](configs/README.md) for every key.
 python -m components.person_c.interest_pattern \
   --input  ../run/input/pipeline/case-001.json \
   --output ../run/output/work/E_rois.json \
-  --config components/person_c/configs/default.json
+  --config components/person_c/configs/region_proposal.json
 ```
 
 `--input` and `--output` must be below the sibling `run/`, `--config` below `components/person_c/configs/`. On the
@@ -104,7 +108,7 @@ docker run --rm --gpus all \
   wlw/person-c:0.5.0 \
     --input  /run/input/pipeline/case-001.json \
     --output /run/output/work/E_rois.json \
-    --config /app/components/person_c/configs/default.json
+    --config /app/components/person_c/configs/region_proposal.json
 ```
 
 ## 6. Environment and assets
@@ -124,7 +128,7 @@ build or run time; `reference/` is read-only, everything the component writes go
 
 ## 7. Measured performance
 
-One slide only: BRACS_1003691 (61 879 × 70 581 px, 0.2524 µm/px), one H200, 8 CPUs, `configs/default.json`.
+One slide only: BRACS_1003691 (61 879 × 70 581 px, 0.2524 µm/px), one H200, 8 CPUs, `configs/region_proposal.json`.
 
 | | |
 |---|---|
@@ -133,7 +137,7 @@ One slide only: BRACS_1003691 (61 879 × 70 581 px, 0.2524 µm/px), one H200, 8 
 | Peak GPU memory / peak host memory | 0.78 GiB / 2.4 GB |
 | ROIs | 197 |
 
-The first version of this backend took 6 min 2 s on the same slide: the tiles were read at the full-resolution level
+The first version took 6 min 2 s on the same slide: the tiles were read at the full-resolution level
 (a requested 3.96 µm/px is 1 % below the 4.0 of level 1, and `get_best_level_for_downsample` then skips it) and in the main
 loop. They are now read at the right level (`wsi_processing.read_level`, 1 % tolerance) by `segnet.num_workers` processes.
 Test-time augmentation (`segnet.tta_views`) and more checkpoints multiply the GPU time and are off / one by default.
@@ -160,7 +164,7 @@ components/person_c/
 │   ├── segnet.py             the student on a slide: tiles, windows, class map, epithelium mask
 │   ├── segnet_net.py         DeepLab v3+ network (inference)
 │   └── figures.py            the PNG of a stage
-├── configs/                  default.json (segnet), demo.json, README.md
+├── configs/                  region_proposal.json, example.json, README.md
 ├── examples/                 canonical CaseList and expected E, command, e2e/run_e2e.sh
 ├── tests/                    test_interest_pattern.py, test_segnet_regions.py
 ├── component.yaml  external-assets.yaml  requirements.txt  Dockerfile
@@ -171,5 +175,5 @@ components/person_c/
 
 | Version | Change |
 |---|---|
-| 0.5.0 | The SEGNET student replaces the MRCPS segmentation (the MRCPS code, network and config were removed; they stay in git history). `segnet` is the default config. Stage PNGs (`figures`). Tiles read at the right level by worker processes (6 min to 28 s). The unreachable CONCH region-proposal code was removed. |
-| 0.4.0 | MRCPS extractor and demo backend (upstream; see `DELIVERY_REPORT.md`). |
+| 0.5.0 | The SEGNET student replaces the MRCPS segmentation (the MRCPS code, network and config were removed; they stay in git history). `configs/region_proposal.json` is the config the pipeline reads (its production profile requires that name and `mode: "region_proposal"`). Stage PNGs (`figures`). Tiles read at the right level by worker processes (6 min to 28 s). The unreachable CONCH region-proposal code was removed. |
+| 0.4.0 | MRCPS extractor and example mode (upstream). |

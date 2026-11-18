@@ -11,13 +11,16 @@ Runtime differences required by the WLW contract:
 * vocabulary, option descriptions, and prompts come from
   ``reference/person_d/template_ref``; weights and hyperparameters from config;
 * weights load from local files only, and the configured device is mandatory;
-* an unreadable example image raises instead of being skipped.
+* an unreadable example image raises instead of being skipped;
+* after the fused similarities are computed, each model applies the lab_20
+  threshold/fallback rule while retaining lab_23 multi-select and model agreement.
 """
 
 from __future__ import annotations
 
 import hashlib
 import json
+import math
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Dict, List, Mapping, Optional, Tuple
@@ -62,10 +65,31 @@ class ExtractionSettings:
     enable_prompt_chunking: bool
     token_safety_margin: int
     fallback_words_per_chunk: int
+    decision_thresholds: Dict[str, float]
 
     @classmethod
     def from_config(cls, raw: Mapping[str, Any]) -> "ExtractionSettings":
         try:
+            thresholds = raw["decision_thresholds"]
+            if not isinstance(thresholds, Mapping) or set(thresholds) != set(MODEL_NAMES):
+                raise ValueError(
+                    "Person D extraction decision_thresholds must define exactly "
+                    f"{list(MODEL_NAMES)}"
+                )
+            parsed_thresholds = {}
+            for name in MODEL_NAMES:
+                value = thresholds[name]
+                if (
+                    isinstance(value, bool)
+                    or not isinstance(value, (int, float))
+                    or not math.isfinite(value)
+                    or not -1.0 <= float(value) <= 1.0
+                ):
+                    raise ValueError(
+                        f"Person D extraction decision_thresholds.{name} "
+                        "must be a finite number within [-1, 1]"
+                    )
+                parsed_thresholds[name] = float(value)
             settings = cls(
                 image_score_weight=float(raw["image_score_weight"]),
                 text_score_weight=float(raw["text_score_weight"]),
@@ -77,6 +101,7 @@ class ExtractionSettings:
                 enable_prompt_chunking=bool(raw["enable_prompt_chunking"]),
                 token_safety_margin=int(raw["token_safety_margin"]),
                 fallback_words_per_chunk=int(raw["fallback_words_per_chunk"]),
+                decision_thresholds=parsed_thresholds,
             )
         except KeyError as exc:
             raise ValueError(f"Person D extraction config is missing {exc.args[0]!r}") from exc
@@ -608,6 +633,7 @@ class AttributeClassifier:
         vocabulary: Vocabulary,
         settings: ExtractionSettings,
         option_prompt_template: str,
+        model_name: str,
         custom_text_prompts: Optional[List[str]] = None,
         example_dir: Optional[Path] = None,
     ):
@@ -615,6 +641,10 @@ class AttributeClassifier:
         self.vocabulary = vocabulary
         self.settings = settings
         self.option_prompt_template = option_prompt_template
+        if model_name not in MODEL_NAMES:
+            raise ValueError(f"Unknown Person D extraction model: {model_name}")
+        self.model_name = model_name
+        self.decision_threshold = settings.decision_thresholds[model_name]
         self.custom_text_prompts = normalize_prompt_list(custom_text_prompts)
         self.use_custom_text_prompt = settings.use_custom_text_prompt
         self.image_score_weight = settings.image_score_weight
@@ -879,8 +909,23 @@ class AttributeClassifier:
                 else:
                     pred = self._predict_single(options, scores_cpu)
 
+                best_option, best_score = self._best_scored_alternative(
+                    options, scores_cpu
+                )
+                fallback_used = best_score < self.decision_threshold
+
                 result[group_name][attr_name] = {
                     "prediction": pred,
+                    "decision": {
+                        "best_scored_option": best_option,
+                        "best_scored_similarity": best_score,
+                        "threshold": self.decision_threshold,
+                        "comparison": ">=",
+                        "fallback_used": fallback_used,
+                        "fallback_label": (
+                            self._fallback_label(options) if fallback_used else None
+                        ),
+                    },
                     "scores": {
                         option: float(score)
                         for option, score in zip(options, scores_cpu.tolist())
@@ -889,17 +934,51 @@ class AttributeClassifier:
 
         return result
 
-    def _predict_single(self, options: List[str], scores: torch.Tensor) -> str:
-        idx = int(torch.argmax(scores).item())
-        return options[idx]
+    @staticmethod
+    def _fallback_label(options: List[str]) -> Optional[str]:
+        if "Absent" in options:
+            return "Absent"
+        if "N/A" in options:
+            return "N/A"
+        return None
+
+    @staticmethod
+    def _scored_alternative_indices(options: List[str]) -> List[int]:
+        """Mirror lab_20: Absent is inferred from low positive similarities."""
+
+        indices = [index for index, option in enumerate(options) if option != "Absent"]
+        if not indices:
+            raise ValueError("Person D attribute has no non-Absent scored alternative")
+        return indices
+
+    def _best_scored_alternative(
+        self, options: List[str], scores: torch.Tensor
+    ) -> Tuple[str, float]:
+        indices = self._scored_alternative_indices(options)
+        best_index = max(indices, key=lambda index: float(scores[index].item()))
+        return options[best_index], float(scores[best_index].item())
+
+    def _predict_single(
+        self, options: List[str], scores: torch.Tensor
+    ) -> Optional[str]:
+        best_option, best_score = self._best_scored_alternative(options, scores)
+        if best_score < self.decision_threshold:
+            return self._fallback_label(options)
+        return best_option
 
     def _predict_multi(self, options: List[str], scores: torch.Tensor) -> List[str]:
-        max_score = float(torch.max(scores).item())
+        _, max_score = self._best_scored_alternative(options, scores)
+
+        if max_score < self.decision_threshold:
+            fallback = self._fallback_label(options)
+            return [fallback] if fallback is not None else []
 
         selected = [
             option
             for option, score in zip(options, scores.tolist())
-            if score >= max_score - self.settings.multi_select_margin
+            if option != "Absent"
+            and score >= self.decision_threshold
+            and score >= max_score - self.settings.multi_select_margin
         ]
 
         if len(selected) > 1 and "N/A" in selected:
@@ -932,7 +1011,7 @@ def get_consistent_labels(
                 c_set = set(c)
                 agreed = sorted(list(p_set & c_set))
             else:
-                agreed = [p] if p == c else []
+                agreed = [p] if p is not None and p == c else []
 
             if not copy_na_labels:
                 agreed = [x for x in agreed if x != "N/A"]
@@ -1105,6 +1184,7 @@ def load_extractor(config: Mapping[str, Any], device: str) -> VisualAttributeExt
             vocabulary=vocabulary,
             settings=settings,
             option_prompt_template=prompts["models"][name]["option_prompt_template"],
+            model_name=name,
             custom_text_prompts=prompts["models"][name]["custom_text_prompts"],
             example_dir=example_dir,
         )

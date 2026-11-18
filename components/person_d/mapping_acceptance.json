@@ -1,8 +1,8 @@
 {
   "criteria_version": "1.2.1",
   "prompt_asset": {
-    "version": "1.1.0",
-    "sha256": "e61b7d784aa8959305c22db7eb71921d5487ab479ebbaa16abb3c3ca957099d4"
+    "version": "1.2.0",
+    "sha256": "9474dcb890dc2f99c74c817242a048f4de59ec7ab425f76005a041ad8120ffa6"
   },
   "label_map": {
     "version": "1.0.0",
@@ -31,25 +31,22 @@
       }
     }
   },
+  "summary": {
+    "attributes": 24,
+    "prompt_options": 123,
+    "criteria_options": 138,
+    "unmapped_prompt_options": 0,
+    "multi_mapped_prompt_options": 1,
+    "unreachable_criteria_options": 14,
+    "unreachable_by_category": {
+      "unable_to_confirm": 14
+    }
+  },
   "unreachable_categories": {
-    "unable_to_confirm": "Not a prediction target. The attribute has no N/A label; the backend expresses that it cannot assess an attribute through model disagreement, which leaves the attribute unevaluated.",
+    "unable_to_confirm": "Not a scored prediction target. The attribute has no N/A label, so this option cannot itself produce a condition hit; production forwarding may still use an informative prediction from either model.",
     "generic_not_otherwise_specified": "Not a prediction target. The vocabulary always assigns a specific type or Absent, never the generic 'present, type not specified' category.",
     "filed_under_another_attribute": "Not covered for this attribute. The vocabulary carries the same concept under a different attribute than criteria 1.2.1.",
     "not_covered": "Not covered. The vocabulary of pipeline_quilt_1m.py predates criteria 1.2.1 and has no label for this option; the backend can never predict it."
-  },
-  "summary": {
-    "attributes": 24,
-    "prompt_options": 105,
-    "criteria_options": 138,
-    "unmapped_prompt_options": 1,
-    "multi_mapped_prompt_options": 1,
-    "unreachable_criteria_options": 33,
-    "unreachable_by_category": {
-      "filed_under_another_attribute": 1,
-      "generic_not_otherwise_specified": 2,
-      "not_covered": 16,
-      "unable_to_confirm": 14
-    }
   },
   "attributes": {
     "Cellular_and_Nuclear.Cell_Pleomorphism": {
@@ -149,7 +146,9 @@
         "Regular",
         "Vesicular",
         "Coarsely clumped",
-        "Hyperchromatic"
+        "Hyperchromatic",
+        "Salt-and-pepper",
+        "Smudged"
       ],
       "criteria_options": [
         "Regular",
@@ -184,15 +183,21 @@
             "Hyperchromatic"
           ],
           "rule": "exact"
+        },
+        "Salt-and-pepper": {
+          "options": [
+            "Salt-and-pepper"
+          ],
+          "rule": "exact"
+        },
+        "Smudged": {
+          "options": [
+            "Smudged"
+          ],
+          "rule": "exact"
         }
       },
       "unreachable": {
-        "Salt-and-pepper": {
-          "category": "not_covered"
-        },
-        "Smudged": {
-          "category": "not_covered"
-        },
         "Unable to confirm": {
           "category": "unable_to_confirm"
         }
@@ -201,6 +206,7 @@
     "Cellular_and_Nuclear.Nuclear_Size": {
       "prompt_options": [
         "Uniform",
+        "Enlargement",
         "Variable"
       ],
       "criteria_options": [
@@ -216,6 +222,12 @@
           ],
           "rule": "exact"
         },
+        "Enlargement": {
+          "options": [
+            "Enlargement"
+          ],
+          "rule": "exact"
+        },
         "Variable": {
           "options": [
             "Variable"
@@ -224,9 +236,6 @@
         }
       },
       "unreachable": {
-        "Enlargement": {
-          "category": "not_covered"
-        },
         "Unable to confirm": {
           "category": "unable_to_confirm"
         }
@@ -236,7 +245,9 @@
       "prompt_options": [
         "Uniform",
         "Spindle",
-        "Irregular/Pleomorphic"
+        "Irregular/Pleomorphic",
+        "Vesicular",
+        "Variable"
       ],
       "criteria_options": [
         "Uniform",
@@ -264,15 +275,21 @@
             "Irregular/Pleomorphic"
           ],
           "rule": "exact"
+        },
+        "Vesicular": {
+          "options": [
+            "Vesicular"
+          ],
+          "rule": "exact"
+        },
+        "Variable": {
+          "options": [
+            "Variable"
+          ],
+          "rule": "exact"
         }
       },
       "unreachable": {
-        "Vesicular": {
-          "category": "not_covered"
-        },
-        "Variable": {
-          "category": "not_covered"
-        },
         "Unable to confirm": {
           "category": "unable_to_confirm"
         }
@@ -310,6 +327,7 @@
     },
     "Cellular_and_Nuclear.Epithelial_Cell_Shape": {
       "prompt_options": [
+        "Bilayered",
         "Cuboidal/Columnar",
         "Squamous",
         "Polygonal",
@@ -327,6 +345,12 @@
         "Unable to confirm"
       ],
       "mapping": {
+        "Bilayered": {
+          "options": [
+            "Bilayered"
+          ],
+          "rule": "exact"
+        },
         "Cuboidal/Columnar": {
           "options": [
             "Cuboidal",
@@ -360,9 +384,6 @@
         }
       },
       "unreachable": {
-        "Bilayered": {
-          "category": "not_covered"
-        },
         "Unable to confirm": {
           "category": "unable_to_confirm"
         }
@@ -518,15 +539,20 @@
     "Architecture.Pattern": {
       "prompt_options": [
         "N/A",
+        "Absent, No special pattern",
+        "Simple Tubular/Branching Structures",
         "Comedo",
         "Solid",
         "Cribriform",
         "Papillary",
         "Trabecular/Cords",
         "Single file",
-        "one to several layers",
         "fenestrated",
-        "micropapillary"
+        "micropapillary",
+        "Tubular/Glandular",
+        "Cystic/Microcystic",
+        "Syncytial",
+        "Nests/Morules"
       ],
       "criteria_options": [
         "Absent, No special pattern",
@@ -551,6 +577,18 @@
             "Unable to confirm"
           ],
           "rule": "global_alias"
+        },
+        "Absent, No special pattern": {
+          "options": [
+            "Absent, No special pattern"
+          ],
+          "rule": "exact"
+        },
+        "Simple Tubular/Branching Structures": {
+          "options": [
+            "Simple Tubular/Branching Structures"
+          ],
+          "rule": "exact"
         },
         "Comedo": {
           "options": [
@@ -588,10 +626,6 @@
           ],
           "rule": "attribute_alias"
         },
-        "one to several layers": {
-          "options": [],
-          "rule": "unmapped"
-        },
         "fenestrated": {
           "options": [
             "Fenestrated"
@@ -603,41 +637,45 @@
             "Micropapillary"
           ],
           "rule": "case_insensitive"
-        }
-      },
-      "unreachable": {
-        "Absent, No special pattern": {
-          "category": "not_covered"
-        },
-        "Simple Tubular/Branching Structures": {
-          "category": "not_covered"
         },
         "Tubular/Glandular": {
-          "category": "not_covered"
+          "options": [
+            "Tubular/Glandular"
+          ],
+          "rule": "exact"
         },
         "Cystic/Microcystic": {
-          "category": "not_covered"
+          "options": [
+            "Cystic/Microcystic"
+          ],
+          "rule": "exact"
         },
         "Syncytial": {
-          "category": "not_covered"
+          "options": [
+            "Syncytial"
+          ],
+          "rule": "exact"
         },
         "Nests/Morules": {
-          "category": "not_covered"
+          "options": [
+            "Nests/Morules"
+          ],
+          "rule": "exact"
         }
       },
-      "prompt_option_notes": {
-        "one to several layers": "Unmapped: criteria 1.2.1 lists 'One to several layers' under Specific_Sub_Architectures, not under Pattern. The label is dropped; when it is the only agreed label the attribute is not evaluated."
-      }
+      "unreachable": {}
     },
     "Architecture.Specific_Sub_Architectures": {
       "prompt_options": [
         "N/A",
+        "Absent, No special pattern",
         "Rigid bridges",
         "Arches",
         "Bulbous",
         "thin/stretched bridge",
         "bars",
-        "microrosettes"
+        "microrosettes",
+        "One to several layers"
       ],
       "criteria_options": [
         "Absent, No special pattern",
@@ -656,6 +694,12 @@
             "Unable to confirm"
           ],
           "rule": "global_alias"
+        },
+        "Absent, No special pattern": {
+          "options": [
+            "Absent, No special pattern"
+          ],
+          "rule": "exact"
         },
         "Rigid bridges": {
           "options": [
@@ -692,17 +736,15 @@
             "Microrosettes"
           ],
           "rule": "case_insensitive"
-        }
-      },
-      "unreachable": {
-        "Absent, No special pattern": {
-          "category": "not_covered"
         },
         "One to several layers": {
-          "category": "filed_under_another_attribute",
-          "note": "The vocabulary files this label under Architecture.Pattern ('one to several layers'), where criteria 1.2.1 has no such option."
+          "options": [
+            "One to several layers"
+          ],
+          "rule": "exact"
         }
-      }
+      },
+      "unreachable": {}
     },
     "Architecture.Architectural_Atypia": {
       "prompt_options": [
@@ -936,10 +978,12 @@
     "Special_Features.Endoluminal_Secretion": {
       "prompt_options": [
         "Absent",
+        "Physiological",
         "Present",
         "Eosinophilic/Proteinaceous",
         "Mucinous",
-        "Cellular debris"
+        "Cellular debris",
+        "Mucin pools/Extracellular mucin"
       ],
       "criteria_options": [
         "Absent",
@@ -955,6 +999,12 @@
         "Absent": {
           "options": [
             "Absent"
+          ],
+          "rule": "exact"
+        },
+        "Physiological": {
+          "options": [
+            "Physiological"
           ],
           "rule": "exact"
         },
@@ -981,15 +1031,15 @@
             "Cellular debris"
           ],
           "rule": "exact"
+        },
+        "Mucin pools/Extracellular mucin": {
+          "options": [
+            "Mucin pools/Extracellular mucin"
+          ],
+          "rule": "exact"
         }
       },
       "unreachable": {
-        "Physiological": {
-          "category": "not_covered"
-        },
-        "Mucin pools/Extracellular mucin": {
-          "category": "not_covered"
-        },
         "Unable to confirm": {
           "category": "unable_to_confirm"
         }
@@ -999,7 +1049,8 @@
       "prompt_options": [
         "Absent",
         "Focal/Punctate",
-        "Comedonecrosis"
+        "Comedonecrosis",
+        "Present, Not Otherwise Specified"
       ],
       "criteria_options": [
         "Absent",
@@ -1026,12 +1077,15 @@
             "Comedonecrosis"
           ],
           "rule": "exact"
+        },
+        "Present, Not Otherwise Specified": {
+          "options": [
+            "Present, Not Otherwise Specified"
+          ],
+          "rule": "exact"
         }
       },
       "unreachable": {
-        "Present, Not Otherwise Specified": {
-          "category": "generic_not_otherwise_specified"
-        },
         "Unable to confirm": {
           "category": "unable_to_confirm"
         }
@@ -1040,12 +1094,14 @@
     "Special_Features.Calcifications": {
       "prompt_options": [
         "Absent",
+        "Coarse/Popcorn",
         "Psammomatous",
         "Fine pleomorphic/Clustered",
         "microcalcifications",
         "amorphous",
         "linear",
-        "branching"
+        "branching",
+        "Present, Not Otherwise Specified"
       ],
       "criteria_options": [
         "Absent",
@@ -1063,6 +1119,12 @@
         "Absent": {
           "options": [
             "Absent"
+          ],
+          "rule": "exact"
+        },
+        "Coarse/Popcorn": {
+          "options": [
+            "Coarse/Popcorn"
           ],
           "rule": "exact"
         },
@@ -1101,15 +1163,15 @@
             "Branching"
           ],
           "rule": "case_insensitive"
+        },
+        "Present, Not Otherwise Specified": {
+          "options": [
+            "Present, Not Otherwise Specified"
+          ],
+          "rule": "exact"
         }
       },
       "unreachable": {
-        "Coarse/Popcorn": {
-          "category": "not_covered"
-        },
-        "Present, Not Otherwise Specified": {
-          "category": "generic_not_otherwise_specified"
-        },
         "Unable to confirm": {
           "category": "unable_to_confirm"
         }

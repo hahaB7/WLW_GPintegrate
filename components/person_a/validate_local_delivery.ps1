@@ -1,5 +1,5 @@
 param(
-    [string]$Image = 'wlw/person-a:0.9.0-local-models',
+    [string]$Image = 'wlw/person-a:0.10.0-local-models',
     [switch]$SkipBuild,
     [switch]$CachedBuild,
     [switch]$PrepareModels
@@ -86,9 +86,8 @@ print('Image runtime source fingerprints match the checkout')
         'person_a/checkpoint/soft_prompt_stage2_64SP_50epoch_chunk_option_conditions_retrieval_mixed_best.pt',
         'person_a/template_ref/DxStructuredCandidates_integrated.json',
         'person_a/template_ref/Histologic_Type_mappingTable.json',
-        'person_a/template_ref/candidateReference.json',
-        'person_a/template_ref/[typeLevel]visualAttrs_v1.2.1_2603241656.json',
-        'person_a/template_ref/chunks_with_attribute_condition.json',
+        'person_a/template_ref/visual_attribute_template_v1.2.1.json',
+        'person_a/template_ref/query_generation_smoke_evidence.json',
         'person_e/template_ref/fixture_label_space.json',
         'person_e/template_ref/fixture_thresholds.json'
     )

@@ -1,4 +1,4 @@
-"""Semantic mask of one WSI from the SEGNET student (backend ``segnet``).
+"""Semantic mask of one WSI from the SEGNET student (mode ``region_proposal``).
 
 A DeepLab student trained without annotation (PIPELINE/SEGNET, ``Unsup``, pseudo labels of the SCLIP teacher on
 BRACS slides, class set c9) labels the slide; the union of ``roi_classes`` (TUM, BEN) is returned as a boolean

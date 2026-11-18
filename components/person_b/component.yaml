@@ -21,7 +21,7 @@ knowledge_base:
   retrieval_mode: dense
 corpus:
   source_format: rag_database@1
-  mount: reference/person_b/checkpoint/rag_database
+  mount: reference/person_b/rag_database
 entrypoints:
   - python -m components.person_b.prepare_literature      # --source <rag_database dir>
   - python -m components.person_b.build_knowledge_base    # A -> index

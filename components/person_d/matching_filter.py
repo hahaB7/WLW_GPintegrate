@@ -1,17 +1,10 @@
 """Person D visual attribute matching filter.
 
-Compares the PLIP/CONCH-consistent labels of one ROI with one G
-``diagnosticCriteria`` and decides selected, rejected, or skipped.
-
-An attribute is evaluated only when both models agree, its labels map to
-criteria options, and at least one mapped condition is informative.  A
-Must_False option or a missed Must_True option rejects the ROI.  A Must
-condition is unverified when its attribute was not evaluated (Must_True) or
-when it sits on a criteria option no vocabulary label can reach (Must_True or
-Must_False): it never counts as passed, so the ROI is skipped (or rejected
-under the ``reject`` policy) instead of being scored.  Otherwise the mean
-condition weight must reach the configured threshold.  Too few evaluated
-attributes is insufficient evidence and yields skipped.
+The production policy forwards an ROI when either PLIP or CONCH predicts a
+label that maps to any informative diagnostic-criteria condition.  Model
+agreement, condition polarity, Must gates, and the historical score remain
+auditable but do not block forwarding.  The former strict matching behavior is
+retained as an explicit compatibility policy.
 """
 
 from __future__ import annotations
@@ -33,6 +26,13 @@ INFORMATIVE_CONDITIONS = frozenset(
 )
 SUPPORTING_CONDITIONS = frozenset({"Must_True", "High_Possibly_True"})
 UNVERIFIED_MUST_TRUE_POLICIES = ("skip", "reject")
+SELECTION_POLICIES = ("strict_match", "forward_all_informative")
+FORWARDED_CONDITIONS = (
+    "Must_True",
+    "High_Possibly_True",
+    "Low_Possibly_True",
+    "Must_False",
+)
 
 
 @dataclass(frozen=True)
@@ -41,6 +41,7 @@ class MatchingSettings:
     score_threshold: float
     min_evaluated_attributes: int
     unverified_must_true: str
+    selection_policy: str
 
     @classmethod
     def from_config(cls, raw: Mapping[str, Any]) -> "MatchingSettings":
@@ -51,6 +52,7 @@ class MatchingSettings:
                 score_threshold=float(raw["score_threshold"]),
                 min_evaluated_attributes=int(raw["min_evaluated_attributes"]),
                 unverified_must_true=str(raw["unverified_must_true"]),
+                selection_policy=str(raw.get("selection_policy", "strict_match")),
             )
         except KeyError as exc:
             raise ValueError(f"Person D matching config is missing {exc.args[0]!r}") from exc
@@ -69,6 +71,8 @@ class MatchingSettings:
             raise ValueError(
                 f"unverified_must_true must be one of {UNVERIFIED_MUST_TRUE_POLICIES}"
             )
+        if settings.selection_policy not in SELECTION_POLICIES:
+            raise ValueError(f"selection_policy must be one of {SELECTION_POLICIES}")
         return settings
 
 
@@ -148,12 +152,40 @@ def evaluate_attribute(
     return result
 
 
+def _prediction_labels(info: Any) -> list[str]:
+    """Normalize one model's serialized prediction to a label list."""
+
+    if not isinstance(info, Mapping):
+        return []
+    prediction = info.get("prediction")
+    if prediction is None:
+        return []
+    if isinstance(prediction, list):
+        return [str(label) for label in prediction if label is not None]
+    return [str(prediction)]
+
+
+def _mean_condition_score(
+    evaluated: Mapping[str, Mapping[str, Any]], settings: MatchingSettings
+) -> float:
+    attribute_scores = []
+    for result in evaluated.values():
+        weights = [
+            settings.condition_weights[condition]
+            for condition in result["conditions"]
+            if condition in settings.condition_weights
+        ]
+        attribute_scores.append(sum(weights) / len(weights))
+    return round(sum(attribute_scores) / len(attribute_scores), 6) if attribute_scores else 0.0
+
+
 def match_query(
     extracted: Mapping[str, Mapping[str, list[str]]],
     criteria: Mapping[str, Any],
     label_map: LabelMap,
     settings: MatchingSettings,
     vocabulary: Mapping[str, Mapping[str, list[str]]],
+    model_predictions: Mapping[str, Mapping[str, Any]] | None = None,
 ) -> dict[str, Any]:
     """Match one ROI's consistent labels against one diagnosticCriteria.
 
@@ -168,9 +200,11 @@ def match_query(
         )
 
     attributes: dict[str, dict[str, Any]] = {}
+    attribute_specs: dict[str, Mapping[str, Any]] = {}
     for category, category_spec in criteria["visualAttrs"].items():
         for attribute, attr_spec in category_spec.items():
             key = f"{category}.{attribute}"
+            attribute_specs[key] = attr_spec
             labels = extracted.get(category, {}).get(attribute)
             if labels is None:
                 result: dict[str, Any] = {"status": "not_extracted"}
@@ -196,6 +230,23 @@ def match_query(
                 result["unreachable_must"] = unreachable_must
             attributes[key] = result
 
+    model_attributes: dict[str, dict[str, dict[str, Any]]] = {}
+    if model_predictions:
+        for model_name, prediction in model_predictions.items():
+            per_model: dict[str, dict[str, Any]] = {}
+            for category, category_spec in criteria["visualAttrs"].items():
+                for attribute, attr_spec in category_spec.items():
+                    key = f"{category}.{attribute}"
+                    info = prediction.get(category, {}).get(attribute)
+                    labels = _prediction_labels(info)
+                    if labels:
+                        per_model[key] = evaluate_attribute(
+                            labels, attr_spec, key, label_map
+                        )
+                    else:
+                        per_model[key] = {"labels": [], "status": "no_prediction"}
+            model_attributes[str(model_name)] = per_model
+
     evaluated = {key: result for key, result in attributes.items() if result["status"] == "evaluated"}
     must_false_failed = sorted(
         key for key, result in evaluated.items() if "Must_False" in result["conditions"]
@@ -215,15 +266,7 @@ def match_query(
     )
     must_unverifiable = sorted(key for key, result in attributes.items() if "unreachable_must" in result)
 
-    attribute_scores = []
-    for result in evaluated.values():
-        weights = [
-            settings.condition_weights[condition]
-            for condition in result["conditions"]
-            if condition in settings.condition_weights
-        ]
-        attribute_scores.append(sum(weights) / len(weights))
-    score = round(sum(attribute_scores) / len(attribute_scores), 6) if attribute_scores else 0.0
+    score = _mean_condition_score(evaluated, settings)
 
     unverified = sorted(set(must_true_unverified) | set(must_unverifiable))
     reject_unverified = settings.unverified_must_true == "reject" and bool(unverified)
@@ -246,18 +289,62 @@ def match_query(
         if SUPPORTING_CONDITIONS & set(result["conditions"])
     )
 
-    # An unverified Must condition could still change the outcome, so it is
-    # checked before the threshold and never ends as selected.
-    if len(evaluated) < settings.min_evaluated_attributes:
-        status, reason = "skipped", "insufficient_visual_evidence"
-    elif must_false_failed or must_true_failed or reject_unverified:
-        status, reason = "rejected", "must_condition_failed"
-    elif unverified:
-        status, reason = "skipped", "insufficient_visual_evidence"
-    elif score < settings.score_threshold:
-        status, reason = "rejected", "score_below_threshold"
+    forwarding_sources = model_attributes or {"CONSENSUS": attributes}
+    forwarded_attributes = sorted(
+        {
+            key
+            for per_model in forwarding_sources.values()
+            for key, result in per_model.items()
+            if result["status"] == "evaluated"
+        }
+    )
+    condition_hits: dict[str, list[dict[str, Any]]] = {
+        condition: [] for condition in FORWARDED_CONDITIONS
+    }
+    model_scores: dict[str, float] = {}
+    for model_name, per_model in forwarding_sources.items():
+        model_evaluated = {
+            key: result
+            for key, result in per_model.items()
+            if result["status"] == "evaluated"
+        }
+        model_scores[model_name] = _mean_condition_score(model_evaluated, settings)
+        for key, result in model_evaluated.items():
+            spec = attribute_specs[key]
+            for condition in FORWARDED_CONDITIONS:
+                if condition not in result["conditions"]:
+                    continue
+                condition_hits[condition].append(
+                    {
+                        "model": model_name,
+                        "attribute": key,
+                        "labels": list(result["labels"]),
+                        "options": [
+                            option
+                            for option in result["options"]
+                            if spec["conditions"].get(option, "Not_Mentioned") == condition
+                        ],
+                    }
+                )
+
+    if settings.selection_policy == "forward_all_informative":
+        if len(forwarded_attributes) < settings.min_evaluated_attributes:
+            status, reason = "skipped", "insufficient_visual_evidence"
+        else:
+            status, reason = "selected", "informative_visual_attributes_forwarded"
     else:
-        status, reason = "selected", "visual_attributes_match"
+        # In strict compatibility mode, an unverified Must condition is
+        # checked before the threshold and never ends as selected.
+        if len(evaluated) < settings.min_evaluated_attributes:
+            status, reason = "skipped", "insufficient_visual_evidence"
+        elif must_false_failed or must_true_failed or reject_unverified:
+            status, reason = "rejected", "must_condition_failed"
+        elif unverified:
+            status, reason = "skipped", "insufficient_visual_evidence"
+        elif score < settings.score_threshold:
+            status, reason = "rejected", "score_below_threshold"
+        else:
+            status, reason = "selected", "visual_attributes_match"
 
     return {
         "status": status,
@@ -267,7 +354,18 @@ def match_query(
         "must_false_passed": must_false_passed,
         "matched_attributes": matched,
         "failed_attributes": failed,
-        "evaluated_count": len(evaluated),
+        "selection_policy": settings.selection_policy,
+        "evaluated_count": (
+            len(forwarded_attributes)
+            if settings.selection_policy == "forward_all_informative"
+            else len(evaluated)
+        ),
+        "consensus_evaluated_count": len(evaluated),
+        "consensus_score": score,
+        "model_scores": model_scores,
+        "forwarded_attributes": forwarded_attributes,
+        "condition_hits": condition_hits,
+        "model_attributes": model_attributes,
         "must_true_unverified": must_true_unverified,
         "must_unverifiable": must_unverifiable,
         "attributes": attributes,

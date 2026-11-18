@@ -1,6 +1,6 @@
 name: person_d_visual_filter
 owner: person_D
-version: 0.2.0
+version: 0.4.0
 inputs: [E.ROIs@2.0, G.VisualAttributeQueries@2.0]
 outputs: [H.MatchedROIs@2.0]
 runtime:
@@ -11,9 +11,9 @@ runtime:
 models:
   - name: plip
     revision: 67ade53ddd32195868f422585f72698ef5d15094
-    configured_by: configs/native.example.json:extraction.plip.weight_path
+    configured_by: configs/native.json:extraction.plip.weight_path
   - name: conch_ViT-B-16
     revision: f9ca9f877171a28ade80228fb195ac5d79003357
-    configured_by: configs/native.example.json:extraction.conch.checkpoint_path
+    configured_by: configs/native.json:extraction.conch.checkpoint_path
 entrypoint: python -m components.person_d.visual_filter
 status: native_backend_not_validated_on_real_slides

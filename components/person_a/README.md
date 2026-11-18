@@ -1,6 +1,6 @@
 # Person A: Report Decompose and Query Generation
 
-Component version: `0.9.0`
+Component version: `0.10.0`
 
 ## Interfaces
 
@@ -24,8 +24,9 @@ command-line order.
 - Normalize Histologic Type to `UDH`, `FEA`, `ADH`, `DCIS`, `IC`, `OTHER`, or
   `AMBIGUOUS`; keep other diagnostic items as free text.
 - Preserve case, block, stain, WSI identity, and WSI filepath in D.
-- Generate G from D and Person B's F chunks using either deterministic reference
-  mapping or Gemma plus the mounted Stage 2 soft-prompt checkpoint.
+- Generate G from D and Person B's F chunks using Gemma plus the mounted
+  soft-prompt checkpoint. The inference template contains no subtype conditions;
+  every G condition is supplied by model generation.
 
 ## Runtime and external assets
 
@@ -45,12 +46,11 @@ reference/person_a/
 └── template_ref/
     ├── DxStructuredCandidates_integrated.json
     ├── Histologic_Type_mappingTable.json
-    ├── candidateReference.json
-    ├── [typeLevel]visualAttrs_v1.2.1_2603241656.json
-    └── chunks_with_attribute_condition.json
+    ├── visual_attribute_template_v1.2.1.json
+    └── query_generation_smoke_evidence.json
 ```
 
-`external-assets.yaml` declares six fixed single-file assets and two local model
+`external-assets.yaml` declares five fixed single-file assets and two local model
 trees. Model metadata (paths, sizes, SHA-256) is versioned with the code; the
 weights remain external. Production configs specify `model_path` under
 `../reference/person_a/checkpoint/`. Both loaders verify the fixed model tree
@@ -115,6 +115,13 @@ python -m components.person_a.query_generation \
   --config components/person_a/configs/query_generation.learnable.json
 ```
 
+There is no condition-reference backend or fallback. Schema differences are
+normalized against the condition-free template: unexpected nodes are dropped,
+and missing, wrong-type, or illegal canonical conditions become
+`Not_Mentioned`, with the repairs recorded in G provenance. Missing model
+assets, unparseable generation, or unavailable GPU execution still fails
+closed instead of substituting pre-authored diagnostic conditions.
+
 ## Docker
 
 Build from the repository root:
@@ -122,7 +129,7 @@ Build from the repository root:
 ```bash
 docker build \
   -f components/person_a/Dockerfile \
-  -t wlw/person-a:0.9.0 .
+  -t wlw/person-a:0.10.0 .
 ```
 
 The default image entrypoint is `report_decompose`:
@@ -131,7 +138,7 @@ The default image entrypoint is `report_decompose`:
 docker run --rm --gpus all --network none \
   -v "$(pwd)/../reference:/reference:ro" \
   -v "$(pwd)/../run:/run" \
-  wlw/person-a:0.9.0 \
+  wlw/person-a:0.10.0 \
   --input /run/input/pipeline/case-001.json \
   --output /run/output/work/D_dx_pairs.json \
   --config /app/components/person_a/configs/report_decompose.default.json

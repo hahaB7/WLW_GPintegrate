@@ -22,7 +22,7 @@ PROFILES = {
     "production": {
         "config": ROOT / "components/person_b/configs/prepare_literature.rag_database.json",
         "source": REFERENCE_ROOT / "person_b/rag_database",
-        "image": "wlw/person-b:final-main-42ce738",
+        "image": "wlw/person-b:0.5.0-lab23-production",
     },
     "example": {
         "config": ROOT / "components/person_b/configs/example.json",
@@ -107,10 +107,17 @@ def main() -> None:
     output = resolve_run_path(args.output)
     profile = PROFILES[args.profile]
     config = (args.config or profile["config"]).resolve()
+    if not config.is_file():
+        raise FileNotFoundError(f"Literature preparation config is missing: {config}")
+    config_document = json.loads(config.read_text(encoding="utf-8"))
     output.parent.mkdir(parents=True, exist_ok=True)
 
     if args.profile == "production":
+        if config_document.get("mode") != "rag_database":
+            raise ValueError("Production literature preparation requires mode=rag_database")
         source = (args.source or profile["source"]).resolve()
+        if not source.is_dir():
+            raise FileNotFoundError(f"Production literature source is missing: {source}")
         image = os.environ.get("WLW_IMAGE_PERSON_B", profile["image"])
         command = _production_command(output, config, source, image)
     else:

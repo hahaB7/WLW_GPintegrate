@@ -24,8 +24,15 @@ from contracts.metadata import iter_rois  # noqa: E402
 from contracts.runtime import validate_artifact  # noqa: E402
 
 
-def expected_outcome(rule: dict, event: dict, matching: dict) -> tuple[float, tuple[str, str]]:
+def expected_outcome(rule: dict, event: dict, matching: dict) -> tuple[float | None, tuple[str, str]]:
     """Recompute the matching score and the final status/reason of one event."""
+
+    if rule["selection_policy"] == "forward_all_informative":
+        if matching["evaluated_count"] < rule["min_evaluated_attributes"]:
+            outcome = ("skipped", "insufficient_visual_evidence")
+        else:
+            outcome = ("selected", "informative_visual_attributes_forwarded")
+        return None, outcome
 
     attributes = matching["attributes"].values()
     evaluated = [result for result in attributes if result["status"] == "evaluated"]
@@ -106,7 +113,7 @@ def check(structure: dict, artifact: dict) -> list[str]:
         matching = ((roi.get("visualAttrs_info") or {}).get("matching") or {}).get(event.get("query_id"))
         if matching is not None:
             score, outcome = expected_outcome(rule, event, matching)
-            if "score" in event and abs(score - event["score"]) > rule["score_tolerance"]:
+            if score is not None and "score" in event and abs(score - event["score"]) > rule["score_tolerance"]:
                 errors.append(f"event {index}: score {event['score']} differs from recomputed {score}")
             if (event["status"], event["reason"]) != outcome:
                 errors.append(

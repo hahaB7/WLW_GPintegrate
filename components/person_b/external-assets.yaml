@@ -17,7 +17,7 @@ assets:
     revision: "sha256-ffd76f0893866aad7b2dd0f71bce76c90d1de8faf245eb2414a500637c01bc30"
     sha256: "ffd76f0893866aad7b2dd0f71bce76c90d1de8faf245eb2414a500637c01bc30"
     size_bytes: 1062669
-    logical_path: "reference/person_b/checkpoint/rag_database"
+    logical_path: "reference/person_b/rag_database"
     configured_by: "run prepare_literature with --source <logical_path> and configs/prepare_literature.rag_database.json"
     license_or_access_policy: "UNCONFIRMED, RESTRICTED. Text (and image captions) of the WHO Classification of Tumours, Breast Tumours (5th ed.), obtained by the lab through its subscription account. The IARC copyright notice linked from the site's welcome page ('(c) IARC 2026, All Rights Reserved') allows extracts to be reproduced for research or private study, not for sale or commercial use, with IARC acknowledged as the source and the URL cited; reproduction of substantial portions, or any use other than educational or other non-commercial purposes, requires explicit prior written authorization. This snapshot (87 diseases, 1349 sections) is a substantial portion, and no written authorization for sharing it outside the lab has been obtained. The lab's subscription agreement has not been checked. Do not republish; do not commit; share only through access-controlled reference storage once authorization or the lab's approval is in place."
     permission_contact: "com@iarc.fr (as given in the IARC copyright notice)"

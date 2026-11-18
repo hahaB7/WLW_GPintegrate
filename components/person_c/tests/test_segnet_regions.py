@@ -10,7 +10,7 @@ from components.person_c import wsi_processing as wsi
 from components.person_c.region import figures
 from components.person_c.region.segnet import fill_holes, window_starts
 
-CONFIG = Path(__file__).resolve().parents[1] / "configs" / "default.json"
+CONFIG = Path(__file__).resolve().parents[1] / "configs" / "region_proposal.json"
 
 
 class SegnetSettingsTests(unittest.TestCase):
@@ -19,7 +19,7 @@ class SegnetSettingsTests(unittest.TestCase):
 
     def test_shipped_config_is_valid(self) -> None:
         settings = wsi.validate_settings(self.config())
-        self.assertEqual("segnet", settings["backend"])
+        self.assertEqual("region_proposal", settings["mode"])
         self.assertEqual(["TUM", "BEN"], settings["segnet"]["roi_classes"])
 
     def test_bad_values_are_rejected(self) -> None:

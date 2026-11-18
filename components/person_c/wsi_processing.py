@@ -29,12 +29,11 @@ def validate_settings(config: dict[str, Any]) -> dict[str, Any]:
     version = config.get("component_version")
     if not isinstance(version, str) or not version:
         raise ValueError("person_c config requires component_version")
-    # The pre-existing integration fixture has demo_regions but no backend key.
-    backend = config.get("backend", "demo" if "demo_regions" in config else "segnet")
-    if backend not in {"demo", "segnet"}:
-        raise ValueError("person_c backend must be demo or segnet")
-    result = {**config, "backend": backend}
-    whitelist = result.get("stain_type_whitelist")
+    mode = config.get("mode")
+    if mode not in {"example", "region_proposal"}:
+        raise ValueError("person_c mode must be example or region_proposal")
+    result = {**config, "mode": mode}
+    whitelist = result.get("stain_type_whitelist", ["HE"])
     if (
         not isinstance(whitelist, list)
         or not whitelist
@@ -45,9 +44,11 @@ def validate_settings(config: dict[str, Any]) -> dict[str, Any]:
     if len(normalized_whitelist) != len(set(normalized_whitelist)):
         raise ValueError("person_c stain_type_whitelist contains duplicates")
     result["stain_type_whitelist"] = normalized_whitelist
-    if backend == "demo":
-        if not isinstance(result.get("demo_regions"), list) or not isinstance(result.get("demo_mpp"), dict):
-            raise ValueError("person_c demo requires demo_regions and demo_mpp")
+    if mode == "example":                                  # no slide is opened: the fixed boxes of the config, or none
+        result.setdefault("demo_regions", [])
+        result.setdefault("demo_mpp", {"x": 0.5, "y": 0.5})
+        if not isinstance(result["demo_regions"], list) or not isinstance(result["demo_mpp"], dict):
+            raise ValueError("person_c example demo_regions must be a list and demo_mpp an object")
         return result
     result["segnet"] = validate_segnet(result.get("segnet"))
     result["figures"] = validate_figures(result.get("figures"))

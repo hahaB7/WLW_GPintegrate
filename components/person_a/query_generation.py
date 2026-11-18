@@ -4,9 +4,12 @@ from collections import defaultdict
 from copy import deepcopy
 from typing import Any
 
+from components.person_a.learnable_query_generator import (
+    LearnableQueryGenerationError,
+)
 from components.person_a.reference_data import (
     load_histologic_mapping,
-    load_visual_references,
+    load_visual_template,
 )
 from contracts.metadata import dx_items, ensure_same_case
 from contracts.runtime import cli_parser, load_config, load_inputs, write_artifact
@@ -69,23 +72,38 @@ def _index_chunks(
     return by_dx
 
 
-def _merge_learned_attributes(
-    criteria: dict[str, Any],
+def _condition_schema(visual_attrs: dict[str, Any]) -> dict[str, Any]:
+    """Return the model-output shape without any subtype-level values."""
+
+    return {
+        category: {
+            feature: {option: "Not_Mentioned" for option in definition["options"]}
+            for feature, definition in features.items()
+        }
+        for category, features in visual_attrs.items()
+    }
+
+
+def _build_learned_criteria(
+    template: dict[str, Any],
+    mapping_entry: dict[str, Any],
     generated: dict[str, Any],
 ) -> dict[str, Any]:
-    """Copy the learned option-condition matrix into Person D's G format."""
+    """Build diagnostic criteria solely from a template and generated values."""
 
-    merged = deepcopy(criteria)
-    visual_attrs = merged.get("visualAttrs")
+    visual_attrs = template.get("visualAttrs")
     if not isinstance(visual_attrs, dict):
-        raise ValueError("Mapped diagnosticCriteria has no visualAttrs object")
+        raise ValueError("Visual attribute template has no visualAttrs object")
     if set(generated) != set(visual_attrs):
         raise ValueError(
-            "Learned Attribute groups do not match G diagnostic criteria; "
+            "Learned Attribute groups do not match the inference template; "
             f"expected={sorted(visual_attrs)}, actual={sorted(generated)}"
         )
 
+    criteria_visual_attrs: dict[str, dict[str, Any]] = {}
+    option_types: list[str] = []
     for category, features in visual_attrs.items():
+        criteria_visual_attrs[category] = {}
         generated_features = generated.get(category)
         if not isinstance(generated_features, dict) or set(generated_features) != set(
             features
@@ -96,13 +114,13 @@ def _merge_learned_attributes(
         for feature, definition in features.items():
             if not isinstance(definition, dict):
                 raise ValueError(
-                    f"G visual attribute {category}.{feature} is not an object"
+                    f"Template visual attribute {category}.{feature} is not an object"
                 )
             options = definition.get("options")
-            conditions = definition.get("conditions")
-            if not isinstance(options, list) or not isinstance(conditions, dict):
+            option_type = definition.get("type")
+            if not isinstance(options, list) or not isinstance(option_type, str):
                 raise ValueError(
-                    f"G visual attribute {category}.{feature} lacks options/conditions"
+                    f"Template visual attribute {category}.{feature} lacks options/type"
                 )
             generated_conditions = generated_features[feature]
             if not isinstance(generated_conditions, dict):
@@ -128,18 +146,46 @@ def _merge_learned_attributes(
                     f"Generated {category}.{feature} has illegal conditions: "
                     f"{illegal_conditions}"
                 )
-            definition["conditions"] = {
-                option: generated_conditions[option] for option in options
+            if option_type not in option_types:
+                option_types.append(option_type)
+            criteria_visual_attrs[category][feature] = {
+                "options": deepcopy(options),
+                "type": option_type,
+                "conditions": {
+                    option: generated_conditions[option] for option in options
+                },
             }
-    return merged
+    return {
+        "version": template["version"],
+        "type": "diagnosticCriteria",
+        "includeReferences": [
+            "visual_attribute_template",
+            "generated_conditions",
+            "histologic_type_mapping",
+        ],
+        "typeLevel_idx": mapping_entry["typeLevel_idx"],
+        "DxItem": "Histologic_Type",
+        "DxResult": mapping_entry["DxResult"],
+        "attrConditions": deepcopy(template["conditionLabels"]),
+        "optionTypes": option_types,
+        "visualAttrs": criteria_visual_attrs,
+    }
 
 
-def _learnable_generator(backend_config: dict[str, Any]) -> Any:
+def _learnable_generator(
+    backend_config: dict[str, Any],
+    condition_schema: dict[str, Any],
+    template_provenance: dict[str, Any],
+) -> Any:
     from components.person_a.learnable_query_generator import (
         LearnableSoftPromptGenerator,
     )
 
-    return LearnableSoftPromptGenerator(backend_config)
+    return LearnableSoftPromptGenerator(
+        backend_config,
+        condition_schema=condition_schema,
+        template_provenance=template_provenance,
+    )
 
 
 def build_example_artifact(
@@ -181,23 +227,31 @@ def generate_artifact(
         config["histologic_mapping_path"],
         integrity_mode=integrity_mode,
     )
-    candidate_document, type_levels, visual_provenance = load_visual_references(
-        config["candidate_reference_path"],
-        config["type_level_path"],
+    visual_template, template_provenance = load_visual_template(
+        config["visual_attribute_template_path"],
         integrity_mode=integrity_mode,
     )
-    type_levels_by_result = {item["DxResult"]: item for item in type_levels}
-    payload["candidateReference"] = candidate_document
-    payload.setdefault("reference_versions", {}).update(visual_provenance)
+    if set(visual_template["conditionLabels"]) != CONDITION_LABELS:
+        raise ValueError(
+            "Visual attribute template conditionLabels do not match the runtime "
+            "condition vocabulary"
+        )
+    condition_schema = _condition_schema(visual_template["visualAttrs"])
+    payload["candidateReference"] = {
+        "visualAttrs": deepcopy(visual_template["visualAttrs"])
+    }
+    payload.setdefault("reference_versions", {})[
+        "visual_attribute_template"
+    ] = template_provenance
     payload["reference_versions"]["histologic_type_mapping"] = mapping_provenance
 
-    backend_config = deepcopy(config.get("backend") or {"mode": "reference"})
+    backend_config = deepcopy(config.get("backend") or {})
     backend_config["asset_integrity"] = integrity_mode
-    backend_mode = str(backend_config.get("mode", "reference"))
-    if backend_mode not in {"reference", "learnable_soft_prompt"}:
+    backend_mode = str(backend_config.get("mode", ""))
+    if backend_mode != "learnable_soft_prompt":
         raise ValueError(
-            "query generation backend.mode must be reference or "
-            "learnable_soft_prompt"
+            "query generation backend.mode must be learnable_soft_prompt; "
+            "inference has no condition-reference fallback"
         )
 
     by_dx = _index_chunks(
@@ -207,6 +261,7 @@ def generate_artifact(
 
     query_index = 1
     learnable_provenance: dict[str, Any] | None = None
+    learnable_generation_attempts: list[dict[str, Any]] = []
     selected_chunks_by_dx_pair: dict[str, list[dict[str, Any]]] = {}
     for dx_item, record in dx_items(payload).items():
         record["visualAttrQueries"] = []
@@ -215,15 +270,12 @@ def generate_artifact(
         dx_result = record["DxResultCls"]
         if not isinstance(dx_result, str):
             raise ValueError("Histologic_Type DxResultCls must be a single string")
-        mapped_result = mapping.get(dx_result)
-        criteria = type_levels_by_result.get(mapped_result) if mapped_result else None
-        if mapped_result is not None and criteria is None:
-            raise ValueError(
-                f"Histologic mapping target {mapped_result!r} has no type-level criteria"
-            )
+        mapping_entry = mapping.get(dx_result)
+        mapped_result = mapping_entry["DxResult"] if mapping_entry else None
+        criteria: dict[str, Any] | None = None
         chunks = by_dx[record["dx_pair_id"]]
         used_chunks = chunks
-        if backend_mode == "learnable_soft_prompt" and criteria is not None:
+        if mapping_entry is not None:
             required_chunk_count = int(
                 backend_config.get("required_chunk_count", 3)
             )
@@ -241,20 +293,83 @@ def generate_artifact(
                 for chunk in used_chunks
             ]
             if generator is None:
-                generator = _learnable_generator(backend_config)
+                generator = _learnable_generator(
+                    backend_config,
+                    condition_schema,
+                    template_provenance,
+                )
             dx_text = record.get("DxResultRawTxt") or record["DxResultTxt"]
-            generated = generator.generate(dx_text, used_chunks)
-            criteria = _merge_learned_attributes(
-                criteria,
+            retry_with_canonical_dx = bool(
+                backend_config.get("retry_with_canonical_dx", False)
+            )
+            try:
+                generated = generator.generate(dx_text, used_chunks)
+            except LearnableQueryGenerationError as first_error:
+                first_diagnostics = deepcopy(
+                    getattr(generator, "last_generation_diagnostics", {})
+                )
+                learnable_generation_attempts.append(
+                    {
+                        "dx_pair_id": record["dx_pair_id"],
+                        "input_strategy": "raw_dx_text",
+                        "status": "rejected",
+                        **first_diagnostics,
+                        "error": str(first_error).split(
+                            "; response context=", 1
+                        )[0],
+                    }
+                )
+                canonical_dx_text = str(mapped_result or "").strip()
+                if (
+                    not retry_with_canonical_dx
+                    or not canonical_dx_text
+                    or canonical_dx_text == str(dx_text).strip()
+                ):
+                    raise
+                generated = generator.generate(canonical_dx_text, used_chunks)
+                learnable_generation_attempts.append(
+                    {
+                        "dx_pair_id": record["dx_pair_id"],
+                        "input_strategy": "canonical_mapped_dx",
+                        "status": "accepted",
+                        **deepcopy(
+                            getattr(
+                                generator,
+                                "last_generation_diagnostics",
+                                {},
+                            )
+                        ),
+                    }
+                )
+            else:
+                learnable_generation_attempts.append(
+                    {
+                        "dx_pair_id": record["dx_pair_id"],
+                        "input_strategy": "raw_dx_text",
+                        "status": "accepted",
+                        **deepcopy(
+                            getattr(
+                                generator,
+                                "last_generation_diagnostics",
+                                {},
+                            )
+                        ),
+                    }
+                )
+            criteria = _build_learned_criteria(
+                visual_template,
+                mapping_entry,
                 generated,
             )
             learnable_provenance = deepcopy(generator.provenance)
-            learnable_provenance["condition_merge_mode"] = "replace_all_options"
+            learnable_provenance["condition_source"] = "model_generation_only"
         evidence = " ".join(chunk["text"] for chunk in used_chunks)
         status = "mapped" if criteria is not None else "unmapped"
         mapping_source = (
             f"{mapping_provenance['source_name']}#sha256="
             f"{mapping_provenance['sha256']}"
+            f";{template_provenance['source_name']}#sha256="
+            f"{template_provenance['sha256']}"
         )
         if learnable_provenance is not None and criteria is not None:
             mapping_source += (
@@ -280,6 +395,12 @@ def generate_artifact(
         )
         learnable_provenance["selected_chunks_by_dx_pair"] = (
             selected_chunks_by_dx_pair
+        )
+        learnable_provenance["canonical_dx_retry_enabled"] = bool(
+            backend_config.get("retry_with_canonical_dx", False)
+        )
+        learnable_provenance["generation_attempts"] = (
+            learnable_generation_attempts
         )
         payload["reference_versions"][
             "learnable_query_generation"

@@ -19,7 +19,7 @@ json.dump(data, open(dst, "w"), indent=2)
 PY
 rm -f "$OUT"
 "$PYTHON" -m components.person_c.interest_pattern --input "$CASE" --output "$OUT" \
-  --config components/person_c/configs/default.json
+  --config components/person_c/configs/region_proposal.json
 "$PYTHON" - "$OUT" <<'PY'
 import json, sys
 art = json.load(open(sys.argv[1]))

@@ -31,6 +31,7 @@ SETTINGS = {
     "min_evaluated_attributes": 1,
     "unverified_must_true": "skip",
 }
+FORWARD_SETTINGS = {**SETTINGS, "selection_policy": "forward_all_informative"}
 SUPPORTING = {
     "Cellular_and_Nuclear": {
         "Cytological_Atypia": ["High-grade/Severe"],
@@ -55,10 +56,24 @@ def full_vocabulary(criteria: dict) -> dict:
     }
 
 
-def match_query(extracted, criteria, label_map, settings, vocabulary=None):
+def match_query(
+    extracted,
+    criteria,
+    label_map,
+    settings,
+    vocabulary=None,
+    model_predictions=None,
+):
     if vocabulary is None:
         vocabulary = full_vocabulary(criteria)
-    return matching_filter.match_query(extracted, criteria, label_map, settings, vocabulary)
+    return matching_filter.match_query(
+        extracted,
+        criteria,
+        label_map,
+        settings,
+        vocabulary,
+        model_predictions=model_predictions,
+    )
 
 
 def without_must_true(criteria: dict) -> dict:
@@ -244,6 +259,85 @@ class MatchingFilterTests(unittest.TestCase):
             result["attributes"]["Cellular_and_Nuclear.Chromatin"]["status"],
         )
 
+    def test_forward_policy_selects_all_four_informative_conditions(self) -> None:
+        settings = MatchingSettings.from_config(FORWARD_SETTINGS)
+        for wanted_condition in matching_filter.FORWARDED_CONDITIONS:
+            with self.subTest(condition=wanted_condition):
+                found = next(
+                    (category, attribute, option)
+                    for category, attributes in self.criteria["visualAttrs"].items()
+                    for attribute, spec in attributes.items()
+                    for option, condition in spec["conditions"].items()
+                    if condition == wanted_condition
+                )
+                category, attribute, option = found
+                key = f"{category}.{attribute}"
+                result = match_query(
+                    {category: {attribute: []}},
+                    self.criteria,
+                    self.label_map,
+                    settings,
+                    model_predictions={
+                        "PLIP": {category: {attribute: {"prediction": option}}},
+                        "CONCH": {category: {attribute: {"prediction": None}}},
+                    },
+                )
+                self.assertEqual(
+                    ("selected", "informative_visual_attributes_forwarded"),
+                    (result["status"], result["reason"]),
+                )
+                self.assertEqual([key], result["forwarded_attributes"])
+                self.assertEqual(0, result["consensus_evaluated_count"])
+                self.assertEqual("PLIP", result["condition_hits"][wanted_condition][0]["model"])
+
+    def test_forward_policy_uses_one_model_when_models_disagree(self) -> None:
+        category, attribute, informative, uninformative = next(
+            (category, attribute, informative, uninformative)
+            for category, attributes in self.criteria["visualAttrs"].items()
+            for attribute, spec in attributes.items()
+            for informative, condition in spec["conditions"].items()
+            if condition in matching_filter.INFORMATIVE_CONDITIONS
+            for uninformative, other_condition in spec["conditions"].items()
+            if other_condition in {"Negligible", "Not_Mentioned"}
+        )
+        result = match_query(
+            {category: {attribute: []}},
+            self.criteria,
+            self.label_map,
+            MatchingSettings.from_config(FORWARD_SETTINGS),
+            model_predictions={
+                "PLIP": {category: {attribute: {"prediction": informative}}},
+                "CONCH": {category: {attribute: {"prediction": uninformative}}},
+            },
+        )
+        self.assertEqual("selected", result["status"])
+        self.assertEqual("evaluated", result["model_attributes"]["PLIP"][f"{category}.{attribute}"]["status"])
+        self.assertEqual("uninformative", result["model_attributes"]["CONCH"][f"{category}.{attribute}"]["status"])
+
+    def test_forward_policy_skips_when_both_models_are_uninformative(self) -> None:
+        category, attribute, option = next(
+            (category, attribute, option)
+            for category, attributes in self.criteria["visualAttrs"].items()
+            for attribute, spec in attributes.items()
+            for option, condition in spec["conditions"].items()
+            if condition in {"Negligible", "Not_Mentioned"}
+        )
+        result = match_query(
+            {category: {attribute: [option]}},
+            self.criteria,
+            self.label_map,
+            MatchingSettings.from_config(FORWARD_SETTINGS),
+            model_predictions={
+                model: {category: {attribute: {"prediction": option}}}
+                for model in ("PLIP", "CONCH")
+            },
+        )
+        self.assertEqual(
+            ("skipped", "insufficient_visual_evidence"),
+            (result["status"], result["reason"]),
+        )
+        self.assertEqual([], result["forwarded_attributes"])
+
     def test_criteria_version_must_match_label_map(self) -> None:
         criteria = {**self.criteria, "version": "9.9.9"}
         with self.assertRaisesRegex(ValueError, "criteria_version"):
@@ -256,6 +350,7 @@ class MatchingFilterTests(unittest.TestCase):
             {**SETTINGS, "unverified_must_true": "ignore"},
             {**SETTINGS, "min_evaluated_attributes": 0},
             {**SETTINGS, "condition_weights": {"Must_True": 2.0}},
+            {**SETTINGS, "selection_policy": "unknown"},
         ):
             with self.assertRaises(ValueError):
                 MatchingSettings.from_config(broken)

@@ -1,299 +1,377 @@
-# WLW contract-first 整合與交付框架
+# WLW_GPintegrate
 
-本專案以版本化 JSON Schema、統一 CLI 與獨立容器串接 WLW 批次 DAG。每位成員只需維護自己的
-元件與外部資產；其他元件只依賴輸入／輸出 contract、程序 exit code 與檔案路徑，不直接 import
-別人的研究實作。
+WLW_GPintegrate 是一套用來串接病理報告、醫學文獻與全玻片影像（WSI）的研究型推論框架。
+它把五位開發者各自負責的模型整理成一條可重現的批次流程：從病理報告找出診斷項目、檢索相關
+文獻、在 WSI 上提出候選 ROI、產生視覺判讀條件，再以影像模型配對與篩選證據。
 
-## 元件狀態
+這個專案採用 contract-first 設計。元件之間不直接 import 對方的研究程式，而是透過版本化 JSON
+artifact 交換資料。每個元件都有自己的 Docker image、設定檔與外部資產，整體流程則由
+`pipeline/run_pipeline.py` 負責編排。因此，單一元件可以獨立開發與測試，整合時也能清楚追蹤每一步
+用了什麼模型、設定與輸入。
 
-| 元件 | 版本 | 功能 |
-|---|---|---|
-| Person A | 0.9.0 | Report Decomposition / Query Generation |
-| Person B | 0.5.0 | Literature Preparation / Dense Retrieval |
-| Person C | 0.5.0 | SEGNET WSI Interest Pattern Extraction |
-| Person D | 0.2.0 | PLIP + CONCH Visual Attribute Extraction / Matching |
-| Person E | 依現行 component.yaml | CLEE Evidence Selection |
+2026-10-29 已在 RTX 4090、正式 Docker images、三張真實 MRXS 與完整 `reference/` 外部資產上跑通
+production pipeline。每次正式執行的案例、映像、設定與時間會寫入 sibling
+`run/output/pipeline/run_manifest.json`，完整過程則保存在 `run/logs/`。
 
-各元件已有獨立的研究實作與測試覆蓋。2026-10-29 已以 RTX 4090、各元件 Docker 映像、
-真實 MRXS 與 sibling `reference/` 外部資產完成三案例正式端到端驗收；修正內容、正式設定、
-逐案結果與限制詳見 [`INTEGRATION_EXECUTION_REPORT.zh-TW.md`](INTEGRATION_EXECUTION_REPORT.zh-TW.md)。
+## 快速開始
 
-## 1. 框架與資料流
+### 1. 準備目錄
 
-<div align="center">
-  <img src="https://github.com/yasaisen/WLW_GPintegrate/blob/main/doc/WLW_arch_v3.png" alt="inference" width="700">
-</div>
-
-| 人員 | 元件入口 | 輸入 | 輸出 |
-|---|---|---|---|
-| 乙 `person_b` | `prepare_literature` | 外部文獻來源或合成範例 | `[A]` |
-| 甲 `person_a` | `report_decompose` | `CaseListInput@1.0` | `[D]` |
-| 乙 `person_b` | `knowledge_retrieval` | `[A] + [D]` | `[F]` |
-| 甲 `person_a` | `query_generation` | `[D] + [F]` | `[G]` |
-| 丙 `person_c` | `interest_pattern` | `CaseListInput@1.0` | `[E]` |
-| 丁 `person_d` | `visual_filter` | `[E] + [G]` | `[H]` |
-| 戊 `person_e` | `clee` | `[D] + [H]` | `[I]` |
+程式庫、外部資產與執行資料必須位於同一層：
 
 ```text
-CaseList ──> 甲/report_decompose ──> D ──> 乙/knowledge_retrieval ──> F
-    │                                  └──────────────────────────────> 甲/query_generation ──> G
-    └──────> 丙/interest_pattern ──> E
-                                      E + G ──> 丁/visual_filter ──> H
-                                      D + H ──> 戊/clee ──────────> I
-```
-
-`pipeline/run_pipeline.py` 負責 multi-case fan-out；每份 D/E/G/H/I artifact 只承載一個 case。
-`integration/compose.yaml` 保留單案靜態 DAG，供容器整合測試使用。
-
-## 2. Input／output contract
-
-所有正式輸入與輸出以 `contracts/schemas/` 為唯一準則。README、範例輸出或 Python 型別若與 schema
-不一致，以 schema 為準；不得在未升版的情況下自行增刪欄位或改變語意。
-
-| 圖中代號 | Canonical contract | Schema |
-|---|---|---|
-| `[A]` | `A.Literature@2.0` | `A_literature.schema.json` |
-| `[B]` | `B.ReportTables@1.0` | `B_report_tables.schema.json` |
-| `[C]` | 目前沒有獨立 canonical artifact | 不得自行建立；需要時先提出 contract change request |
-| `[D]` | `D.DxPairs@2.0` | `D_dx_pairs.schema.json` |
-| `[E]` | `E.ROIs@2.0` | `E_rois.schema.json` |
-| `[F]` | `F.Chunks@2.0` | `F_chunks.schema.json` |
-| `[G]` | `G.VisualAttributeQueries@2.0` | `G_visual_attribute_queries.schema.json` |
-| `[H]` | `H.MatchedROIs@2.0` | `H_matched_rois.schema.json` |
-| `[I]` | `I.CLEESelectedROIs@2.0` | `I_clee_selected_rois.schema.json` |
-
-框架另定義 `CaseListInput@1.0`，供 outer runner 將一批 case 拆成單案執行。`[B]` 是表格來源
-manifest；目前主 pipeline 的元件邊界從已正規化的 CaseList 開始，不應把院端表格解析偷偷放回其他元件。
-
-交付元件至少必須做到：
-
-1. 讀取輸入後先驗證 contract 與 schema version。
-2. 多輸入元件確認所有 artifact 的 `case_id` 一致。
-3. 寫檔前再次驗證輸出；失敗時回傳非零 exit code，不留下半套 artifact。
-4. 不把影像或大型 binary 以 base64 塞進 JSON；使用 schema 定義的路徑與 metadata。
-5. contract 需要變更時，先提交變更提案、schema、canonical example 與上下游影響，不可直接改 producer。
-
-## 3. 專案、reference 與 run 的同層結構
-
-`reference/` 與 `run/` 必須和專案目錄位於同一層。`contracts/paths.py` 會檢查這些邊界：
-
-```text
-lab_20/
-├── WLW_GPintegrate/                 # 程式碼、schema、Dockerfile、測試與非敏感 config
-│   ├── components/
-│   │   ├── person_a/
-│   │   ├── person_b/
-│   │   ├── person_c/
-│   │   ├── person_d/
-│   │   └── person_e/
-│   ├── contracts/
-│   ├── integration/
-│   ├── pipeline/
-│   └── tests/
-├── reference/                       # 外部參考檔，runtime 原則上唯讀
-│   ├── person_a/
-│   │   ├── checkpoint/
-│   │   └── template_ref/
-│   ├── person_b/
-│   │   ├── checkpoint/
-│   │   └── template_ref/
-│   ├── person_c/
-│   │   ├── checkpoint/
-│   │   └── template_ref/
-│   ├── person_d/
-│   │   ├── checkpoint/
-│   │   └── template_ref/
-│   └── person_e/
-│       ├── checkpoint/
-│       └── template_ref/
-└── run/                             # 輸入、輸出、暫存與 log；可重建，不納入程式提交
-    ├── input/
-    │   └── pipeline/
+lab_23/
+├── WLW_GPintegrate/                 # 本程式庫
+├── reference/                       # 模型、checkpoint、corpus、template；執行時唯讀
+└── run/                             # 輸入、輸出、cache 與 log
+    ├── input/pipeline/
     ├── output/
-    │   ├── pipeline/
-    │   │   └── cases/<case_id>/
-    │   ├── materialized/
-    │   └── work/
     ├── cache/
     └── logs/
 ```
 
-路徑原則：
+正式輸入至少包含：
 
-- 程式與可版本化、非敏感的 example config 放在 `WLW_GPintegrate/components/person_x/`。
-- 模型、checkpoint、corpus、index、template reference 等外部資產放在 `reference/person_x/`。
-- pipeline 輸入、輸出、暫存影像、cache 與 log 放在 `run/`。
-- config 內建議使用 `../reference/person_x/...` 或 `../run/...`，不可依賴開發者家目錄的絕對路徑。
-- WSI 的 `stains[].filepath` 可由資料來源提供外部絕對路徑；除此之外的 runtime 產物不得逃出 `run/`。
-- 容器中以唯讀 `/reference` 與可寫 `/run` mount 對應上述目錄，不把外部資產 `COPY` 進 image。
+```text
+run/input/pipeline/
+├── cases.json                       # 多案例 CaseListInput
+├── A_literature.json                # 可由 prepare_literature 產生
+└── *.mrxs / *.svs / ...             # cases.json 所引用的 WSI
+```
 
-## 4. 打包準備：四類內容必須分離
+各元件需要的權重與參照檔放在 `reference/person_a/` 至 `reference/person_e/`。完整檔名、版本、
+SHA-256 與授權資訊記錄在各元件的 `external-assets.yaml`；這些大型或受控資產不會被包進 Git 或
+Docker image。
 
-| 類別 | 放置位置 | 交付要求 |
+### 2. 建立正式文獻 artifact
+
+在專案根目錄執行：
+
+```bash
+python pipeline/run_prepare_literature.py
+```
+
+production profile 會由 `reference/person_b/rag_database` 建立
+`run/input/pipeline/A_literature.json`。若檔案已準備完成且通過 schema，也可以直接進入下一步。
+
+### 3. 執行完整 production pipeline
+
+```bash
+python pipeline/run_pipeline.py
+```
+
+無參數時預設為 `production`。Runner 會使用 Docker、唯讀掛載 `/reference`、可寫掛載 `/run`，
+逐案執行六個 stage。成功後可在以下位置查看結果：
+
+```text
+run/output/pipeline/
+├── run_manifest.json
+└── cases/
+    └── <case_id>/
+        ├── case_input.json
+        ├── D_dx_pairs.json
+        ├── E_rois.json
+        ├── F_chunks.json
+        ├── G_queries.json
+        ├── H_matches.json
+        └── I_selected_rois.json
+```
+
+完整 stdout/stderr 會另存於 `run/logs/pipeline-production-<timestamp>.log`。`run_manifest.json` 記錄
+完成案例、每個 stage 使用的 config、Docker image 與執行時間，是確認一次正式 run 是否完整的第一個入口。
+
+只執行指定案例時，可重複使用 `--case-id`：
+
+```bash
+python pipeline/run_pipeline.py --case-id S1202317
+```
+
+## 框架如何運作
+
+整體流程同時處理「文字證據」與「影像證據」，最後在 H、I 階段匯合：
+
+```text
+CaseList ─> Person A／報告解析 ─> [D] ─> Person B／文獻檢索 ─> [F] ─> Person A／視覺條件 ─> [G] ─┐
+                                                                                                  ├─> Person D／Matching ─> [H] ─┐
+CaseList ─> Person C／WSI ROI 提案 ─────────────────────────────────────────────────────> [E] ─┘                                │
+                                                                                                                                    ├─> Person E／CLEE ─> [I]
+[D] ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
+```
+
+更精確地說：
+
+1. Person A 將原始病理報告拆成結構化診斷項目 D。
+2. Person B 依 D 從正式文獻庫檢索相關段落，產生 F。
+3. Person A 結合 D 與 F，以 learnable soft prompt 產生視覺屬性條件 G。
+4. Person C 獨立讀取 WSI，以 CONCH 特徵與 vMF 分群提出候選 ROI，產生 E。
+5. Person D 對 E 的 ROI 執行 PLIP + CONCH 視覺屬性抽取，並依 G 做 matching，產生 H。
+6. Person E 結合 D 與 H，以 CLEE 決定最後的證據 ROI，產生 I。
+
+`pipeline/run_pipeline.py` 會把多案例輸入拆成單案 artifact；每個 D–I 檔案只包含一個 `case_id`，
+避免不同病人的資料在元件邊界混合。`integration/compose.yaml` 則保留單案例的靜態容器拓撲，適合檢查
+部署設定與服務間掛載。
+
+## 五個元件
+
+### Person A：報告解析與視覺條件生成
+
+版本：`0.10.0`
+
+Person A 有兩個入口：
+
+- `components.person_a.report_decompose`：將 CaseList 中的病理報告轉成 `D.DxPairs`。
+- `components.person_a.query_generation`：結合 D 與 Person B 的 F，產生 `G.VisualAttributeQueries`。
+
+正式 Query Generation 使用固定 revision 的 Gemma 3 1B 與 64-token Stage 2 soft prompt，模型完整放在
+單張 GPU，不使用 CPU offload。模型輸出必須是嚴格 JSON；runtime 會將結果投影到 condition-free
+canonical template：多出的節點丟棄，缺少、型別錯誤或 condition 非法的 canonical option 補為
+`Not_Mentioned`，並把所有正規化明細寫入 G provenance。若原始診斷文字產生無法解析的輸出，
+production profile 可改用已驗證的 canonical diagnosis，以同一模型、soft prompt 與 chunks 重試；
+兩次嘗試的狀態與 response hash 都會寫入 provenance，不會退回 deterministic reference backend。
+
+報告解析採 hospital routing：目前 VGHTC 由正式 regex extractor 處理；其他院別與 MedGemma fallback
+規則請見 [Person A README](components/person_a/README.md)。
+
+### Person B：文獻準備與檢索
+
+版本：`0.5.0`
+
+Person B 負責兩件事：
+
+- `components.person_b.prepare_literature`：將正式 corpus 正規化成 `A.Literature`。
+- `components.person_b.knowledge_retrieval`：依 D 的診斷項目進行 dense retrieval，產生 `F.Chunks`。
+
+目前 production 使用 `reference/person_b/rag_database`、固定的 knowledge base 與 MedEmbed embedding
+model；每個有支援的診斷項目取 top-3 chunks，交給 Person A 的 soft-prompt 模型。
+
+詳細資產與檢索設定請見 [Person B README](components/person_b/README.md)。
+
+### Person C：WSI Interest Pattern 與 ROI 提案
+
+版本：`0.1.0`
+
+Person C 的 `components.person_c.interest_pattern` 直接讀取 WSI，使用 CONCH dense features、BCSS
+vocabulary、vMF clustering 與 zero-shot 命名提出 ROI，輸出 `E.ROIs`。ROI JSON 只保存座標、MPP 與
+metadata，不把影像像素塞入 artifact；Person D、E 會依 WSI 路徑與 `level0_info` 重建影像區域。
+
+大型 WSI 的 accumulator 會依可用 VRAM 自動選擇策略：可容納時使用單次 `joint_gpu`；兩個 feature
+accumulator 無法同時放入 GPU 時，使用數學等價的 `two_pass_gpu`，將第一路正規化結果移到 system RAM
+後再處理第二路。正式 RTX 4090 執行曾處理超過 517 萬個 compact cells。
+
+座標規則、硬體需求與演算法限制請見 [Person C README](components/person_c/README.md)。
+
+### Person D：視覺屬性抽取與 Matching
+
+版本：`0.2.0`
+
+Person D 的 `components.person_d.visual_filter` 讀取 E 與 G，使用正式 PLIP、CONCH、視覺 prompt 與
+few-shot prototypes 對每個 ROI 產生視覺屬性分數，再依 G 的 Must／Possibly condition 執行 matching，
+輸出 `H.MatchedROIs`。
+
+production 固定使用 `components/person_d/configs/native.json`，且 `matching.enable=true`。
+`native.example.json` 的 matching-disabled passthrough 只供受控 fixture 使用，不會被無參數 production
+runner 選中。H 的 `reference_versions` 會記錄模型是否載入、資產 hash、matching policy 與 few-shot
+layout，便於區分「模型已執行但沒有 ROI 通過」和「matching 根本沒有開啟」。
+
+詳細 mapping 規則請見 [Person D README](components/person_d/README.md)。
+
+### Person E：CLEE 證據選擇
+
+版本：`1.1.0`
+
+Person E 的 `components.person_e.clee` 結合 D 與 H，以正式 CLEE checkpoint、threshold bundle 與
+label space 選擇最終證據 ROI，輸出 `I.CLEESelectedROIs`。
+
+CLEE 只對通過 Person D 且屬於有效診斷空間的 ROI 執行 forward。若沒有合格 ROI，native backend
+會明確記錄 `skipped_no_eligible_rois`，而不是偷偷放寬 D 的 matching 或產生假結果。因此，執行成功
+不代表每個案例都一定會得到 selected ROI；判讀 I 時應同時查看 `execution_statuses`、計數與每個 ROI
+的 `selection_history`。
+
+詳細 threshold 與 fallback policy 請見 [Person E README](components/person_e/README.md)。
+
+## Artifact 與 Contract
+
+所有元件交換的 JSON 都由 `contracts/schemas/` 驗證。Runner 在讀取輸入與寫出結果時都會檢查
+contract 名稱、schema version、必要欄位及多輸入的 `case_id` 一致性。
+
+| 代號 | Contract | 用途 |
 |---|---|---|
-| 執行環境 | `Dockerfile`、`requirements.txt` | Python／CUDA／系統套件與版本固定，可由 clean machine 重建 |
-| 超參數與路徑 | `components/person_x/configs/` | 不硬編碼於程式；提供去敏感的 example config 與欄位說明 |
-| 程式 | `components/person_x/*.py` | 只實作本人的 contract 邊界，不 import 其他人的私有實作 |
-| 外部參考檔案 | sibling `reference/person_x/` | 不進 Git、不進 image；另附名稱、版本、SHA-256、授權與 mount 路徑 |
+| A | `A.Literature@2.0` | 正規化文獻與 sections |
+| B | `B.ReportTables@1.0` | 上游報告表格 manifest；目前主 pipeline 從 CaseList 開始 |
+| C | 無獨立 canonical artifact | 保留代號，尚未定義交換格式 |
+| D | `D.DxPairs@2.0` | 結構化診斷項目 |
+| E | `E.ROIs@2.0` | WSI 候選 ROI 與座標 |
+| F | `F.Chunks@2.0` | 文獻檢索結果 |
+| G | `G.VisualAttributeQueries@2.0` | 診斷對應的視覺屬性條件 |
+| H | `H.MatchedROIs@2.0` | 視覺屬性分數與 matching 結果 |
+| I | `I.CLEESelectedROIs@2.0` | CLEE 最終選擇結果 |
 
-密碼、token、私有 registry credential 不得寫入 config、程式或 image layer；部署時使用環境變數或 secret
-機制。component version、image tag、artifact `producer` 與 README 所列版本必須可互相對應。
+框架另定義 `CaseListInput@1.0` 作為 multi-case runner 的入口。若要修改元件間欄位或語意，應先更新
+schema 與 canonical example，再同步上下游；不要只在 producer 中增加未宣告欄位。
 
-## 5. Unified CLI
+## Production 與 Example Profiles
 
-容器對外統一成以下介面：
+### Production
+
+production 是無參數預設，會檢查各 config 是否真的是正式模式：
+
+| Stage | Production config | 模式 |
+|---|---|---|
+| Report Decompose | `person_a/configs/report_decompose.default.json` | hospital-routed extraction |
+| Interest Pattern | `person_c/configs/region_proposal.json` | CONCH + vMF region proposal |
+| Knowledge Retrieval | `person_b/configs/dense.default.json` | dense retrieval |
+| Query Generation | `person_a/configs/query_generation.production.json` | learnable soft prompt、single GPU |
+| Visual Filter | `person_d/configs/native.json` | PLIP + CONCH、matching enabled |
+| CLEE | `person_e/configs/native.json` | native CLEE |
+
+production 強制使用 Docker executor。缺少 config、外部資產、CUDA、WSI、模型 digest 不符或輸出不合
+schema 時，程序會以 non-zero exit code 停止，不會把失敗案例寫進完成 manifest。
+
+### Example
+
+Example profile 用合成資料檢查 contract 與編排，不載入正式模型：
 
 ```bash
-component \
-  --input /input/input.json \
-  --output /output/output.json \
-  --config /config/config.yaml
+mkdir -p ../run/input/pipeline
+cp integration/fixtures/input/cases.example.json ../run/input/pipeline/cases.json
+python pipeline/run_prepare_literature.py --profile example
+python pipeline/run_pipeline.py --profile example
 ```
 
-多輸入元件重複使用 `--input`，不得依參數順序猜測 contract：
+這組命令會改寫 sibling `run/input/pipeline/` 的 example artifact；若該目錄已有正式輸入，請先備份或
+使用另一份 `run/` 工作目錄。Example 成功只代表 contract 與 runner 可運作，不代表 GPU 模型或正式
+資產已驗證。
+
+## Docker Images
+
+Production runner 期待以下 image tags：
+
+```text
+wlw/person-a:0.10.0-lab23-production
+wlw/person-b:0.5.0-lab23-production
+wlw/person-c:0.1.0-lab23-production
+wlw/person-d:0.2.0-lab23-production
+wlw/person-e:1.1.0-lab23-production
+```
+
+可由專案根目錄分別建立：
 
 ```bash
-component \
-  --input /input/D_dx_pairs.json \
-  --input /input/F_chunks.json \
-  --output /output/G_queries.json \
-  --config /config/config.yaml
+docker build -f components/person_a/Dockerfile -t wlw/person-a:0.10.0-lab23-production .
+docker build -f components/person_b/Dockerfile -t wlw/person-b:0.5.0-lab23-production .
+docker build -f components/person_c/Dockerfile -t wlw/person-c:0.1.0-lab23-production .
+docker build -f components/person_d/Dockerfile -t wlw/person-d:0.2.0-lab23-production .
+docker build -f components/person_e/Dockerfile -t wlw/person-e:1.1.0-lab23-production .
 ```
 
-本專案目前以 Python module 作為 `component` entrypoint，且 shared runtime 讀取 JSON config：
+正式流程需要 NVIDIA Container Toolkit 與可用 CUDA GPU。已驗證環境為 RTX 4090 24 GB、driver
+580.178.04、94 GiB RAM；Person C 的實測最低規格以 24 GB VRAM 與 64 GB host RAM budget 為準。
+不同 CUDA base image、driver 或較小 GPU 是否可用，應以各元件 README 為準，不能由 example profile
+推論。
+
+## 單獨執行元件
+
+所有元件使用一致的 CLI 形式：
+
+```text
+python -m <module> --input <input.json> [--input <input2.json>] \
+  --output <output.json> --config <config.json>
+```
+
+例如單獨執行 Person A Query Generation：
 
 ```bash
 python -m components.person_a.query_generation \
   --input ../run/output/work/D_dx_pairs.json \
   --input ../run/output/work/F_chunks.json \
   --output ../run/output/work/G_queries.json \
-  --config components/person_a/configs/example.json
+  --config components/person_a/configs/query_generation.production.json
 ```
 
-若元件採 YAML，必須自行提供 loader、schema 與 canonical config；不得只更換副檔名。CLI 必須可在
-非互動模式執行、將診斷訊息送至 stdout/stderr，成功回傳 `0`，錯誤回傳非零值。
+多輸入元件會依 artifact contract 辨識輸入，不依命令列順序猜測。直接在主機執行 production 元件時，
+主機必須自行具備該元件的全部 Python／CUDA／system dependencies；一般建議使用對應 Docker image。
 
-## 6. Dockerfile 與 requirements.txt
-
-每位成員維護自己的 Dockerfile 與依賴，不共用開發機上的 Conda environment。交付前至少在沒有
-本機 site-packages、沒有未宣告檔案的 clean machine 或 clean CI runner 執行：
-
-```bash
-docker build --no-cache \
-  -f components/person_x/Dockerfile \
-  -t wlw/person-x:<component-version> .
-```
-
-接著以唯讀 reference、可寫 run 執行 canonical example：
-
-```bash
-docker run --rm \
-  -v "$(pwd)/../reference:/reference:ro" \
-  -v "$(pwd)/../run:/run" \
-  wlw/person-x:<component-version> \
-  --input /run/input/example/input.json \
-  --output /run/output/example/output.json \
-  --config /app/components/person_x/configs/example.json
-```
-
-要求如下：
-
-- Python 套件固定可重建版本；git dependency 固定 commit，不使用浮動 branch。
-- CUDA image、PyTorch 與 driver 相容性要寫入 component README。
-- `requirements.txt` 只列直接 runtime dependency；開發／測試依賴另行區分。
-- build 不得依賴工作站上未提交檔案，也不得把 `reference/`、`run/`、credential 或病人資料包進 image。
-- README 必須記錄 CPU fallback 是否支援、GPU 數量、最低 VRAM、預估 RAM／timeout 與實測環境。
-
-## 7. Canonical example
-
-每個 executable 至少交付一組：
+## 專案結構
 
 ```text
-components/person_x/examples/
-├── input.valid.json                 # 每種必要 input contract 各一份
-├── expected_output.json             # 完整且通過 schema 的預期輸出
-├── config.example.json              # 無 credential、無機器限定絕對路徑
-└── README.md                        # 精確執行命令與比對方式
+WLW_GPintegrate/
+├── components/
+│   ├── person_a/                    # Report Decompose、Query Generation
+│   ├── person_b/                    # Literature Preparation、Retrieval
+│   ├── person_c/                    # WSI Interest Pattern、ROI
+│   ├── person_d/                    # Visual Attributes、Matching
+│   └── person_e/                    # CLEE
+├── contracts/
+│   ├── schemas/                     # Canonical JSON Schemas
+│   ├── runtime.py                   # CLI、讀寫與驗證共用程式
+│   └── paths.py                     # repo/reference/run 邊界
+├── integration/
+│   ├── compose.yaml                 # 單案例容器拓撲
+│   └── fixtures/                    # 合成整合資料
+├── pipeline/
+│   ├── run_prepare_literature.py
+│   └── run_pipeline.py
+├── tests/                           # Contract 與整合測試
+└── README.md                         # 本文件
 ```
 
-多輸入元件應以 contract 命名，例如 `D_dx_pairs.valid.json`、`F_chunks.valid.json`。範例必須小、可合法
-再散布、不含 PHI；大型 WSI 或 checkpoint 不得提交，可使用合成 fixture 或在 `external-assets.yaml`
-列出另行取得方式。若模型含非決定性，應定義結構與容許誤差，不可提交只在某張 GPU 偶然得到的輸出。
+元件內常見的檔案包括：
 
-根目錄另提供整合用合成 fixture：
+- `component.yaml`：版本、入口與硬體需求摘要。
+- `configs/`：example、production 或其他受控設定。
+- `external-assets.yaml`：外部資產、SHA-256、revision 與授權。
+- `examples/`：可散布的 canonical fixtures。
+- `tests/`：元件測試。
+- `PREPARATION.md`：較偏開發／交付面的檢查事項。
+
+## 驗證與測試
+
+執行共用測試：
 
 ```bash
-mkdir -p ../run/input/pipeline
-cp integration/fixtures/input/cases.example.json ../run/input/pipeline/cases.json
-python3 pipeline/run_prepare_literature.py --profile example
-python3 pipeline/run_pipeline.py --profile example
+PYTHONDONTWRITEBYTECODE=1 python -m unittest discover -s tests -v
 ```
 
-正式流程的無參數預設為 `production` profile：以各元件 Docker image、正式 config 與
-唯讀 `../reference` 執行，不依賴主機 Python 環境。準備正式文獻與跑完整 pipeline 的命令為：
+驗證 Compose 設定：
 
 ```bash
-python3 pipeline/run_prepare_literature.py
-python3 pipeline/run_pipeline.py
-```
-
-## 8. README 與版本資訊
-
-每位成員的 `components/person_x/README.md` 至少要列出：
-
-1. 元件用途、owner、component version、支援的 input/output contract 與 schema version。
-2. 模型名稱與 revision；沒有模型也要明示。
-3. Python、OS、CUDA、主要 framework 版本。
-4. GPU 是否必要、GPU 數量、最低 VRAM、CPU fallback 與預估 RAM。
-5. checkpoint／template／corpus／index 的 logical path、版本與 SHA-256；不得寫 credential。
-6. Unified CLI、Docker build/run、canonical example、測試命令。
-7. 限制、失敗條件、已知非決定性與不支援的資料型態。
-8. 變更紀錄或 release tag，以及和 `component.yaml`、image tag 的對應。
-
-`PREPARATION.md` 是交付檢查表；README 是使用者操作與 runtime 規格。兩者不得用尚未驗證的數值宣稱
-支援某張 GPU、某個資料集或某項效能。
-
-## 9. 提交內容與流程
-
-每位成員提交前應整理成：
-
-```text
-components/person_x/
-├── __init__.py
-├── <entrypoint>.py
-├── component.yaml
-├── Dockerfile
-├── requirements.txt
-├── README.md
-├── PREPARATION.md
-├── configs/
-│   ├── README.md
-│   └── *.example.json
-├── examples/
-├── tests/
-└── external-assets.yaml             # 有外部資產時必須提供
-```
-
-提交步驟：
-
-1. 先以 canonical examples 驗證本人元件，再執行根目錄 contract 與 pipeline tests。
-2. 提交 source、非敏感 config、Dockerfile、requirements、examples、tests、README 與 manifest。
-3. 外部資產另行放置於 `reference/person_x/`；提交 `external-assets.yaml`，但不提交資產本體。
-4. 不提交 `run/`、模型、cache、log、暫存 crop、`.pyc`、`__pycache__` 或 credential。
-5. 提供 component version、Git revision、image tag、資產 SHA-256、測試結果與尚未完成的限制。
-6. 若 contract 不變，其他元件與 orchestrator 不應需要修改；若需要修改，必須一併提出介面變更理由。
-
-## 10. 專案驗證
-
-```bash
-PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s tests -v
 docker compose -f integration/compose.yaml config --quiet
 ```
 
-各人的詳細交付要求：
+各元件另有自己的測試與資產驗證命令。例如 Person C 的完整測試應在其 image 中執行，Person D 則可用
+`components.person_d.verify_assets` 核對 prompts、label map、PLIP、CONCH 與 few-shot tree。
 
-- [甲：Report Decompose／Query Generation](components/person_a/PREPARATION.md)
-- [乙：Literature Preparation／Knowledge Retrieval](components/person_b/PREPARATION.md)
-- [丙：Interest Pattern／ROI Extraction](components/person_c/PREPARATION.md)
-- [丁：Visual Attribute Filter](components/person_d/PREPARATION.md)
-- [戊：CLEE Evidence Selection](components/person_e/PREPARATION.md)
+一次 production run 完成後，建議至少確認：
+
+1. `run_manifest.json` 的 `profile` 是 `production`、`executor` 是 `docker`。
+2. `completed_cases` 數量與輸入案例相同，每案有六筆 execution records。
+3. D–I 的 `producer`、`case_id` 與 `reference_versions` 符合預期。
+4. G 的 backend 是 `learnable_soft_prompt` 且 `device_map_strategy=single_device`。
+5. H 的 `models_loaded=true` 且 `visual_matching_filter.enabled=true`。
+6. I 的 `execution_statuses`、evaluated／selected／skipped 計數與 ROI `selection_history` 一致。
+
+## 結果判讀與限制
+
+- Pipeline exit code 0 表示所有元件與 artifact 都成功完成，不表示每個案例一定有 ROI 通過 D 或 E。
+- Person D 可能在模型已實際執行後，因 `insufficient_visual_evidence`、Must condition 或 threshold 而選出
+  0 個 ROI；這和 matching-disabled passthrough 是不同狀態。
+- Person E 若收到 0 個 eligible ROI，會合法地回報 `skipped_no_eligible_rois`，不會為了產生非空結果而
+  繞過上游門檻。
+- Person C 是 CONCH + vMF 的研究型 ROI proposal，ROI 數量與外框大小會隨 tissue coverage 與分群改變。
+- 全部輸出都屬研究軟體整合結果，不構成臨床診斷或模型效能認證。
+
+正式案例的實際狀態與各 stage 時間，請以該次執行產生的 `run_manifest.json` 與對應 timestamp log
+為準；不要用較早的終端輸出推定最新結果。
+
+## 延伸文件
+
+- [Person A README](components/person_a/README.md)
+- [Person B README](components/person_b/README.md)
+- [Person C README](components/person_c/README.md)
+- [Person D README](components/person_d/README.md)
+- [Person E README](components/person_e/README.md)
+- [Person A 準備指南](components/person_a/PREPARATION.md)
+- [Person B 準備指南](components/person_b/PREPARATION.md)
+- [Person C 準備指南](components/person_c/PREPARATION.md)
+- [Person D 準備指南](components/person_d/PREPARATION.md)
+- [Person E 準備指南](components/person_e/PREPARATION.md)

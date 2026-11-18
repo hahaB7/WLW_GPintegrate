@@ -38,7 +38,7 @@ def _case_input(he_path: str) -> dict:
 
 def _config(save_png: bool = False, output_dir: str = "") -> dict:
     return {
-        "component_version": "person-c/interest-pattern:test", "backend": "segnet",
+        "component_version": "person-c/interest-pattern:test", "mode": "region_proposal",
         "stain_type_whitelist": ["HE"],
         "segnet": {
             "checkpoints": [{"path": "../reference/person_c/checkpoint/segnet/missing-test.pt", "revision": "sha256:" + "0" * 64}],
@@ -140,7 +140,7 @@ class InterestPatternTest(TestCase):
             input_path.write_text(json.dumps(invalid))
             command = [sys.executable, "-m", "components.person_c.interest_pattern",
                        "--input", str(input_path), "--output", str(output_path),
-                       "--config", str(root / "components/person_c/configs/demo.json")]
+                       "--config", str(root / "components/person_c/configs/example.json")]
             result = subprocess.run(command, cwd=root, capture_output=True, text=True)
             self.assertNotEqual(0, result.returncode)
             self.assertIn("missing required property 'case_id'", result.stderr)
@@ -152,7 +152,7 @@ class InterestPatternTest(TestCase):
                 run(_case_input(str(he_path)), _config())
 
     def test_explicit_demo_keeps_non_he_empty(self) -> None:
-        config = {"component_version": "person-c:test", "backend": "demo",
+        config = {"component_version": "person-c:test", "mode": "example",
                   "stain_type_whitelist": ["HE"],
                   "demo_mpp": {"x": 0.5, "y": 0.5},
                   "demo_regions": [{"x": 0, "y": 0, "width": 32, "height": 32}]}
@@ -162,7 +162,7 @@ class InterestPatternTest(TestCase):
         self.assertEqual([1, 0], [stain["roi_num"] for stain in stains])
 
     def test_stain_whitelist_is_configurable_and_required(self) -> None:
-        config = {"component_version": "person-c:test", "backend": "demo",
+        config = {"component_version": "person-c:test", "mode": "example",
                   "stain_type_whitelist": ["ER"],
                   "demo_mpp": {"x": 0.5, "y": 0.5},
                   "demo_regions": [{"x": 0, "y": 0, "width": 32, "height": 32}]}

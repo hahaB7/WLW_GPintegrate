@@ -93,7 +93,7 @@ def run(source: dict[str, Any], config: dict[str, Any]) -> dict[str, Any]:
     allowed_stains = set(settings["stain_type_whitelist"])
     selected_stains = [stain for stain in iter_stains(payload) if stain["stain_type"].upper() in allowed_stains]
     model = device = None
-    if settings["backend"] == "segnet":
+    if settings["mode"] == "region_proposal":
         from .region import figures, segnet
 
         for stain in selected_stains:
@@ -112,7 +112,7 @@ def run(source: dict[str, Any], config: dict[str, Any]) -> dict[str, Any]:
     for stain in iter_stains(payload):
         if stain["stain_type"].upper() not in allowed_stains:
             rois = []
-        elif settings["backend"] == "demo":
+        elif settings["mode"] == "example":
             rois = _demo_rois(case_id, stain, settings, global_index)
         else:
             import openslide
