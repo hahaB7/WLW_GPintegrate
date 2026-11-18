@@ -47,31 +47,45 @@ opened. Every other stain stays in E with `roi_num = 0` and `roi_list = []`.
 - **Holes.** The student draws the wall of a gland. A ring that is closed is filled and what lies inside belongs to the ring (no
   box of its own). A ring that is not closed cannot be filled; there a box that lies completely inside a larger box is dropped.
   Boxes that only overlap are all kept.
-- **Figures** (all off by default). `figures.tissue`, `figures.epithelium` and `figures.boxes` write one JPEG per WSI and stage
-  to `figures.dir` below `run/output`, as `<case_id>_<stain_id>_<stage>.jpg`, at 1 µm/px (a 60 000 × 70 000 px slide gives about
-  16 000 × 18 000 px, about 50 MB): the class map with a legend, the epithelium mask with its outline, and the boxes (red, dashed, 2 px thick) over
-  it. If `figures.annotations` points to a JSON `{stain_id: [[x, y, w, h], ...]}` (level-0 pixels) the annotation ROIs of the
-  stain are drawn in green on the boxes figure; without an entry nothing is drawn. The look is configurable (`figures.downscale`,
-  `quality`, `box_thickness`; `configs/README.md`; the colours are fixed): `downscale: 4` gives a 4 µm/px figure
-  that most viewers open. A file appears whole or not at all.
-- **Looking at a figure.** A figure is too large for most viewers and for a web page (hundreds of megapixels). Two ways:
-  copy it to a computer (`scp`) and open it with a viewer that handles large images (for example Fiji / ImageJ, IrfanView or an
-  image editor), or make a small overview and crops where it is, with OpenCV (a reduced decode is fast and takes little memory):
-
-  ```python
-  import cv2
-  f = "<case_id>_<stain_id>_boxes.jpg"
-  cv2.imwrite("overview.jpg", cv2.imread(f, cv2.IMREAD_REDUCED_COLOR_8))     # 1/8 of the size: 8 um/px, about 2000 px
-  cv2.imwrite("crop.jpg", cv2.imread(f)[6500:8300, 3800:5800])               # a 2000 x 1800 px window at 1 um/px (rows, columns)
-  ```
-
-  Do this inside a job or with small files only: decoding a whole figure needs several GB of memory (a login node is not the place).
 - **Checkpoint.** `reference/person_c/checkpoint/segnet/c9_sclip_bracs_s0.pt`, pinned by `revision` (SHA-256) in the config and
   checked before it is loaded.
 - **What produced the ROIs** is written to `payload.reference_versions.interest_pattern` of E: the mode, the checkpoints with
   their SHA-256, the classes, the tile size, the number of test-time views, `postprocess_mpp` and `min_object_size`.
 
-## 3. Coordinates and ROI rules (downstream relies on this section)
+## 3. Figures
+
+Optional pictures of the stages, for whoever checks the segmentation. They are drawn after the boxes are final, so they never
+change the ROIs. All are off by default; every key is in [configs/README.md](configs/README.md).
+
+| Figure | Switch | Shows |
+|---|---|---|
+| `tissue` | `figures.tissue` | the class map, one colour per class, with a legend |
+| `epithelium` | `figures.epithelium` | the epithelium mask the boxes come from, with its outline |
+| `boxes` | `figures.boxes` | the ROI boxes (red, dashed) over the epithelium; the caption gives their number |
+
+- **File.** One JPEG per WSI and stage, `<figures.dir>/<case_id>_<stain_id>_<stage>.jpg`, below `run/output`. A file appears
+  whole or not at all.
+- **Size.** By default the figure has the resolution of the segmentation, 1 µm/px: a 60 000 × 70 000 px slide gives about
+  16 000 × 18 000 px (about 50 MB). `figures.downscale` makes the figure that many times smaller (`4`: 4 µm/px, 16 times fewer
+  pixels). It only shrinks the picture; the segmentation and the boxes are the same. `figures.quality` is the JPEG quality and
+  `figures.box_thickness` the line width (default 2 px; the figure is meant to be zoomed into). Colours are fixed.
+- **Annotations.** If `figures.annotations` points to a JSON `{stain_id: [[x, y, w, h], ...]}` (level-0 pixels), the annotation
+  ROIs of that stain are drawn in green (dashed) on the boxes figure and counted in its caption. Without an entry nothing is drawn.
+
+**Looking at a figure.** A full-size figure is too large for most viewers and for a web page. Either set `figures.downscale`, or
+copy the file to a computer (`scp`) and open it with a viewer for large images (Fiji / ImageJ, IrfanView, an image editor), or
+cut an overview and crops where it is:
+
+```python
+import cv2
+f = "<case_id>_<stain_id>_boxes.jpg"
+cv2.imwrite("overview.jpg", cv2.imread(f, cv2.IMREAD_REDUCED_COLOR_8))     # 1/8 of the size: 8 um/px, about 2000 px
+cv2.imwrite("crop.jpg", cv2.imread(f)[6500:8300, 3800:5800])               # a 2000 x 1800 px window at 1 um/px (rows, columns)
+```
+
+Decoding a whole figure needs several GB of memory: do it inside a job, not on a login node.
+
+## 4. Coordinates and ROI rules (downstream relies on this section)
 
 - **Level 0** is the full-resolution image, origin at the upper left, x to the right, y down. `level0_info.xywh` is
   `[x, y, width, height]` in level-0 pixels and covers `[x, x + width) × [y, y + height)`; it always lies inside the slide.
@@ -97,7 +111,7 @@ opened. Every other stain stays in E with `roi_num = 0` and `roi_list = []`.
   CUDA device that was asked for, a model error, or an E that violates the contract ends with a non-zero exit code and
   writes no E. (A figure that was written before a later failure may remain in `figures.dir`.)
 
-## 4. Code structure
+## 5. Code structure
 
 ```text
 components/person_c/
@@ -145,15 +159,15 @@ Rules for changes:
   added to both and to a test.
 - `wsi_processing.py` imports no torch, so the contract tests need no GPU. Heavy imports (torch, openslide, cv2) are inside the
   functions of `region/`.
-- The ROI geometry (section 3) is what Person D and E rely on; a change to it is a contract question, not a code cleanup.
+- The ROI geometry (section 4) is what Person D and E rely on; a change to it is a contract question, not a code cleanup.
 - The network code in `segnet_net.py` must keep the module names of PIPELINE/SEGNET's `SegNet`: the checkpoint is loaded with
   `strict` key checking.
 
-## 5. Configuration
+## 6. Configuration
 
 See [configs/README.md](configs/README.md) for every key.
 
-## 6. Run
+## 7. Run
 
 ```bash
 python -m components.person_c.interest_pattern \
@@ -163,7 +177,7 @@ python -m components.person_c.interest_pattern \
 ```
 
 `--input` and `--output` must be below the sibling `run/`, `--config` below `components/person_c/configs/`. On a cluster, run it
-inside a job (one GPU, 8 CPUs; memory in section 8); a real slide is not a job for a login node.
+inside a job (one GPU, 8 CPUs; memory in section 9); a real slide is not a job for a login node.
 `examples/e2e/run_e2e.sh` does the same for one slide and prints the ROI summary.
 
 Tests (no GPU, no slide, no checkpoint):
@@ -186,7 +200,7 @@ docker run --rm --gpus all \
     --config /app/components/person_c/configs/region_proposal.json
 ```
 
-## 7. Environment and assets
+## 8. Environment and assets
 
 | | |
 |---|---|
@@ -202,7 +216,7 @@ External assets (the checkpoint, a test slide) are listed with digests in `exter
 run time; `reference/` is read-only, everything the component writes goes below `run/`. The CONCH checkpoint and
 `template_ref/bcss_vocab.json` of the previous region proposal are no longer used.
 
-## 8. Measured performance
+## 9. Measured performance
 
 One H200, 8 CPUs, `configs/region_proposal.json`, BRACS slides (SVS, 0.2524 µm/px).
 
@@ -221,7 +235,7 @@ on BRACS_1003691: the tiles were read at the full-resolution level (a requested 
 checkpoints multiply the GPU time and are off / one by default. The memory of a run with figures is mostly the slide image
 and the three figures at 1 µm/px.
 
-## 9. Limits
+## 10. Limits
 
 - **The ROIs are not scored.** The segmentation and the boxes were looked at in the figures of a sample of BRACS slides; no ROI was compared
   with an annotation by a number. The student's own scores are in PIPELINE/SEGNET, not here.
@@ -236,7 +250,7 @@ and the three figures at 1 µm/px.
 - **Not run:** the container image, the CPU mode, the full pipeline (the reference assets of Person A and E were not at hand),
   and Person D / E reading these ROIs.
 
-## 10. Notes for the pipeline
+## 11. Notes for the pipeline
 
 Nothing outside `components/person_c/` was changed. What the pipeline owner may want to know:
 
@@ -249,7 +263,7 @@ Nothing outside `components/person_c/` was changed. What the pipeline owner may 
   PR #1's code (commit `0ad461d`), not this version.
 - The ROIs differ from the earlier ones in number and shape (epithelium objects, not CONCH regions).
 
-## 11. Changelog
+## 12. Changelog
 
 | Version | Change |
 |---|---|
