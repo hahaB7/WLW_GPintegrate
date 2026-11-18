@@ -103,8 +103,8 @@ class FigureTests(unittest.TestCase):
             image = cv2.imread(str(Path(tmp) / "S_boxes.jpg"))
             self.assertEqual((751, 1001, 3), image.shape)                # 4 um/px
             top = image[150, 200:300]                                    # the top edge of the box at (800, 600) -> (200, 150)
-            red = (top[:, 0] < 100) & (top[:, 2] > 200)
-            self.assertTrue(red[2:16].all() and not red[21:33].any())      # a dash of 18 px (6 x thickness 3), then a gap of 18
+            red = (top[:, 0] < 100) & (top[:, 2] > 120)
+            self.assertTrue(red[3:15].all() and not red[26:34].any())      # a dash of 18 px (6 x thickness 3), then a gap
         for bad in ({"downscale": 0}, {"quality": 101}, {"box_thickness": 0}):
             with self.assertRaises(ValueError):
                 wsi.validate_figures({"dir": "x", **bad})

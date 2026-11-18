@@ -68,7 +68,8 @@ change the ROIs. All are off by default; every key is in [configs/README.md](con
 - **Size.** By default the figure has the resolution of the segmentation, 1 µm/px: a 60 000 × 70 000 px slide gives about
   16 000 × 18 000 px (about 50 MB). `figures.downscale` makes the figure that many times smaller (`4`: 4 µm/px, 16 times fewer
   pixels). It only shrinks the picture; the segmentation and the boxes are the same. `figures.quality` is the JPEG quality and
-  `figures.box_thickness` the line width (default 2 px; the figure is meant to be zoomed into). Colours are fixed.
+  `figures.box_thickness` the line width (default 4 px). Colours are fixed. The boxes (red) and the annotation ROIs (green) are dashed with a dark
+  edge, so that they stand out on light and dark tissue and the slide stays visible between the dashes.
 - **Annotations.** If `figures.annotations` points to a JSON `{stain_id: [[x, y, w, h], ...]}` (level-0 pixels), the annotation
   ROIs of that stain are drawn in green on the boxes figure and counted in its caption. Each has a dashed box, a green ring around
   it and a number, so that it is found at a glance in a zoomed-out figure. Without an entry nothing is drawn.

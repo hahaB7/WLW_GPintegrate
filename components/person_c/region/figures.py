@@ -22,7 +22,7 @@ BOX = (0, 0, 255)                            # BGR: the images of this module ar
 CLASS_COLORS = {"TUM": (215, 35, 55), "BEN": (240, 120, 30), "STR": (15, 155, 65), "LYM": (35, 95, 215), "NEC": (240, 180, 10),
                 "FAT": (40, 190, 230), "VES": (130, 60, 190), "BLD": (110, 20, 45), "SEC": (200, 50, 160), "OTH": (25, 30, 75)}
 UNLABELED = 255
-BOX_THICKNESS = 2                            # px of the figure; whatever its size, the figure is looked at zoomed in
+BOX_THICKNESS = 4                            # px of the figure: a thin line, found by its colour and its dark edge
 BAND = 1024                                  # rows per band
 QUALITY = 90                                 # JPEG quality: clear to the eye, a tenth of the size of a PNG
 ALPHA = {"tissue": 0.6, "epithelium": 0.55, "boxes": 0.3}
@@ -72,7 +72,8 @@ def caption(image: np.ndarray, text: str, unit: float) -> None:
 
 
 def dashed_line(image: np.ndarray, start: tuple[int, int], end: tuple[int, int], color: tuple[int, int, int], thickness: int) -> None:
-    """In place: a dashed line (dash 6 and gap 6 line widths), so that the slide stays visible under it."""
+    """In place: a dashed line (dash 6 and gap 6 line widths, so that the slide stays visible between the dashes), with a dark
+    edge one pixel wide on each side, so that it stands out on a light and on a dark background alike."""
 
     import cv2
 
@@ -80,8 +81,9 @@ def dashed_line(image: np.ndarray, start: tuple[int, int], end: tuple[int, int],
     period, dash = 12 * thickness, 6 * thickness
     for t in range(0, length, period):
         a, b = t / length, min(t + dash, length) / length
-        cv2.line(image, (round(start[0] + (end[0] - start[0]) * a), round(start[1] + (end[1] - start[1]) * a)),
-                 (round(start[0] + (end[0] - start[0]) * b), round(start[1] + (end[1] - start[1]) * b)), color, thickness)
+        p, q = ((round(start[0] + (end[0] - start[0]) * t), round(start[1] + (end[1] - start[1]) * t)) for t in (a, b))
+        cv2.line(image, p, q, (0, 0, 0), thickness + 2)
+        cv2.line(image, p, q, color, thickness)
 
 
 def draw_boxes(image: np.ndarray, boxes: Sequence[Sequence[int]], mpp0: tuple[float, float], mpp: float, thickness: int,
