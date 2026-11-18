@@ -35,6 +35,15 @@ class SegnetSettingsTests(unittest.TestCase):
                 wsi.validate_settings(config)
 
 
+class NestedTests(unittest.TestCase):
+    def test_inner_and_mostly_inner_boxes_are_dropped(self) -> None:
+        big = [0, 0, 1000, 1000]
+        boxes = [[100, 100, 50, 50], big, [950, 100, 100, 100], [2000, 2000, 10, 10]]
+        # [950,100,100,100]: half inside -> kept at 0.9, dropped at 0.5
+        self.assertEqual([big, [950, 100, 100, 100], [2000, 2000, 10, 10]], wsi.drop_nested(boxes, 0.9))
+        self.assertEqual([big, [2000, 2000, 10, 10]], wsi.drop_nested(boxes, 0.5))
+
+
 class MaskTests(unittest.TestCase):
     def test_resample_keeps_the_region_and_the_requested_shape(self) -> None:
         cells = np.zeros((100, 100), dtype=bool)      # 4 um cells
