@@ -2,7 +2,7 @@
 
 丙負責將單案 CaseList 的 WSI metadata 轉成 `[E]` ROI artifact。`mode: region_proposal`（`configs/region_proposal.json`）
 以 SEGNET student 在 WSI 上做 c9 組織分割，取 TUM 與 BEN 的聯集（填洞）後，以每個連通物件的最小包圍框產生 ROI；
-`mode: example`（`configs/example.json`）不開 WSI，只供契約與 pipeline 測試。演算法、座標規則、實測與限制見 `README.md`。
+`mode: example`（`configs/example.json`）不開 WSI，只供契約與 pipeline 測試。演算法、座標規則、實測與限制見 [`README.md`](README.md)；設定鍵見 [`configs/README.md`](configs/README.md)。
 先前的 CONCH region proposal（PR #1）與 MRCPS 已移除，仍在 git 歷史。
 
 ## 1. Input／output 規格
@@ -187,7 +187,7 @@ component \
 python -m components.person_c.interest_pattern \
   --input ../run/input/pipeline/case-001.json \
   --output ../run/output/work/E_rois.json \
-  --config components/person_c/configs/example.json
+  --config components/person_c/configs/region_proposal.json
 ```
 
 CaseList 非單案、WSI 不可讀、MPP 缺失、checkpoint/hash 錯誤、CUDA 不可用或模型失敗時，必須 non-zero
@@ -205,7 +205,7 @@ docker build --no-cache \
 ```
 
 實測（H200、單張 WSI、一個網路）：GPU 記憶體峰值 1.05 GiB、主機記憶體 7.3 GB（不畫圖）到 15.7 GB（三張圖，
-最大的一張）、單張 34 到 106 秒。需要 CUDA GPU（沒有就報錯，不提供 CPU 模式）。Docker build 不下載 checkpoint，
+最大的一張）、單張 32 到 69 秒。需要 CUDA GPU（沒有就報錯，不提供 CPU 模式）。Docker build 不下載 checkpoint，
 也不把 WSI 複製進 image。**image 尚未 build**（開發環境沒有 Docker）。
 
 ## 6. Canonical example
@@ -218,12 +218,12 @@ components/person_c/examples/
 
 expected E 是 `region_proposal` 在假的切片與上皮遮罩（tests 內的 `canonical_output()`）上的輸出，不是真實切片的結果
 （WSI 與 checkpoint 不得提交）。`region_proposal` 的行為由 `tests/` 以假的模型與分割結果覆蓋（座標、空 ROI、非處理 stain、缺檔、
-缺 checkpoint non-zero fail、框的規則），並以真實 BRACS 切片實測（見 README）。
+缺 checkpoint non-zero fail、框的規則），並以真實 BRACS 切片實測（見 README 第 6 節）。
 
 ## 7. README 必填資訊
 
 列出 component version、E schema version、模型名稱／architecture／revision、Python、WSI library、
-framework、CUDA、GPU 數量、最低 VRAM、CPU fallback、checkpoint logical path 與 SHA-256、支援格式、
+framework、CUDA、GPU 數量、最低 VRAM、CPU fallback（本元件無：需要 CUDA）、checkpoint logical path 與 SHA-256、支援格式、
 MPP／座標規則、CLI、Docker build/run、canonical example、效能與限制。沒有模型時需明示「無模型」。
 
 ## 8. 提交檢查
@@ -232,9 +232,9 @@ MPP／座標規則、CLI、Docker build/run、canonical example、效能與限�
 - [x] `pipeline/run_pipeline.py` 的 production 與 example 設定檢查接受 `configs/region_proposal.json` 與 `configs/example.json`。
 - [x] source、configs、examples、tests、Dockerfile、requirements、README、PREPARATION 已具備。
 - [x] checkpoint 只放 `reference/person_c/` 並附 manifest（SHA-256）；WSI 與 run artifacts 不進 image。
-- [x] 真實 BRACS 切片以 CLI 實測（`region_proposal.json`，見 README 第 8 節）。
+- [x] 真實 BRACS 切片以 CLI 實測（`region_proposal.json`，見 README 第 6 節）。
 - [ ] production image 尚未 build 與在 pipeline 內執行（沒有 Docker）。
 - [ ] 完整 pipeline（A 到 E）尚未在含 SEGNET 的版本跑通：本機缺 Person A、E 的 reference 檔，根目錄測試因此有 14 項錯誤，
       與丙無關。
 - [ ] 座標／MPP round-trip 尚未和丁的 native WSI 讀取方式重測（先前的三案例整合測試是 CONCH 版本）。
-- [ ] ROI 品質尚無與標註比較的數字（見 README 限制）。
+- [ ] ROI 品質尚無與標註比較的數字（見 README 第 7 節）。

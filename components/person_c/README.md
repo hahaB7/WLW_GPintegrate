@@ -1,206 +1,65 @@
-# Person C: WSI interest pattern extraction
+# Person C · Epithelium ROI extraction
 
-Person C reads one raw CaseList case and writes `E.ROIs@2.0`: for every H&E whole-slide image of the case, the
-rectangles (ROIs) of the epithelium. Person D (`visual_filter`) reopens the slide with `filepath` and
-`level0_info.xywh` to rebuild the pixels; Person E (`clee`) reads the ROI geometry through H.
+Person C reads one raw CaseList case and finds, in every H&E whole-slide image (WSI) of the case, the **rectangles (ROIs) that
+contain epithelium**. A segmentation network labels the tissue, the epithelium is cut into connected objects, and the minimum
+bounding box of each object is one ROI. Person D (`visual_filter`) reopens the slide with `filepath` and `level0_info.xywh` to
+rebuild the pixels; Person E (`clee`) reads the ROI geometry through H.
+
+```text
+ CaseListInput@1.0 ──▶  [ C ]  ──▶  E.ROIs@2.0  ──▶  D (visual filter)  ──▶  …
+   one case              WSI → tissue classes → epithelium → boxes
+```
 
 | | |
 |---|---|
-| Owner | Person C |
-| Component version | `0.5.0` (producer string `person-c/interest-pattern:0.5.0`) |
-| Input / output | `CaseListInput@1.0`, one case per call / `E.ROIs@2.0` |
-| Entry point | `python -m components.person_c.interest_pattern --input ... --output ... --config ...` |
-| Production config | `configs/region_proposal.json` (mode `region_proposal`; the name the pipeline reads) |
+| **Owner** | Person C |
+| **Version** | `0.5.0`, producer string `person-c/interest-pattern:0.5.0` |
+| **Input / output** | `CaseListInput@1.0` (one case per call) → `E.ROIs@2.0` |
+| **Algorithm** | SEGNET student (DeepLab v3+), trained without annotation on BRACS slides |
+| **Needs** | one CUDA GPU, the checkpoint under `reference/person_c/`, OpenSlide |
+| **Entry point** | `python -m components.person_c.interest_pattern --input … --output … --config …` |
 
-## 1. Modes
+**Contents**
+[1 Quick start](#1-quick-start) ·
+[2 How it works](#2-how-it-works) ·
+[3 Coordinates and ROI rules](#3-coordinates-and-roi-rules) ·
+[4 Figures](#4-figures) ·
+[5 Code structure](#5-code-structure) ·
+[6 Environment and performance](#6-environment-and-performance) ·
+[7 Limits and notes](#7-limits-and-notes) ·
+[8 Changelog](#8-changelog)
 
-`mode` in the config selects what the component does. The pipeline reads it: `pipeline/run_pipeline.py` loads
-`configs/region_proposal.json` in its production profile (and requires `mode == "region_proposal"`) and `configs/example.json`
-in its example profile.
+---
 
-| Config | `mode` | What it does |
-|---|---|---|
-| `configs/region_proposal.json` | `region_proposal` | Finds the regions of the epithelium with the SEGNET student (section 2). The mode names the stage (region proposal), not the algorithm. |
-| `configs/example.json` | `example` | No slide is opened and no ROI is made. For the pipeline's example profile and the contract tests. |
-
-Everything after the mask (boxes, ROI records, E) is shared. Only H&E stains are opened (the student was trained on H&E); every other stain stays in E with
-`roi_num = 0` and `roi_list = []`.
-
-## 2. Mode `region_proposal`
-
-```text
- WSI ─> tiles of 1792 um at 1 um/px (+112 um context), read by worker processes
-     ─> student: 224 px windows at half overlap, cosine-squared blending            GPU, one network
-     ─> one probability vector per 4 um cell, enlarged bilinearly to 1 um/px        GPU
-     ─> class of the highest probability per pixel                                  GPU      STAGE 1  tissue segmentation (c9)
-     ─> union of segnet.roi_classes (TUM, BEN), every hole filled                   GPU / CPU STAGE 2  epithelium
-     ─> connected objects, minimum bounding box of each, enclosed boxes dropped     CPU      STAGE 3  boxes
-     ─> ROI records ─> E.ROIs
-```
-
-- **Model.** DeepLab v3+ (ResNet-101, ASPP, decoder to stride 4), 10 classes (`TUM BEN STR LYM NEC FAT VES BLD SEC OTH`),
-  trained in PIPELINE/SEGNET (`Unsup`, spec `c9_224px_1um_sclipcrf_glvq5r2m20-bracs_wsi`, seed 0, step 6000) on unlabeled
-  BRACS slides with the pseudo labels of the SCLIP teacher. No annotation was used to train it.
-- **No foreground step.** The student labels the glass itself (class OTH), so no tissue detector runs before it.
-- **1 µm/px.** The network outputs one vector per 4 µm cell. The probabilities (not the labels) are enlarged bilinearly to
-  `postprocess_mpp` (1 µm/px) before the argmax, so the borders are smooth, and everything after works at that resolution.
-- **Holes.** The student draws the wall of a gland. A ring that is closed is filled and what lies inside belongs to the ring (no
-  box of its own). A ring that is not closed cannot be filled; there a box that lies completely inside a larger box is dropped.
-  Boxes that only overlap are all kept.
-- **Checkpoint.** `reference/person_c/checkpoint/segnet/c9_sclip_bracs_s0.pt`, pinned by `revision` (SHA-256) in the config and
-  checked before it is loaded.
-- **What produced the ROIs** is written to `payload.reference_versions.interest_pattern` of E: the mode, the checkpoint with
-  its SHA-256, the classes, the tile size, `postprocess_mpp` and `min_object_size`.
-
-## 3. Figures
-
-Optional pictures of the stages, for whoever checks the segmentation. They are drawn after the boxes are final, so they never
-change the ROIs. All are off by default; every key is in [configs/README.md](configs/README.md).
-
-| Figure | Switch | Shows |
-|---|---|---|
-| `tissue` | `figures.tissue` | the class map, one colour per class with a black line between classes, and a legend |
-| `epithelium` | `figures.epithelium` | the epithelium mask the boxes come from, with its outline |
-| `boxes` | `figures.boxes` | the ROI boxes (amber) over the epithelium, drawn as in the `epithelium` figure (tint and black outline); the caption gives their number |
-
-- **File.** One JPEG per WSI and stage, `<figures.dir>/<name>_<stage>.jpg`, `name` being the stem of the slide's file name (`BRACS_1228_boxes.jpg`), below `run/output`. A file appears
-  whole or not at all.
-- **Size.** By default the figure has the resolution of the segmentation, 1 µm/px: a 60 000 × 70 000 px slide gives about
-  16 000 × 18 000 px (about 50 MB). `figures.downscale` makes the figure that many times smaller (`4`: 4 µm/px, 16 times fewer
-  pixels). It only shrinks the picture; the segmentation and the boxes are the same. Colours, line width (2 px) and JPEG quality (90)
-  are fixed.
-- **How the boxes are drawn.** Both sets are dashed rectangles laid over the slide as a **translucent colour** (70 % opacity)
-  with a translucent dark edge of 1 px on each side, so the slide shows through the line as well as between the dashes, and the
-  line still stands out on light and on dark tissue. The colours lie outside the hues of H&E (pink, purple, blue, white): **amber**
-  for the boxes of the method (short dashes), **lime** for an annotation (a pixel wider, long dashes), so the two stay apart where
-  they overlap. Each box has its number on a small dark label above its upper left corner, the same size for every box: for the
-  boxes of the method it is `local_idx` of the ROI in E (from 0), so a box in the figure is found in the JSON; annotations are
-  numbered from 1 and counted in the caption. The epithelium (tint and black outline) is the same as in the `epithelium` figure.
-- **Annotations.** If `figures.annotations` points to a JSON `{stain_id: [[x, y, w, h], ...]}` (level-0 pixels), the annotation ROIs
-  of that stain are drawn on the boxes figure as above. Without an entry nothing is drawn.
-
-**Looking at a figure.** A full-size figure is too large for most viewers and for a web page. Either set `figures.downscale`, or
-copy the file to a computer (`scp`) and open it with a viewer for large images (Fiji / ImageJ, IrfanView, an image editor), or
-cut an overview and crops where it is:
-
-```python
-import cv2
-f = "BRACS_1228_boxes.jpg"
-cv2.imwrite("overview.jpg", cv2.imread(f, cv2.IMREAD_REDUCED_COLOR_8))     # 1/8 of the size: 8 um/px, about 2000 px
-cv2.imwrite("crop.jpg", cv2.imread(f)[6500:8300, 3800:5800])               # a 2000 x 1800 px window at 1 um/px (rows, columns)
-```
-
-Decoding a whole figure needs several GB of memory: do it inside a job, not on a login node.
-
-## 4. Coordinates and ROI rules (downstream relies on this section)
-
-- **Level 0** is the full-resolution image, origin at the upper left, x to the right, y down. `level0_info.xywh` is
-  `[x, y, width, height]` in level-0 pixels and covers `[x, x + width) × [y, y + height)`; it always lies inside the slide.
-  `level0_info.mpp` is `[mpp_x, mpp_y]` read from the slide (`openslide.mpp-x/y`); a slide without MPP fails.
-- **From mask to box.** The epithelium mask is at `postprocess_mpp` (1 µm/px). Its connected objects (4-connectivity) with at
-  least `min_object_size` pixels each get one box: the minimum bounding box, with the lower edge floored and the upper edge
-  ceiled after scaling to level 0, clamped to the slide. Nothing is dilated. A box that lies completely inside another box is
-  dropped.
-- **`main_info`** is the same box in a virtual image resampled to a working MPP chosen from the box area in level-0 pixels²
-  (up to 1, 4, 16, 64, 256, 1024 million: 0.25, 0.5, 1, 2, 4, 8 µm/px; larger: 16). `xywh` is floored / ceiled by the same
-  scaling and clamped; `mpp` is the scalar working MPP. `cxcywh` of both records is
-  `[cx / W, cy / H, w / W, h / H]` of the image of that record (contract clarification CCR-C-001).
-  `area` is `width × height` in the pixels of that record.
-- **Identity.** `roi_id` is `<case_id>-<stain_id>-roi-<16 hex>`, the hash of the case, the stain and the level-0 box.
-  `global_idx` counts the ROIs of the case in stain order, `local_idx` those of the stain. The ROIs of a stain are ordered by
-  (top, left).
-- **Selection history.** One event per ROI: stage `interest_pattern_extraction`, owner `person_C`, action
-  `candidate_generated`, status `selected`. `DxPair`, `visualAttrs` and `visualAttrs_info` are `null`.
-- **Empty.** A stain without objects gives `roi_num = 0`; a case without any ROI is a valid E.
-- **No crops.** `main_info.roi_path` and `level0_info.roi_path` are `null`; downstream components reopen the slide with `filepath` and
-  the box.
-- **Failure.** A case with more than one entry, a missing slide, a missing MPP, a missing or wrong checkpoint, no
-  CUDA GPU, a model error, or an E that violates the contract ends with a non-zero exit code and
-  writes no E. (A figure that was written before a later failure may remain in `figures.dir`.)
-
-## 5. Code structure
-
-Two program files, each with numbered blocks, and no sub-packages:
-
-```text
-components/person_c/
-├── interest_pattern.py   what the pipeline sees                        (no torch: the contract tests need no GPU)
-│     1 Settings    the config, every key checked here
-│     2 Boxes       epithelium mask -> level-0 boxes (connected objects, enclosed boxes dropped)
-│     3 ROI         level0_info / main_info records of a box, roi_id, selection history
-│     4 Case        CaseList -> E, one H&E stain after the other
-│     5 CLI
-├── segmentation.py       what the student does                          (torch, OpenSlide, OpenCV)
-│     1 Network     DeepLab v3+ (inference copy of PIPELINE/SEGNET's SegNet)
-│     2 Student     checkpoint check and loading, window prediction
-│     3 Slide       tiles read by worker processes, class map, epithelium mask
-│     4 Figures     the JPEG of a stage
-├── configs/          region_proposal.json  example.json  README.md (every key)
-├── examples/         case_list.valid.json  E_rois.expected.json
-├── tests/            test_person_c.py
-└── README.md  PREPARATION.md  component.yaml  external-assets.yaml  requirements.txt  Dockerfile
-```
-
-The call chain of one case:
-
-```text
-interest_pattern.main
-  └─ run(source, config)
-       ├─ validate_settings(config)                           every key checked here, nowhere else
-       ├─ segmentation.load_model(settings)                   checkpoint path + SHA-256, classes
-       └─ per H&E stain, per WSI:
-            ├─ slide_mpp(slide)
-            ├─ segmentation.infer_stages(path, slide, ...)    -> {"tissue", "epithelium", "classes", ["image"]}
-            ├─ level0_boxes(epithelium, ...)                  -> boxes (connected objects)
-            ├─ drop_enclosed(boxes)
-            ├─ _make_roi(...)                                 level-0 and main_info records
-            └─ segmentation.save_figures(...)                 only if a switch is on
-```
-
-Where the work runs:
-
-| Step | Where | Why |
-|---|---|---|
-| Reading tiles | 6 CPU processes (`NUM_WORKERS`, `TileReader`, one slide handle each) | decoding the slide is the slowest part; the GPU predicts the previous tile meanwhile |
-| Windows, enlarging, argmax, label map, union of the classes | GPU | per-pixel work |
-| Hole filling (`cv2.floodFill`), connected objects (`cv2.connectedComponentsWithStats`) | CPU | one pass over the mask, about 1 s; torch has no equivalent |
-| Painting of the figures | GPU, in bands of 1024 rows | blending and outline per pixel |
-| JPEG encoding | CPU threads, one per figure | |
-
-Rules for changes:
-
-- Every config key is validated in `validate_settings` (and its helpers) and documented in `configs/README.md`; a new key is added to
-  both and to a test.
-- `interest_pattern.py` imports no torch (`segmentation` is imported only when a slide is processed), so the contract tests need no GPU.
-- The ROI geometry (section 4) is what Person D and E rely on; a change to it is a contract question, not a code cleanup.
-- The network class in `segmentation.py` must keep the module names of PIPELINE/SEGNET's `SegNet`: the checkpoint is loaded with
-  `strict` key checking.
-
-## 6. Configuration
-
-See [configs/README.md](configs/README.md) for every key.
-
-## 7. Run
+## 1. Quick start
 
 ```bash
+# one case → one E (run it inside a GPU job on a cluster, not on a login node)
 python -m components.person_c.interest_pattern \
   --input  ../run/input/pipeline/case-001.json \
   --output ../run/output/work/E_rois.json \
   --config components/person_c/configs/region_proposal.json
-```
 
-`--input` and `--output` must be below the sibling `run/`, `--config` below `components/person_c/configs/`. On a cluster, run it
-inside a job (one GPU, 8 CPUs; memory in section 9); a real slide is not a job for a login node.
-
-Tests (no GPU, no slide, no checkpoint):
-
-```bash
+# tests (no GPU, no slide, no checkpoint)
 python -m unittest discover -s components/person_c/tests -t . -v
 ```
 
-Container (build from the repository root; `reference/` and `run/` are mounted, not copied into the image). The image was
-written but **has not been built** (no Docker where this was developed). The pipeline starts `wlw/person-c:0.1.0-lab23-production`
-(its own tag, overridable with `WLW_IMAGE_PERSON_C`); build with that tag, or set the variable to the tag built here:
+`--input` and `--output` must be below the sibling `run/`, `--config` below `components/person_c/configs/`. Two configs exist,
+and the pipeline reads both by name (`pipeline/run_pipeline.py`):
+
+| Config | `mode` | What it does |
+|---|---|---|
+| `configs/region_proposal.json` | `region_proposal` | The algorithm below. The pipeline's production profile. |
+| `configs/example.json` | `example` | Opens no slide and makes no ROI. The pipeline's example profile and the contract tests. |
+
+Every key of the config is described in [configs/README.md](configs/README.md). The mode names the *stage* (region proposal), not
+the algorithm.
+
+<details>
+<summary><b>Container</b> (written, <b>not built</b>: there is no Docker where this was developed)</summary>
+
+`reference/` and `run/` are mounted, not copied into the image. The pipeline starts the tag `wlw/person-c:0.1.0-lab23-production`
+(overridable with `WLW_IMAGE_PERSON_C`); build with that tag or set the variable to the tag built here.
 
 ```bash
 docker build -f components/person_c/Dockerfile -t wlw/person-c:0.5.0 .
@@ -212,71 +71,218 @@ docker run --rm --gpus all \
     --config /app/components/person_c/configs/region_proposal.json
 ```
 
-## 8. Environment and assets
+</details>
+
+---
+
+## 2. How it works
+
+```text
+  WSI (H&E)
+    │   tiles of 1792 µm at 1 µm/px, +112 µm of context, read by 6 worker processes
+    ▼
+  ┌──────────────────────────────────────────────────────────────────────────────────────┐
+  │ student      224 px windows, half overlap, cosine² blending       one net   GPU      │
+  │              one probability vector per 4 µm cell, 10 classes (c9)                   │
+  │              enlarged bilinearly to 1 µm/px, then argmax                              │
+  └──────────────────────────────────────────────────────────────────────────────────────┘
+    │  STAGE 1   tissue    class of every pixel (the student labels the glass too: class OTH)
+    ▼
+    │  STAGE 2   epithelium    union of TUM and BEN, every closed hole filled
+    ▼
+    │  STAGE 3   boxes    minimum bounding box of each connected object ≥ 6400 px,
+    ▼                     a box completely inside another box dropped
+  ROI records ──▶ E.ROIs
+```
+
+| Decision | What and why |
+|---|---|
+| **Model** | DeepLab v3+ (ResNet-101, ASPP, decoder to stride 4), 10 classes `TUM BEN STR LYM NEC FAT VES BLD SEC OTH`. Trained in PIPELINE/SEGNET (`Unsup`, spec `c9_224px_1um_sclipcrf_glvq5r2m20-bracs_wsi`, seed 0, step 6000) on unlabeled BRACS slides with the pseudo labels of the SCLIP teacher. **No annotation was used.** |
+| **No foreground step** | The student labels the glass itself, so no tissue detector runs before it. |
+| **1 µm/px** | The network outputs one vector per 4 µm cell. The *probabilities* (not the labels) are enlarged bilinearly before the argmax, so the borders are smooth; everything after works at 1 µm/px. |
+| **Holes** | The student draws the wall of a gland. A ring that is closed is filled, and what lies inside belongs to the ring (no box of its own). A ring that is not closed cannot be filled; there a box completely inside a larger box is dropped. Boxes that only overlap are all kept. |
+| **No dilation** | The mask is used as the student drew it. |
+| **Checkpoint** | `reference/person_c/checkpoint/segnet/c9_sclip_bracs_s0.pt`, pinned by `revision` (SHA-256) in the config and checked before it is loaded. |
+| **Provenance** | E records what produced the ROIs in `payload.reference_versions.interest_pattern`: mode, checkpoint with SHA-256, classes, `postprocess_mpp`, `min_object_size`. |
+
+Only H&E stains are opened (the student was trained on H&E). Every other stain stays in E with `roi_num = 0` and `roi_list = []`.
+
+---
+
+## 3. Coordinates and ROI rules
+
+*Downstream components rely on this section.*
+
+| Topic | Rule |
+|---|---|
+| **Level 0** | The full-resolution image, origin at the upper left, x to the right, y down. `level0_info.xywh = [x, y, w, h]` in level-0 pixels covers `[x, x + w) × [y, y + h)` and always lies inside the slide. `level0_info.mpp = [mpp_x, mpp_y]` is read from the slide; a slide without MPP fails. |
+| **Mask → box** | The epithelium mask is at `postprocess_mpp` (1 µm/px). Each connected object (4-connectivity) of at least `min_object_size` pixels gets its minimum bounding box, lower edge floored and upper edge ceiled after scaling to level 0, clamped to the slide. A box completely inside another box is dropped. |
+| **`main_info`** | The same box in a virtual image resampled to a working MPP chosen from the box area in level-0 pixels²: up to 1, 4, 16, 64, 256, 1024 million → 0.25, 0.5, 1, 2, 4, 8 µm/px; larger → 16. `xywh` is floored / ceiled by the same scaling and clamped; `mpp` is the scalar working MPP; `area = w × h` in the pixels of that record. |
+| **`cxcywh`** | `[cx / W, cy / H, w / W, h / H]` of the image of that record (contract clarification CCR-C-001). |
+| **Identity** | `roi_id = <case_id>-<stain_id>-roi-<16 hex>`, a hash of case, stain and level-0 box. `global_idx` counts the ROIs of the case in stain order, `local_idx` those of the stain. The ROIs of a stain are ordered by (top, left). |
+| **History** | One event per ROI: stage `interest_pattern_extraction`, owner `person_C`, action `candidate_generated`, status `selected`. `DxPair`, `visualAttrs`, `visualAttrs_info` are `null`. |
+| **Crops** | `roi_path` is `null` in both records; downstream components reopen the slide with `filepath` and the box. |
+| **Empty** | A stain without objects gives `roi_num = 0`; a case without any ROI is a valid E. |
+| **Failure** | More than one case in the input, a missing slide, a missing MPP, a missing or wrong checkpoint, no CUDA GPU, a model error, or an E that violates the contract ends with a non-zero exit code and **no E is written**. |
+
+---
+
+## 4. Figures
+
+Optional pictures of the three stages, for whoever checks the segmentation. They are drawn after the boxes are final, so they never
+change the ROIs. All are off by default (`figures` in the config).
+
+| File | Switch | Shows |
+|---|---|---|
+| `<name>_tissue.jpg` | `figures.tissue` | the class map, one colour per class, a black line between classes, a legend |
+| `<name>_epithelium.jpg` | `figures.epithelium` | the epithelium mask the boxes come from, tinted, with a black outline |
+| `<name>_boxes.jpg` | `figures.boxes` | the epithelium as above, and over it the ROI boxes (amber) and, if given, the annotation ROIs (lime) |
+
+`<name>` is the stem of the slide's file name (`BRACS_1228`); the files go to `figures.dir` below `run/output`, whole or not at all.
+
+**Reading the boxes figure**
+
+```text
+   amber, short dashes   the boxes of the method;  the number above the upper left corner is local_idx of the ROI in E (from 0)
+   lime,  long dashes    an annotation ROI (a pixel wider), numbered from 1; the caption gives both counts
+```
+
+- Lines are laid over the slide as a **translucent colour** (70 %) with a translucent dark edge of 1 px, so the slide shows through
+  the line and between the dashes, and the line still stands out on light and on dark tissue.
+- The two colours lie outside the hues of H&E (pink, purple, blue, white); the two sets also differ in rhythm and width, so they
+  stay apart where they overlap.
+- Numbers sit on small dark labels of the same size for every box.
+- `figures.annotations` is a JSON `{stain_id: [[x, y, w, h], …]}` in level-0 pixels. A stain without an entry gets nothing drawn.
+
+**Size.** By default a figure has the resolution of the segmentation, 1 µm/px (a 60 000 × 70 000 px slide gives about
+16 000 × 18 000 px, about 50 MB). `figures.downscale` makes it that many times smaller (`4` → 4 µm/px, 16 times fewer pixels); the
+segmentation and the boxes are unchanged. Colours, line width (2 px) and JPEG quality (90) are fixed.
+
+**Looking at a full-size figure.** It is too large for most viewers and web pages. Open it with a viewer for large images
+(Fiji / ImageJ, IrfanView), or cut an overview and crops where it is — inside a job, because decoding a whole figure needs several GB:
+
+```python
+import cv2
+f = "BRACS_1228_boxes.jpg"
+cv2.imwrite("overview.jpg", cv2.imread(f, cv2.IMREAD_REDUCED_COLOR_8))     # 1/8 of the size: 8 µm/px, about 2000 px
+cv2.imwrite("crop.jpg", cv2.imread(f)[6500:8300, 3800:5800])               # a 2000 × 1800 px window at 1 µm/px (rows, columns)
+```
+
+---
+
+## 5. Code structure
+
+Two program files, each with numbered blocks, and no sub-packages.
+
+```text
+components/person_c/
+├── interest_pattern.py     what the pipeline sees              no torch: the contract tests need no GPU
+│     1 Settings   the config, every key checked here
+│     2 Boxes      epithelium mask → level-0 boxes
+│     3 ROI        level0_info / main_info of a box, roi_id, selection history
+│     4 Case       CaseList → E, one H&E stain after the other
+│     5 CLI
+├── segmentation.py         what the student does               torch, OpenSlide, OpenCV
+│     1 Network    DeepLab v3+ (inference copy of PIPELINE/SEGNET's SegNet)
+│     2 Student    checkpoint check and loading, window prediction
+│     3 Slide      tiles read by worker processes, class map, epithelium mask
+│     4 Figures    the JPEG of a stage
+├── configs/        region_proposal.json  example.json  README.md
+├── examples/       case_list.valid.json  E_rois.expected.json
+├── tests/          test_person_c.py
+└── README.md  PREPARATION.md  component.yaml  external-assets.yaml  requirements.txt  Dockerfile
+```
+
+```text
+interest_pattern.main
+  └─ run(source, config)
+       ├─ validate_settings(config)                        every key checked here, nowhere else
+       ├─ segmentation.load_model(settings)                checkpoint path, SHA-256, classes
+       └─ per H&E stain, per WSI
+            ├─ slide_mpp(slide)
+            ├─ segmentation.infer_stages(path, slide, …)   → tissue, epithelium, classes [, image]
+            ├─ level0_boxes(epithelium, …) → drop_enclosed(boxes)
+            ├─ _make_roi(…)                                level-0 and main_info records
+            └─ segmentation.save_figures(…)                only if a switch is on
+```
+
+| Step | Runs on | Note |
+|---|---|---|
+| Reading tiles | 6 CPU processes (`TileReader`, one slide handle each) | the slowest part; the GPU predicts the previous tile meanwhile |
+| Windows, enlarging, argmax, label map, union of classes | GPU | per-pixel work |
+| Hole filling, connected objects | CPU (OpenCV) | one pass over the mask, about 1 s |
+| Painting of the figures | GPU, in bands of 1024 rows | blending and outline per pixel |
+| JPEG encoding | CPU threads, one per figure | |
+
+**Rules for changes**
+
+- Every config key is validated in `validate_settings` and documented in `configs/README.md`; a new key is added to both and to a test.
+- `interest_pattern.py` never imports torch at module level (`segmentation` is imported only when a slide is processed).
+- The ROI geometry (section 3) is what Person D and E rely on: a change to it is a contract question, not a code cleanup.
+- The network class in `segmentation.py` keeps the module names of PIPELINE/SEGNET's `SegNet`: the checkpoint is loaded with strict key checking.
+
+---
+
+## 6. Environment and performance
 
 | | |
 |---|---|
-| Python | 3.10 in the image (`Dockerfile`); the development runs used 3.12 |
-| WSI library | `openslide-python 1.4.6` (any format OpenSlide reads that carries MPP; SVS was used) |
-| Framework | `torch 2.6.0`, `torchvision 0.21.0` in the image (cu118 wheels); development runs: torch 2.14.0 with CUDA 13.0 |
-| Other | `numpy`, `opencv-python-headless` (`requirements.txt`); `scipy` only for one test (it checks the hole filling against `scipy.ndimage.binary_fill_holes`) |
-| GPU | one; peak GPU memory 1.05 GiB measured during inference (one network, 32 windows per pass) |
+| Python | 3.10 in the image; the development runs used 3.12 |
+| Framework | `torch 2.6.0`, `torchvision 0.21.0` (cu118 wheels) in the image; development runs: torch 2.14.0, CUDA 13.0 |
+| WSI | `openslide-python 1.4.6` (any format OpenSlide reads that carries MPP; SVS was used) |
+| Other | `numpy`, `opencv-python-headless`; `scipy` only in one test |
+| GPU | one; peak memory 1.05 GiB measured during inference (one network, 32 windows per pass) |
 | CPU | 8 (6 tile readers and the main process) |
-| Checkpoint | `reference/person_c/checkpoint/segnet/c9_sclip_bracs_s0.pt`, SHA-256 `b13895d5cf7ca919cb6b78e43931a5e9174f7305573964c3ed1ac5cea5b3e95b`, 238 008 769 bytes |
+| Checkpoint | `reference/person_c/checkpoint/segnet/c9_sclip_bracs_s0.pt`, 238 008 769 bytes, SHA-256 `b13895d5cf7ca919cb6b78e43931a5e9174f7305573964c3ed1ac5cea5b3e95b` |
 
 External assets (the checkpoint, a test slide) are listed with digests in `external-assets.yaml`. Nothing is downloaded at build or
-run time; `reference/` is read-only, everything the component writes goes below `run/`. The CONCH checkpoint and
-`template_ref/bcss_vocab.json` of the previous region proposal are no longer used.
+run time; `reference/` is read-only and everything the component writes goes below `run/`.
 
-## 9. Measured performance
-
-One H200, 8 CPUs, `configs/region_proposal.json`, BRACS slides (SVS, 0.2524 µm/px).
+**Measured** on one H200 with 8 CPUs, BRACS slides (SVS, 0.2524 µm/px), `configs/region_proposal.json`:
 
 | Slide | Run | Time | Peak host memory | ROIs |
 |---|---|---|---|---|
 | BRACS_1003694 | CLI, no figures | 37 s | 7.3 GB | 40 |
-| BRACS_1003691 (61 879 × 70 581 px) | student, label map, hole filling, boxes (model loaded) | 20 s | | 152 |
-| BRACS_1003691 | the same, then three figures | 32 s in all | | 152 |
-| BRACS_1587 (about 22 000 × 33 000 px at 1 µm) | CLI, three figures | 74 s | 15.7 GB | 5 |
-| 9 slides of 0.7 to 2.4 GB | CLI, three figures | 34 to 106 s each | 15.7 GB (largest) | 5 to 203 |
+| BRACS_1003691 (61 879 × 70 581 px) | student, label map, holes, boxes (model loaded) | 20 s | | 152 |
+| BRACS_1003691 | the same plus three figures | 32 s | | 152 |
+| 9 slides of 0.7 to 2.4 GB | CLI, three figures | 32 to 69 s each | 15.7 GB (largest) | 5 to 203 |
 
-The boxes of BRACS_1003691 take 0.5 s on the CPU (the hole filling is not timed separately; it is part of the 20 s above). The first version of this mode took 6 min 2 s
-on BRACS_1003691: the tiles were read at the full-resolution level (a requested 3.96 µm/px is 1 % below the 4.0 of level 1, and
-`get_best_level_for_downsample` then skips it) and in the main loop; they are now read at the right level
-(`segmentation.read_level`, 1 % tolerance) by 6 processes. The memory of a run with figures is mostly the slide image
-and the three figures at 1 µm/px.
+The memory of a run with figures is mostly the slide image and the three figures at 1 µm/px.
 
-## 10. Limits
+---
 
-- **The ROIs are not scored.** The segmentation and the boxes were looked at in the figures of a sample of BRACS slides; no ROI was compared
-  with an annotation by a number. The student's own scores are in PIPELINE/SEGNET, not here.
-- **The student was trained on BRACS slides** (breast). A BRACS slide is therefore not an independent test, and slides from
-  other sites or organs may be segmented worse.
+## 7. Limits and notes
+
+**Limits**
+
+- **The ROIs are not scored.** The segmentation and the boxes were looked at in figures of a sample of BRACS slides; no ROI was compared
+  with an annotation by a number. The student's own scores are in PIPELINE/SEGNET.
+- **The student was trained on BRACS slides** (breast): a BRACS slide is not an independent test, and slides from other sites or
+  organs may be segmented worse.
 - **A box is axis-aligned.** An elongated or diagonal object gets a box that is mostly empty; overlapping boxes of neighbouring
-  objects are kept. A tumour that infiltrates in single cells gives many small boxes. `coords_seg` is `null`.
+  objects are kept; a tumour that infiltrates in single cells gives many small boxes. `coords_seg` is `null`.
 - **A ring that is not closed is not filled**, so a gland whose wall has a gap keeps its lumen outside the mask.
-- **Output is deterministic** for a given checkpoint (an argmax, no sampling); differences between GPU models were not checked.
-- **Slide size.** A figure of a very large slide has more than 2^31 bytes of pixels; the figures are written as BGR for that
-  reason (a conversion copy of such an image gave black files). Slides above about 1 gigapixel at 1 µm/px were not tried.
-- **Not run:** the container image, the full pipeline (the reference assets of Person A and E were not at hand),
-  and Person D / E reading these ROIs.
+- **Deterministic** for a given checkpoint (an argmax, no sampling); differences between GPU models were not checked.
+- **Very large slides.** A figure above 2³¹ bytes of pixels is written in BGR order (an RGB→BGR copy of such an image gave black files).
+  Slides above about 1 gigapixel at 1 µm/px were not tried.
+- **Not run:** the container image, the full pipeline (the reference assets of Person A and E were not at hand), and Person D / E
+  reading these ROIs.
 
-## 11. Notes for the pipeline
+**Notes for the pipeline** — nothing outside `components/person_c/` was changed.
 
-Nothing outside `components/person_c/` was changed. What the pipeline owner may want to know:
-
-- `mode: "region_proposal"` names the stage. In this version the algorithm behind it is SEGNET, not the CONCH proposal that
-  PR #1 delivered. The CONCH code and checkpoint are not needed any more; `pipeline/run_pipeline.py` needs no change.
-- `reference/person_c/checkpoint/segnet/c9_sclip_bracs_s0.pt` must exist in the mounted `reference/` (see `external-assets.yaml`).
+- `mode: "region_proposal"` names the stage. The algorithm behind it is now SEGNET, not the CONCH proposal that PR #1 delivered; the
+  CONCH code and checkpoint are not needed any more, and `pipeline/run_pipeline.py` needs no change.
+- `reference/person_c/checkpoint/segnet/c9_sclip_bracs_s0.pt` must exist in the mounted `reference/`.
 - The pipeline's image tag for C is `wlw/person-c:0.1.0-lab23-production`; this component is `0.5.0`.
-- `payload.reference_versions.interest_pattern` of E changed its content (it recorded the CONCH region settings before).
-- The walk-through in `components/person_d/examples/person_c_integration/README.md` calls `build_region_artifact`, which is
-  PR #1's code (commit `0ad461d`), not this version.
-- The ROIs differ from the earlier ones in number and shape (epithelium objects, not CONCH regions).
+- `payload.reference_versions.interest_pattern` of E has new content (it recorded the CONCH region settings before), and the ROIs
+  differ from the earlier ones in number and shape (epithelium objects, not CONCH regions).
+- `components/person_d/examples/person_c_integration/README.md` calls `build_region_artifact`, which is PR #1's code (commit `0ad461d`).
 
-## 12. Changelog
+---
+
+## 8. Changelog
 
 | Version | Change |
 |---|---|
-| 0.5.0 | The SEGNET student replaces the CONCH region proposal (and the MRCPS segmentation before it; both stay in git history). `mode` replaces `backend`; `configs/region_proposal.json` and `configs/example.json` are the names the pipeline reads. 1 µm/px segmentation (bilinear enlargement before the argmax), GPU per-pixel work, tiles read by worker processes, JPEG figures of the stages and optional annotation ROIs. E records what produced the ROIs in `reference_versions`. |
+| **0.5.0** | The SEGNET student replaces the CONCH region proposal (and the MRCPS segmentation before it; both stay in git history). `mode` replaces `backend`; `configs/region_proposal.json` and `configs/example.json` are the names the pipeline reads. Segmentation at 1 µm/px, per-pixel work on the GPU, tiles read by worker processes, JPEG figures of the stages with optional annotation ROIs, E records its provenance. Two program files. |
 | 0.4.0 | MRCPS extractor and example mode (upstream). |
