@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from copy import deepcopy
 from pathlib import Path
 from typing import Any
@@ -100,8 +101,12 @@ def run(source: dict[str, Any], config: dict[str, Any]) -> dict[str, Any]:
                 raise FileNotFoundError(f"person_c WSI is missing for stain {stain['stain_id']}: {stain['filepath']}")
         if selected_stains:
             model, device = segnet.load_model(settings)
-        if any(settings["figures"][stage] for stage in ("tissue", "epithelium", "boxes")):
+        with_image = any(settings["figures"][stage] for stage in ("tissue", "epithelium", "boxes"))
+        annotations = {}
+        if with_image:
             settings["figures"] = {**settings["figures"], "dir": str(resolve_run_path(settings["figures"]["dir"]))}
+            if settings["figures"]["annotations"]:
+                annotations = json.loads(resolve_run_path(settings["figures"]["annotations"]).read_text(encoding="utf-8"))
 
     global_index = 0
     for stain in iter_stains(payload):
@@ -116,14 +121,15 @@ def run(source: dict[str, Any], config: dict[str, Any]) -> dict[str, Any]:
             try:
                 with openslide.OpenSlide(str(path)) as slide:
                     mpp = wsi.slide_mpp(slide)
-                    stages = segnet.infer_stages(str(path), slide, mpp, settings, model, device)
+                    stages = segnet.infer_stages(str(path), slide, mpp, settings, model, device, with_image=with_image)
                     boxes = wsi.drop_enclosed(wsi.level0_boxes(stages["epithelium"], mpp, slide.dimensions, settings))
                     rois = [
                         _make_roi(case_id, stain["stain_id"], box, slide, mpp,
                                   global_index + index, index, settings)
                         for index, box in enumerate(boxes)
                     ]
-                    figures.save_figures(slide, stages, boxes, settings["figures"], case_id, stain["stain_id"])
+                    figures.save_figures(mpp, settings["postprocess_mpp"], stages, boxes, settings["figures"], case_id, stain["stain_id"], device,
+                                        annotations.get(stain["stain_id"], ()))
             except Exception as exc:
                 raise RuntimeError(f"person_c failed on stain {stain['stain_id']} ({path}): {exc}") from exc
         stain["roi_list"] = rois

@@ -2,12 +2,12 @@
 
 A DeepLab student trained without annotation (PIPELINE/SEGNET, ``Unsup``, pseudo labels of the SCLIP teacher on
 BRACS slides, class set c9) labels the slide; the union of ``roi_classes`` (TUM, BEN) is returned as a boolean
-mask at ``postprocess_mpp``, which ``wsi_processing.level0_boxes`` turns into ROI boxes.
+mask at ``postprocess_mpp`` (1 um/px), which ``wsi_processing.level0_boxes`` turns into ROI boxes.
 
 * The slide is read at the student's 1 um/px in tiles of ``tile_um`` with ``margin_um`` of context on every side;
   the student's windows (224 px, half overlap, cosine-squared blending, ``tta_views`` dihedral views, mean over
   the checkpoints) are those of SEGNET's ``Predictor``.
-* The label of a cell (4 um, the output stride) is the class of the highest probability (argmax over c9).
+* The student outputs one probability vector per 4 um cell; it is enlarged bilinearly to ``postprocess_mpp`` and the label of a pixel is the class of the highest probability (argmax over c9).
 * Heavy imports (torch, openslide, cv2) happen inside the functions so contract tests stay light.
 """
 
@@ -23,20 +23,15 @@ CELL_STRIDE = 4          # output stride of the student: a cell is CELL_STRIDE x
 VIEWS = tuple((k, f) for f in (0, 1) for k in range(4))   # the eight dihedral views of SEGNET's TTA
 
 
-def resample_mask(mask: np.ndarray, shape: tuple[int, int]) -> np.ndarray:
-    """Boolean cell mask -> boolean mask of ``shape`` (rows, cols): a pixel is set when most of its area is set."""
+def fill_holes(mask: np.ndarray) -> np.ndarray:
+    """Fill every hole of the mask, whatever its size: what lies inside a ring belongs to the ring. A hole is a part of the
+    background (4-connectivity) that does not reach the border of the image."""
 
     import cv2
 
-    return cv2.resize(mask.astype(np.float32), (shape[1], shape[0]), interpolation=cv2.INTER_AREA) > 0.5
-
-
-def fill_holes(mask: np.ndarray) -> np.ndarray:
-    """Fill every hole of the mask, whatever its size: what lies inside a ring belongs to the ring."""
-
-    from scipy import ndimage
-
-    return ndimage.binary_fill_holes(mask)
+    img = np.pad(mask.astype(np.uint8), 1)
+    cv2.floodFill(img, None, (0, 0), 2, flags=4)               # the background that reaches the border
+    return img[1:-1, 1:-1] != 2
 
 
 def window_starts(n: int, win: int, step: int) -> list[int]:
@@ -179,37 +174,58 @@ class TileReader:
         return x0, y0, read_um(self.slide, self.mpp0, x0, y0, x1 - x0, y1 - y0, self.mpp)
 
 
-def infer_stages(path: str, slide: Any, mpp0: tuple[float, float], settings: Mapping[str, Any], model: Mapping[str, Any], device: Any) -> dict[str, Any]:
-    """The stages at ``postprocess_mpp`` (shape as ``wsi_processing.mask_shape``):
+def infer_stages(path: str, slide: Any, mpp0: tuple[float, float], settings: Mapping[str, Any], model: Mapping[str, Any], device: Any,
+                 with_image: bool = False) -> dict[str, Any]:
+    """The stages at ``postprocess_mpp``:
     ``tissue`` (stage 1: the multi-class tissue segmentation, the index of the class of every pixel in ``classes``;
     the student itself labels the glass, there is no foreground step) and ``epithelium`` (stage 2: the union of
     ``segnet.roi_classes``, holes filled). The boxes (stage 3) are made from ``epithelium`` by the caller.
-    The tiles are read by ``segnet.num_workers`` processes while the GPU predicts the previous ones."""
+    With ``with_image`` the slide at ``postprocess_mpp`` is returned as ``image`` (RGB) for the figures; the tiles are
+    read for the student anyway, so this costs no second read.
+
+    The class probabilities of the cells (4 um) are enlarged bilinearly to ``postprocess_mpp`` before the argmax, so
+    the borders are smooth. Everything that is a per-pixel operation (enlarging, argmax, the label map, the union of the
+    classes) stays on the GPU; the tiles are read by ``segnet.num_workers`` processes while the GPU predicts the previous ones."""
 
     import cv2
+    import torch
+    import torch.nn.functional as F
     from torch.utils.data import DataLoader
 
     cfg = settings["segnet"]
     classes, mpp = model["classes"], model["mpp"]
-    keep = [classes.index(c) for c in cfg["roi_classes"]]
     tile, margin = cfg["tile_um"], cfg["margin_um"]
     w0, h0 = slide.dimensions
     w_um, h_um = math.ceil(w0 * mpp0[0]), math.ceil(h0 * mpp0[1])
     target = float(settings["postprocess_mpp"])
-    cell = CELL_STRIDE * mpp
+    scale = CELL_STRIDE * mpp / target
     origins = [(tx, ty) for ty in range(0, h_um, tile) for tx in range(0, w_um, tile)]
     boxes = [(max(tx - margin, 0), max(ty - margin, 0), min(tx + tile + margin, w_um), min(ty + tile + margin, h_um)) for tx, ty in origins]
     workers = cfg["num_workers"]
     loader = DataLoader(TileReader(path, mpp0, origins, boxes, mpp), batch_size=None, shuffle=False, num_workers=workers,
                         prefetch_factor=2 if workers else None)
-    labels = np.full((math.ceil(h_um / cell), math.ceil(w_um / cell)), UNLABELED, dtype=np.uint8)
+    shape = (math.ceil(h0 * mpp0[1] / target), math.ceil(w0 * mpp0[0] / target))
+    tissue = torch.full(shape, UNLABELED, dtype=torch.uint8, device=device)
+    image = np.full((*shape, 3), 255, dtype=np.uint8) if with_image else None
+    side = round(tile / target)
     for (tx, ty), (x0, y0, img) in zip(origins, loader):
-        label = predict_cells(img.numpy(), model["nets"], model["window"], device, cfg["tta_views"], cfg["batch_size"]).argmax(0).cpu().numpy().astype(np.uint8)
-        cx, cy = int((tx - int(x0)) / cell), int((ty - int(y0)) / cell)
-        part = label[cy:cy + int(tile / cell), cx:cx + int(tile / cell)]
-        gx, gy = int(tx / cell), int(ty / cell)
-        h, w = labels[gy:gy + part.shape[0], gx:gx + part.shape[1]].shape
-        labels[gy:gy + h, gx:gx + w] = part[:h, :w]
-    out_shape = (math.ceil(h0 * mpp0[1] / target), math.ceil(w0 * mpp0[0] / target))
-    tissue = cv2.resize(labels, (out_shape[1], out_shape[0]), interpolation=cv2.INTER_NEAREST)
-    return {"tissue": tissue, "epithelium": fill_holes(np.isin(tissue, keep)), "classes": classes}
+        probs = predict_cells(img.numpy(), model["nets"], model["window"], device, cfg["tta_views"], cfg["batch_size"])
+        label = F.interpolate(probs[None], scale_factor=scale, mode="bilinear", align_corners=False)[0].argmax(0).to(torch.uint8)
+        cx, cy = round((tx - int(x0)) / target), round((ty - int(y0)) / target)
+        part = label[cy:cy + side, cx:cx + side]
+        gx, gy = round(tx / target), round(ty / target)
+        h, w = tissue[gy:gy + part.shape[0], gx:gx + part.shape[1]].shape
+        tissue[gy:gy + h, gx:gx + w] = part[:h, :w]
+        if with_image:
+            ix, iy, iside = round((tx - int(x0)) / mpp), round((ty - int(y0)) / mpp), round(tile / mpp)
+            crop = img.numpy()[iy:iy + iside, ix:ix + iside]
+            if mpp != target:
+                crop = cv2.resize(crop, (part.shape[1], part.shape[0]), interpolation=cv2.INTER_AREA)
+            image[gy:gy + h, gx:gx + w] = crop[:h, :w]
+    epithelium = torch.zeros_like(tissue, dtype=torch.bool)
+    for name in cfg["roi_classes"]:
+        epithelium |= tissue == classes.index(name)
+    out = {"tissue": tissue.cpu().numpy(), "epithelium": fill_holes(epithelium.cpu().numpy()), "classes": classes}
+    if with_image:
+        out["image"] = image
+    return out

@@ -22,9 +22,8 @@
     "num_workers": 6
   },
   "device": "auto",
-  "postprocess_mpp": 8.0,
-  "hole_area_threshold": 1500,
-  "min_object_size": 100,
+  "postprocess_mpp": 1.0,
+  "min_object_size": 6400,
   "save_roi_png": false,
   "roi_output_dir": "../run/output/materialized/person_c/roi-images",
   "figures": {

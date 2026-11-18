@@ -53,7 +53,6 @@ def validate_settings(config: dict[str, Any]) -> dict[str, Any]:
     result["figures"] = validate_figures(result.get("figures"))
     result["min_object_size"] = integer(result.get("min_object_size"), "min_object_size", 1)
     result["postprocess_mpp"] = positive_number(result.get("postprocess_mpp"), "postprocess_mpp")
-    result["hole_area_threshold"] = integer(result.get("hole_area_threshold"), "hole_area_threshold")
     if result.get("device", "auto") not in {"auto", "cpu", "cuda"}:
         raise ValueError("person_c device must be auto, cpu, or cuda")
     result["device"] = result.get("device", "auto")
@@ -95,10 +94,12 @@ def validate_figures(cfg: Any) -> dict[str, Any]:
     """``figures``: one switch per stage (tissue, epithelium, boxes) and the directory below sibling ``run/output``."""
 
     if cfg is None:
-        return {"dir": None, "tissue": False, "epithelium": False, "boxes": False}
+        return {"dir": None, "annotations": None, "tissue": False, "epithelium": False, "boxes": False}
     if not isinstance(cfg, dict):
         raise ValueError("person_c figures must be an object")
-    result = {"dir": cfg.get("dir")}
+    result = {"dir": cfg.get("dir"), "annotations": cfg.get("annotations")}
+    if result["annotations"] is not None and not (isinstance(result["annotations"], str) and result["annotations"]):
+        raise ValueError("person_c figures.annotations must be a path or absent")
     for stage in ("tissue", "epithelium", "boxes"):
         if not isinstance(cfg.get(stage, False), bool):
             raise ValueError(f"person_c figures.{stage} must be boolean")
@@ -128,22 +129,22 @@ def read_level(slide: Any, mpp: tuple[float, float], target_mpp: float) -> int:
 
 
 def level0_boxes(mask: Any, mpp: tuple[float, float], size: tuple[int, int], settings: dict[str, Any]) -> list[list[int]]:
-    from scipy import ndimage
-    from skimage.morphology import dilation, disk, remove_small_holes, remove_small_objects
+    """Level-0 ``[x, y, w, h]`` boxes of the connected objects (4-connectivity) of ``mask`` (boolean, at
+    ``postprocess_mpp``): objects of fewer than ``min_object_size`` pixels get no box, and each box is the minimum
+    bounding box, floored / ceiled to level 0 and clamped to the slide."""
 
-    clean = remove_small_holes(mask, area_threshold=settings["hole_area_threshold"])
-    clean = dilation(clean, disk(1))
-    clean = remove_small_objects(clean, min_size=settings["min_object_size"])
-    labeled, _ = ndimage.label(clean)
+    import cv2
+    import numpy as np
+
     target = settings["postprocess_mpp"]
+    _, _, stats, _ = cv2.connectedComponentsWithStats(mask.astype(np.uint8), connectivity=4)
     width, height = size
     boxes = []
-    for slices in ndimage.find_objects(labeled):
-        if slices is None:
+    for left, top, w, h, area in stats[1:]:                  # row 0 is the background
+        if area < settings["min_object_size"]:
             continue
-        ys, xs = slices
-        x0, y0 = max(0, min(width, floor(xs.start*target/mpp[0]))), max(0, min(height, floor(ys.start*target/mpp[1])))
-        x1, y1 = max(0, min(width, ceil(xs.stop*target/mpp[0]))), max(0, min(height, ceil(ys.stop*target/mpp[1])))
+        x0, y0 = max(0, min(width, floor(left*target/mpp[0]))), max(0, min(height, floor(top*target/mpp[1])))
+        x1, y1 = max(0, min(width, ceil((left+w)*target/mpp[0]))), max(0, min(height, ceil((top+h)*target/mpp[1])))
         if x1 > x0 and y1 > y0:
             boxes.append([x0, y0, x1-x0, y1-y0])
     return boxes

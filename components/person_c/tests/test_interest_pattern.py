@@ -44,7 +44,7 @@ def _config(save_png: bool = False, output_dir: str = "") -> dict:
             "checkpoints": [{"path": "../reference/person_c/checkpoint/segnet/missing-test.pt", "revision": "sha256:" + "0" * 64}],
             "roi_classes": ["TUM", "BEN"], "tile_um": 1792, "margin_um": 112, "tta_views": 1, "batch_size": 1, "num_workers": 0,
         },
-        "device": "cpu", "postprocess_mpp": 8, "hole_area_threshold": 0,
+        "device": "cpu", "postprocess_mpp": 8,
         "min_object_size": 1, "save_roi_png": save_png,
         "roi_output_dir": output_dir,
     }
@@ -89,7 +89,7 @@ class InterestPatternTest(TestCase):
             self.assertEqual([], er["roi_list"])
             self.assertEqual("/missing-er.svs", er["filepath"])
             roi = he["roi_list"][0]
-            self.assertEqual([8, 0, 48, 40], roi["level0_info"]["xywh"])
+            self.assertEqual([16, 8, 32, 24], roi["level0_info"]["xywh"])
             self.assertEqual([1.0, 1.0], roi["level0_info"]["mpp"])
             self.assertTrue(all(0 <= value <= 1 for value in roi["level0_info"]["cxcywh"]))
             self.assertIsNone(roi["main_info"]["roi_path"])

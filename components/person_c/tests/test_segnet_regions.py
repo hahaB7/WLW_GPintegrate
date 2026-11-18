@@ -8,7 +8,7 @@ import numpy as np
 
 from components.person_c import wsi_processing as wsi
 from components.person_c.region import figures
-from components.person_c.region.segnet import fill_holes, resample_mask, window_starts
+from components.person_c.region.segnet import fill_holes, window_starts
 
 CONFIG = Path(__file__).resolve().parents[1] / "configs" / "default.json"
 
@@ -62,28 +62,49 @@ class FigureTests(unittest.TestCase):
             wsi.validate_figures({"dir": "x", "tissue": "yes"})
         with self.assertRaises(ValueError):
             wsi.validate_figures({"boxes": True})                  # a switch on needs a directory
+        with self.assertRaises(ValueError):
+            wsi.validate_figures({"dir": "x", "annotations": 3})
+        self.assertIsNone(wsi.validate_figures({"dir": "x"})["annotations"])
 
-    def test_only_the_switched_stages_are_written(self) -> None:
+    def test_only_the_switched_stages_are_written_at_the_size_of_the_stages(self) -> None:
         import tempfile
 
-        class Slide:
-            dimensions = (4000, 3000)
+        import cv2
 
-            def get_thumbnail(self, size):
-                from PIL import Image
-                return Image.new("RGB", (1000, 750), (240, 200, 220))
-
-        labels = np.full((30, 40), 255, dtype=np.uint8)
-        labels[5:25, 5:20] = 0
-        labels[5:25, 20:35] = 2
-        stages = {"tissue": labels, "epithelium": labels == 0, "classes": ["TUM", "BEN", "STR"]}
+        labels = np.full((3000, 4000), 255, dtype=np.uint8)           # 1 um/px: a 4 mm x 3 mm slide
+        labels[500:2500, 500:2000] = 0
+        labels[500:2500, 2000:3500] = 2
+        stages = {"tissue": labels, "epithelium": labels == 0, "classes": ["TUM", "BEN", "STR"],
+                  "image": np.full((3000, 4000, 3), 235, dtype=np.uint8)}
         with tempfile.TemporaryDirectory() as tmp:
-            paths = figures.save_figures(Slide(), stages, [[800, 600, 400, 300]],
-                                         {"dir": tmp, "tissue": True, "epithelium": False, "boxes": True}, "c1", "s1")
+            paths = figures.save_figures((1.0, 1.0), 1.0, stages, [[800, 600, 400, 300]],
+                                         {"dir": tmp, "tissue": True, "epithelium": False, "boxes": True}, "c1", "s1", "cpu")
             names = sorted(Path(p).name for p in paths)
-            self.assertEqual(["c1_s1_boxes.png", "c1_s1_tissue.png"], names)
+            self.assertEqual(["c1_s1_boxes.jpg", "c1_s1_tissue.jpg"], names)
             self.assertEqual(names, sorted(p.name for p in Path(tmp).iterdir()))
-            self.assertEqual([], figures.save_figures(Slide(), stages, [], {"dir": tmp}, "c1", "s2"))
+            image = cv2.imread(str(Path(tmp) / "c1_s1_boxes.jpg"))
+            self.assertEqual((3000, 4000, 3), image.shape)
+            self.assertGreater(int(image[600, 1000, 2]), 200)          # the top edge of the box is red (BGR channel 2)
+            self.assertLess(int(image[600, 1000, 0]), 60)
+            self.assertEqual([], figures.save_figures((1.0, 1.0), 1.0, stages, [], {"dir": tmp}, "c1", "s2", "cpu"))
+
+    def test_annotation_rois_are_green_and_only_drawn_when_there_are_some(self) -> None:
+        import tempfile
+
+        import cv2
+
+        stages = {"tissue": np.full((600, 800), 255, dtype=np.uint8), "epithelium": np.zeros((600, 800), dtype=bool),
+                  "classes": ["TUM"], "image": np.full((600, 800, 3), 235, dtype=np.uint8)}
+        switches = {"boxes": True}
+        with tempfile.TemporaryDirectory() as tmp:
+            switches["dir"] = tmp
+            figures.save_figures((1.0, 1.0), 1.0, stages, [], switches, "c", "with", "cpu", [[100, 100, 200, 150]])
+            figures.save_figures((1.0, 1.0), 1.0, stages, [], switches, "c", "without", "cpu")
+            with_ann = cv2.imread(str(Path(tmp) / "c_with_boxes.jpg"))
+            without = cv2.imread(str(Path(tmp) / "c_without_boxes.jpg"))
+            pixel = with_ann[100, 200]                                    # the top edge of the annotation (BGR)
+            self.assertTrue(pixel[1] > 120 and pixel[0] < 60 and pixel[2] < 60)
+            self.assertLess(int(np.abs(without[100, 200].astype(int) - 235).max()), 12)   # nothing there without it
 
 
 class EnclosedTests(unittest.TestCase):
@@ -107,22 +128,26 @@ class HoleTests(unittest.TestCase):
 
 
 class MaskTests(unittest.TestCase):
-    def test_resample_keeps_the_region_and_the_requested_shape(self) -> None:
-        cells = np.zeros((100, 100), dtype=bool)      # 4 um cells
-        cells[20:60, 10:50] = True
-        out = resample_mask(cells, (50, 50))          # 8 um pixels
-        self.assertEqual((50, 50), out.shape)
-        self.assertTrue(out[10:30, 5:25].all())
-        self.assertFalse(out[:9].any() or out[31:].any())
+    def test_fill_holes_equals_scipy_on_random_masks(self) -> None:
+        from scipy import ndimage
 
-    def test_resample_drops_a_half_covered_pixel_edge_case(self) -> None:
-        cells = np.zeros((4, 4), dtype=bool)
-        cells[0, 0] = True                            # one cell of four of its pixel
-        self.assertFalse(resample_mask(cells, (2, 2)).any())
+        rng = np.random.default_rng(0)
+        for density in (0.3, 0.5, 0.6, 0.7):
+            mask = rng.random((200, 300)) < density
+            self.assertTrue(np.array_equal(fill_holes(mask), ndimage.binary_fill_holes(mask)))
 
     def test_window_starts_cover_the_axis(self) -> None:
         self.assertEqual([0, 112, 224, 300], window_starts(524, 224, 112))
         self.assertEqual([0], window_starts(100, 224, 112))
+
+    def test_boxes_follow_the_mask_in_level0_pixels(self) -> None:
+        settings = {"postprocess_mpp": 1.0, "min_object_size": 100}
+        mask = np.zeros((400, 600), dtype=bool)
+        mask[100:150, 100:200] = True
+        mask[100:150, 201:300] = True                  # one pixel apart: two objects
+        mask[300:305, 50:55] = True                    # 25 px: below min_object_size
+        boxes = wsi.level0_boxes(mask, (0.5, 0.5), (1200, 800), settings)
+        self.assertEqual([[200, 200, 200, 100], [402, 200, 198, 100]], boxes)   # um x 0.5 -> level-0 px: x 2 per um
 
 
 if __name__ == "__main__":
