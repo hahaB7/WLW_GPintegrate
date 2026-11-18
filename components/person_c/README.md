@@ -138,15 +138,22 @@ change the ROIs. All are off by default (`figures` in the config).
 | `<name>_epithelium.jpg` | `figures.epithelium` | the epithelium mask the boxes come from, tinted, with a black outline |
 | `<name>_boxes.jpg` | `figures.boxes` | the epithelium as above, and over it the ROI boxes (amber) and, if given, the annotation ROIs (lime) |
 
-`<name>` is the stem of the slide's file name (`BRACS_1228`); the files go to `figures.dir` below `run/output`, whole or not at all.
+`<name>` is the stem of the slide's file name (`BRACS_1003691`); the files go to `figures.dir` below `run/output`, whole or not at all.
 
-**Example** — a 1000 × 800 µm window of BRACS_1228 (full figures are about 50 MB each; here the upper left corner of the window is at (11 400, 1 400) of the 1 µm/px figure):
+**Example** — a 1000 × 800 µm window of BRACS_1003691 (the full figures are about 50 MB each; the upper left corner of the window is at (4 300, 7 500) of the 1 µm/px figure):
 
-<table><tr>
-<td><img src="docs/BRACS_1228_tissue.jpg" width="330"><br><sub><b>tissue</b> · TUM red, BEN orange, STR green, SEC pink, OTH dark (glass and lumen)</sub></td>
-<td><img src="docs/BRACS_1228_epithelium.jpg" width="330"><br><sub><b>epithelium</b> · TUM ∪ BEN, holes filled</sub></td>
-<td><img src="docs/BRACS_1228_boxes.jpg" width="330"><br><sub><b>boxes</b> · amber: ROIs of the method, lime: annotation ROIs</sub></td>
-</tr></table>
+<table>
+<tr>
+<td valign="top"><img src="docs/BRACS_1003691_tissue.jpg" width="330"></td>
+<td valign="top"><img src="docs/BRACS_1003691_epithelium.jpg" width="330"></td>
+<td valign="top"><img src="docs/BRACS_1003691_boxes.jpg" width="330"></td>
+</tr>
+<tr>
+<td valign="top"><b>tissue</b><br><sub>TUM red, BEN orange, STR green, SEC pink, FAT cyan, VES purple, OTH dark (glass, lumen)</sub></td>
+<td valign="top"><b>epithelium</b><br><sub>TUM ∪ BEN, holes filled</sub></td>
+<td valign="top"><b>boxes</b><br><sub>the ROIs of the method, numbered by <code>local_idx</code></sub></td>
+</tr>
+</table>
 
 **Reading the boxes figure**
 
@@ -173,7 +180,7 @@ segmentation and the boxes are unchanged. Colours, line width (2 px) and JPEG qu
 
 ```python
 import cv2
-f = "BRACS_1228_boxes.jpg"
+f = "BRACS_1003691_boxes.jpg"
 # 1/8 of the size: 8 µm/px, about 2000 px
 cv2.imwrite("overview.jpg", cv2.imread(f, cv2.IMREAD_REDUCED_COLOR_8))
 # a 2000 × 1800 px window at 1 µm/px (rows, columns)
