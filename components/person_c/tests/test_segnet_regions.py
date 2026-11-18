@@ -88,6 +88,30 @@ class FigureTests(unittest.TestCase):
             self.assertLess(int(image[600, 1000, 0]), 60)
             self.assertEqual([], figures.save_figures((1.0, 1.0), 1.0, stages, [], {"dir": tmp}, "c1", "s2", "cpu"))
 
+    def test_figure_options_downscale_colour_and_validation(self) -> None:
+        import tempfile
+
+        import cv2
+
+        labels = np.full((3001, 4003), 255, dtype=np.uint8)           # sizes that are not multiples of the downscale
+        labels[500:2500, 500:2000] = 0
+        stages = {"tissue": labels, "epithelium": labels == 0, "classes": ["TUM", "BEN"],
+                  "image": np.full((3001, 4003, 3), 235, dtype=np.uint8)}
+        config = wsi.validate_figures({"dir": "x", "boxes": True, "downscale": 4, "quality": 70, "box_color": [0, 0, 255],
+                                       "box_thickness": 5, "alpha": {"boxes": 0.0}})
+        with tempfile.TemporaryDirectory() as tmp:
+            config["dir"] = tmp
+            figures.save_figures((1.0, 1.0), 1.0, stages, [[800, 600, 400, 300]], config, "c", "s", "cpu")
+            image = cv2.imread(str(Path(tmp) / "c_s_boxes.jpg"))
+            self.assertEqual((751, 1001, 3), image.shape)                # 4 um/px
+            self.assertGreater(int(image[150, 250, 0]), 200)             # the box (800, 600) -> (200, 150) is blue now
+            self.assertLess(int(image[150, 250, 2]), 80)
+            self.assertGreater(int(image[300, 300, 2]), 200)             # alpha 0: the epithelium is not tinted
+        for bad in ({"downscale": 0}, {"quality": 101}, {"alpha": {"tissue": 2}}, {"alpha": {"x": 0.5}},
+                    {"class_colors": {"TUM": [1, 2]}}, {"box_color": "red"}):
+            with self.assertRaises(ValueError):
+                wsi.validate_figures({"dir": "x", **bad})
+
     def test_annotation_rois_are_green_and_only_drawn_when_there_are_some(self) -> None:
         import tempfile
 

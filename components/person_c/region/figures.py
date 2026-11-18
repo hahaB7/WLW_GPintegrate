@@ -27,7 +27,8 @@ QUALITY = 90                                 # JPEG quality: clear to the eye, a
 ALPHA = {"tissue": 0.6, "epithelium": 0.55, "boxes": 0.3}
 
 
-def paint(stage: str, band: np.ndarray, labels: np.ndarray, epithelium: np.ndarray, classes: Sequence[str], device: Any) -> np.ndarray:
+def paint(stage: str, band: np.ndarray, labels: np.ndarray, epithelium: np.ndarray, classes: Sequence[str], device: Any,
+          alpha: float | None = None, colors: Mapping[str, Sequence[int]] | None = None) -> np.ndarray:
     """The stage drawn on a band of the slide (uint8 RGB, rows of the stage arrays) -> the painted band, as BGR. On the GPU."""
 
     import torch
@@ -39,11 +40,11 @@ def paint(stage: str, band: np.ndarray, labels: np.ndarray, epithelium: np.ndarr
         lab = torch.from_numpy(labels).to(device)
         lut = torch.zeros((256, 3), dtype=torch.float32, device=device)
         for index, name in enumerate(classes):
-            lut[index] = torch.tensor(CLASS_COLORS.get(name, (128, 128, 128)), dtype=torch.float32)
+            lut[index] = torch.tensor((colors or {}).get(name) or CLASS_COLORS.get(name, (128, 128, 128)), dtype=torch.float32)
         color, mask = lut[lab.long()], lab != UNLABELED
     else:
         color, mask = torch.tensor(EPITHELIUM, dtype=torch.float32, device=device), epi
-    alpha = ALPHA[stage]
+    alpha = ALPHA[stage] if alpha is None else alpha
     mixed = ((1 - alpha) * image.float() + alpha * color).to(torch.uint8)
     image = torch.where(mask[..., None], mixed, image)
     if stage == "epithelium":                                   # a black line of about 3 px along the border
@@ -52,12 +53,13 @@ def paint(stage: str, band: np.ndarray, labels: np.ndarray, epithelium: np.ndarr
     return image.flip(-1).cpu().numpy()                        # BGR, the order OpenCV draws and writes in
 
 
-def legend(image: np.ndarray, classes: Sequence[str], present: Sequence[bool], unit: float) -> None:
+def legend(image: np.ndarray, classes: Sequence[str], present: Sequence[bool], unit: float,
+           colors: Mapping[str, Sequence[int]] | None = None) -> None:
     import cv2
 
     names = [name for name, here in zip(classes, present) if here]
     for row, name in enumerate(names):
-        y, color = int((60 + row * 34) * unit), CLASS_COLORS.get(name, (128, 128, 128))[::-1]
+        y, color = int((60 + row * 34) * unit), tuple((colors or {}).get(name) or CLASS_COLORS.get(name, (128, 128, 128)))[::-1]
         cv2.rectangle(image, (int(12 * unit), y), (int(40 * unit), y + int(24 * unit)), color, -1)
         cv2.rectangle(image, (int(12 * unit), y), (int(40 * unit), y + int(24 * unit)), (0, 0, 0), max(1, int(unit)))
         cv2.putText(image, name, (int(50 * unit), y + int(20 * unit)), cv2.FONT_HERSHEY_SIMPLEX, 0.8 * unit, (0, 0, 0), max(1, int(2 * unit)))
@@ -81,14 +83,14 @@ def draw_boxes(image: np.ndarray, boxes: Sequence[Sequence[int]], mpp0: tuple[fl
                       (round((x + w) * mpp0[0] / mpp), round((y + h) * mpp0[1] / mpp)), color, thickness)
 
 
-def write_jpeg(image: np.ndarray, path: Path) -> str:
+def write_jpeg(image: np.ndarray, path: Path, quality: int = QUALITY) -> str:
     """Atomic: the file appears whole or not at all."""
 
     import cv2
 
     temp = path.with_name(path.stem + ".tmp.jpg")
     try:
-        if not cv2.imwrite(str(temp), image, [cv2.IMWRITE_JPEG_QUALITY, QUALITY]):
+        if not cv2.imwrite(str(temp), image, [cv2.IMWRITE_JPEG_QUALITY, quality]):
             raise OSError(f"could not write {temp}")
         temp.replace(path)
     finally:
@@ -100,34 +102,49 @@ def save_figures(mpp0: tuple[float, float], mpp: float, stages: Mapping[str, Any
                  figures: Mapping[str, Any], case_id: str, stain_id: str, device: Any, annotations: Sequence[Sequence[int]] = ()) -> list[str]:
     """Write the JPEGs whose switch is on; return their paths.
 
+    Optional keys of ``figures`` (all validated in ``wsi_processing.validate_figures``): ``downscale`` (integer, the figure is that
+    many times smaller than the stages), ``quality`` (JPEG), ``alpha`` (per stage), ``class_colors`` (RGB per class),
+    ``box_color`` / ``annotation_color`` (BGR) and ``box_thickness`` (px).
+
     ``stages`` are the arrays of ``segnet.infer_stages(..., with_image=True)`` (at ``mpp`` um/px), ``mpp0`` the level-0 MPP of
     the slide. ``annotations`` are level-0 ``[x, y, w, h]`` ROIs of an annotation, if there is one: they are drawn in green
     on the ``boxes`` figure (nothing is drawn, and no legend added, when there are none). The painting is done on ``device`` in bands of rows, the files are encoded in parallel."""
 
     from concurrent.futures import ThreadPoolExecutor
 
+    import cv2
+
     wanted = [stage for stage in STAGES if figures.get(stage)]
     if not wanted:
         return []
     labels, epithelium, slide_image = stages["tissue"], stages["epithelium"], stages["image"]
     rows, cols = epithelium.shape
-    images = {stage: np.empty((rows, cols, 3), dtype=np.uint8) for stage in wanted}
+    step = figures.get("downscale", 1)                        # the figure is ``step`` times smaller than the stages
+    out_rows, out_cols = -(-rows // step), -(-cols // step)
+    fig_mpp = mpp * step
+    images = {stage: np.empty((out_rows, out_cols, 3), dtype=np.uint8) for stage in wanted}
     counts = np.zeros(256, dtype=np.int64)
-    for r0 in range(0, rows, BAND):
-        r1, e0, e1 = min(rows, r0 + BAND), max(0, r0 - 4), min(rows, r0 + BAND + 4)       # the extra rows keep the outline whole
+    band_rows = BAND - BAND % step                            # whole steps per band, so the bands join without a seam
+    for r0 in range(0, rows, band_rows):
+        r1, e0, e1 = min(rows, r0 + band_rows), max(0, r0 - 4), min(rows, r0 + band_rows + 4)   # the extra rows keep the outline whole
         counts += np.bincount(labels[r0:r1].ravel(), minlength=256)
         for stage in wanted:
-            band = paint(stage, slide_image[e0:e1], labels[e0:e1], epithelium[e0:e1], stages["classes"], device)
-            images[stage][r0:r1] = band[r0 - e0:r1 - e0]
-    unit = cols / 1600                                      # sizes of text and lines are those of a 1600 px wide image
+            band = paint(stage, slide_image[e0:e1], labels[e0:e1], epithelium[e0:e1], stages["classes"], device,
+                         figures.get("alpha", {}).get(stage), figures.get("class_colors"))[r0 - e0:r1 - e0]
+            if step > 1:
+                band = cv2.resize(band, (out_cols, -(-(r1 - r0) // step)), interpolation=cv2.INTER_AREA)
+            images[stage][r0 // step:r0 // step + band.shape[0]] = band
+    unit = out_cols / 1600                                  # sizes of text and lines are those of a 1600 px wide image
+    thickness = figures.get("box_thickness") or max(2, int(2 * unit))
     directory = Path(figures["dir"])
     directory.mkdir(parents=True, exist_ok=True)
     for stage in wanted:
         if stage == "boxes":
-            draw_boxes(images[stage], boxes, mpp0, mpp, max(2, int(2 * unit)))
-            draw_boxes(images[stage], annotations, mpp0, mpp, max(2, int(2 * unit)), ANNOTATION)
+            draw_boxes(images[stage], boxes, mpp0, fig_mpp, thickness, figures.get("box_color", BOX))
+            draw_boxes(images[stage], annotations, mpp0, fig_mpp, thickness, figures.get("annotation_color", ANNOTATION))
         if stage == "tissue":
-            legend(images[stage], stages["classes"], counts[:len(stages["classes"])] > 0, unit)
+            legend(images[stage], stages["classes"], counts[:len(stages["classes"])] > 0, unit, figures.get("class_colors"))
         caption(images[stage], f"{stain_id} {stage}" + (f" ({len(boxes)}" + (f", annotation {len(annotations)}" if len(annotations) else "") + ")" if stage == "boxes" else ""), unit)
+    quality = figures.get("quality", QUALITY)
     with ThreadPoolExecutor(len(wanted)) as pool:
-        return list(pool.map(lambda stage: write_jpeg(images[stage], directory / f"{case_id}_{stain_id}_{stage}.jpg"), wanted))
+        return list(pool.map(lambda stage: write_jpeg(images[stage], directory / f"{case_id}_{stain_id}_{stage}.jpg", quality), wanted))

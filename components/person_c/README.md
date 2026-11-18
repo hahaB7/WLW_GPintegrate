@@ -51,7 +51,9 @@ opened. Every other stain stays in E with `roi_num = 0` and `roi_list = []`.
   to `figures.dir` below `run/output`, as `<case_id>_<stain_id>_<stage>.jpg`, at 1 µm/px (a 60 000 × 70 000 px slide gives about
   16 000 × 18 000 px, about 50 MB): the class map with a legend, the epithelium mask with its outline, and the boxes (red) over
   it. If `figures.annotations` points to a JSON `{stain_id: [[x, y, w, h], ...]}` (level-0 pixels) the annotation ROIs of the
-  stain are drawn in green on the boxes figure; without an entry nothing is drawn. A file appears whole or not at all.
+  stain are drawn in green on the boxes figure; without an entry nothing is drawn. The look is configurable (`figures.downscale`,
+  `quality`, `alpha`, `class_colors`, `box_color`, `box_thickness`; `configs/README.md`): `downscale: 4` gives a 4 µm/px figure
+  that most viewers open. A file appears whole or not at all.
 - **Looking at a figure.** A figure is too large for most viewers and for a web page (hundreds of megapixels). Two ways:
   copy it to a computer (`scp`) and open it with a viewer that handles large images (for example Fiji / ImageJ, IrfanView or an
   image editor), or make a small overview and crops where it is, with OpenCV (a reduced decode is fast and takes little memory):
