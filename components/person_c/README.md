@@ -61,7 +61,7 @@ change the ROIs. All are off by default; every key is in [configs/README.md](con
 |---|---|---|
 | `tissue` | `figures.tissue` | the class map, one colour per class, with a legend |
 | `epithelium` | `figures.epithelium` | the epithelium mask the boxes come from, with its outline |
-| `boxes` | `figures.boxes` | the ROI boxes (amber) over the epithelium; the caption gives their number |
+| `boxes` | `figures.boxes` | the ROI boxes (amber) over the epithelium, drawn as in the `epithelium` figure (tint and black outline); the caption gives their number |
 
 - **File.** One JPEG per WSI and stage, `<figures.dir>/<name>_<stage>.jpg`, `name` being the stem of the slide's file name (`BRACS_1228_boxes.jpg`), below `run/output`. A file appears
   whole or not at all.
@@ -74,7 +74,7 @@ change the ROIs. All are off by default; every key is in [configs/README.md](con
   purple, blue, white): **amber** for the boxes of the method (short dashes), **lime** for an annotation (a pixel wider, long
   dashes), so the two stay apart where they overlap. Each box has its number on a small dark label above its upper left corner, the
   same size for every box: for the boxes of the method it is `local_idx` of the ROI in E (from 0), so a box in the figure is found
-  in the JSON; annotations are numbered from 1 and counted in the caption. The epithelium tint of the stage is kept.
+  in the JSON; annotations are numbered from 1 and counted in the caption. The epithelium (tint and black outline) is the same as in the `epithelium` figure.
 - **Annotations.** If `figures.annotations` points to a JSON `{stain_id: [[x, y, w, h], ...]}` (level-0 pixels), the annotation ROIs
   of that stain are drawn on the boxes figure as above. Without an entry nothing is drawn.
 

@@ -27,7 +27,7 @@ UNLABELED = 255
 BOX_THICKNESS = 2                            # px of the figure (a dark edge of 1 px is added on each side)
 BAND = 1024                                  # rows per band
 QUALITY = 90                                 # JPEG quality: clear to the eye, a tenth of the size of a PNG
-ALPHA = {"tissue": 0.6, "epithelium": 0.55, "boxes": 0.3}
+ALPHA = {"tissue": 0.6, "epithelium": 0.55, "boxes": 0.55}      # the boxes figure has the look of the epithelium figure
 
 
 def paint(stage: str, band: np.ndarray, labels: np.ndarray, epithelium: np.ndarray, classes: Sequence[str], device: Any) -> np.ndarray:
@@ -49,7 +49,7 @@ def paint(stage: str, band: np.ndarray, labels: np.ndarray, epithelium: np.ndarr
     alpha = ALPHA[stage]
     mixed = ((1 - alpha) * image.float() + alpha * color).to(torch.uint8)
     image = torch.where(mask[..., None], mixed, image)
-    if stage == "epithelium":                                   # a black line of about 3 px along the border
+    if stage in ("epithelium", "boxes"):                        # a black line of about 3 px along the border
         inner = -F.max_pool2d(-epi[None, None].float(), 7, 1, 3)[0, 0] > 0.5
         image = torch.where((epi & ~inner)[..., None], torch.zeros_like(image), image)
     return image.flip(-1).cpu().numpy()                        # BGR, the order OpenCV draws and writes in
