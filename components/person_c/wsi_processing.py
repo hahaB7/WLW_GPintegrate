@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from hashlib import sha256
 from math import ceil, floor, isfinite
-from pathlib import Path
 from typing import Any
 
 
@@ -33,31 +32,12 @@ def validate_settings(config: dict[str, Any]) -> dict[str, Any]:
     if mode not in {"example", "region_proposal"}:
         raise ValueError("person_c mode must be example or region_proposal")
     result = {**config, "mode": mode}
-    whitelist = result.get("stain_type_whitelist", ["HE"])
-    if (
-        not isinstance(whitelist, list)
-        or not whitelist
-        or any(not isinstance(value, str) or not value.strip() for value in whitelist)
-    ):
-        raise ValueError("person_c stain_type_whitelist must be a non-empty string list")
-    normalized_whitelist = [value.strip().upper() for value in whitelist]
-    if len(normalized_whitelist) != len(set(normalized_whitelist)):
-        raise ValueError("person_c stain_type_whitelist contains duplicates")
-    result["stain_type_whitelist"] = normalized_whitelist
     if mode == "example":                                  # no slide is opened and no ROI is made
         return result
     result["segnet"] = validate_segnet(result.get("segnet"))
     result["figures"] = validate_figures(result.get("figures"))
     result["min_object_size"] = integer(result.get("min_object_size"), "min_object_size", 1)
     result["postprocess_mpp"] = positive_number(result.get("postprocess_mpp"), "postprocess_mpp")
-    if result.get("device", "auto") not in {"auto", "cpu", "cuda"}:
-        raise ValueError("person_c device must be auto, cpu, or cuda")
-    result["device"] = result.get("device", "auto")
-    if not isinstance(result.get("save_roi_png", False), bool):
-        raise ValueError("person_c save_roi_png must be boolean")
-    result["save_roi_png"] = result.get("save_roi_png", False)
-    if result["save_roi_png"] and not result.get("roi_output_dir"):
-        raise ValueError("person_c roi_output_dir is required when save_roi_png is true")
     return result
 
 
@@ -71,14 +51,7 @@ def validate_segnet(cfg: Any) -> dict[str, Any]:
     classes = cfg.get("roi_classes")
     if not isinstance(classes, list) or not classes or any(not isinstance(c, str) or not c for c in classes):
         raise ValueError("person_c segnet.roi_classes must be a non-empty string list")
-    result = {**cfg}
-    for name in ("tile_um", "margin_um"):
-        result[name] = integer(cfg.get(name), f"segnet.{name}", 4)
-        if result[name] % 4:
-            raise ValueError(f"person_c segnet.{name} must be a multiple of 4")
-    result["batch_size"] = integer(cfg.get("batch_size"), "segnet.batch_size", 1)
-    result["num_workers"] = integer(cfg.get("num_workers"), "segnet.num_workers", 0)
-    return result
+    return {"checkpoint": checkpoint, "roi_classes": classes}
 
 
 def _bounded_int(value: Any, low: int, high: int, name: str) -> int:
@@ -102,9 +75,6 @@ def validate_figures(cfg: Any) -> dict[str, Any]:
             raise ValueError(f"person_c figures.{stage} must be boolean")
         result[stage] = cfg.get(stage, False)
     result["downscale"] = _bounded_int(cfg.get("downscale", 1), 1, 64, "figures.downscale")
-    result["quality"] = _bounded_int(cfg.get("quality", 90), 1, 100, "figures.quality")
-    thickness = cfg.get("box_thickness")
-    result["box_thickness"] = None if thickness is None else _bounded_int(thickness, 1, 20, "figures.box_thickness")
     if any(result[stage] for stage in ("tissue", "epithelium", "boxes")) and not result["dir"]:
         raise ValueError("person_c figures.dir is required when a figure is switched on")
     return result
@@ -187,43 +157,12 @@ def main_box(box: list[int], mpp: tuple[float, float], target: float,
     return [x0, y0, x1-x0, y1-y0], (main_width, main_height)
 
 
-def roi_info(box: list[int], size: tuple[int, int], mpp: Any,
-             path: str | None = None) -> dict[str, Any]:
+def roi_info(box: list[int], size: tuple[int, int], mpp: Any) -> dict[str, Any]:
     return {"area": box[2]*box[3], "coords_seg": None,
             "cxcywh": normalized_box(box, size), "mpp": mpp,
-            "roi_path": path, "roi_wh": box[2:], "xywh": box}
+            "roi_path": None, "roi_wh": box[2:], "xywh": box}
 
 
 def roi_id(case_id: str, stain_id: str, box: list[int]) -> str:
     key = f"{case_id}\0{stain_id}\0{','.join(map(str, box))}"
     return f"{case_id}-{stain_id}-roi-{sha256(key.encode()).hexdigest()[:16]}"
-
-
-def save_png(slide: Any, box: list[int], output_size: tuple[int, int], target: float,
-             mpp: tuple[float, float], output_dir: Path, identifier: str) -> str:
-    from PIL import Image
-
-    x, y, width, height = box
-    level = read_level(slide, mpp, target)
-    downsample = float(slide.level_downsamples[level])
-    region = slide.read_region((x, y), level, (max(1, ceil(width/downsample)), max(1, ceil(height/downsample))))
-    try:
-        rgb = region.convert("RGB")
-        try:
-            if rgb.size != output_size:
-                resized = rgb.resize(output_size, Image.Resampling.BICUBIC)
-                rgb.close()
-                rgb = resized
-            output_dir.mkdir(parents=True, exist_ok=True)
-            path = output_dir / (sha256(identifier.encode()).hexdigest()[:24] + ".png")
-            temp_path = path.with_suffix(".png.tmp")
-            try:
-                rgb.save(temp_path, format="PNG")
-                temp_path.replace(path)
-            finally:
-                temp_path.unlink(missing_ok=True)
-            return str(path)
-        finally:
-            rgb.close()
-    finally:
-        region.close()

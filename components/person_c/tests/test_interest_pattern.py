@@ -36,17 +36,14 @@ def _case_input(he_path: str) -> dict:
     }
 
 
-def _config(save_png: bool = False, output_dir: str = "") -> dict:
+def _config() -> dict:
     return {
         "component_version": "person-c/interest-pattern:test", "mode": "region_proposal",
-        "stain_type_whitelist": ["HE"],
         "segnet": {
             "checkpoint": {"path": "../reference/person_c/checkpoint/segnet/missing-test.pt", "revision": "sha256:" + "0" * 64},
-            "roi_classes": ["TUM", "BEN"], "tile_um": 1792, "margin_um": 112, "batch_size": 1, "num_workers": 0,
+            "roi_classes": ["TUM", "BEN"],
         },
-        "device": "cpu", "postprocess_mpp": 8,
-        "min_object_size": 1, "save_roi_png": save_png,
-        "roi_output_dir": output_dir,
+        "postprocess_mpp": 8, "min_object_size": 1,
     }
 
 
@@ -115,23 +112,9 @@ class InterestPatternTest(TestCase):
                 with self.assertRaisesRegex(FileNotFoundError, "WSI is missing"):
                     run(_case_input(str(Path(temp_dir) / "absent.svs")), _config())
 
-    def test_coordinate_semantics_and_png_switch(self) -> None:
+    def test_coordinate_semantics(self) -> None:
         self.assertEqual([2, 10, 8, 20], wsi.main_box([10, 20, 30, 40], (0.25, 0.5), 1.0, (100, 100))[0])
         self.assertEqual([0.25, 0.4, 0.3, 0.4], wsi.normalized_box([10, 20, 30, 40], (100, 100)))
-        with TemporaryDirectory(dir=WORK) as temp_dir:
-            he_path = Path(temp_dir) / "tiny.svs"
-            he_path.touch()
-            mask = np.zeros((16, 16), dtype=bool)
-            mask[1:4, 2:6] = True
-            with patch("components.person_c.region.segnet.load_model", return_value=(object(), "cpu")), \
-                 patch("openslide.OpenSlide", return_value=_Slide()), \
-                 patch("components.person_c.region.segnet.infer_stages", return_value=_stages(mask)), \
-                 patch("components.person_c.wsi_processing.save_png", return_value="/cache/roi.png") as save:
-                output = run(_case_input(str(he_path)), _config(True, temp_dir))
-            roi = output["payload"]["case_list"][0]["tissue_blocks"][0]["stains"][0]["roi_list"][0]
-            self.assertEqual("/cache/roi.png", roi["main_info"]["roi_path"])
-            save.assert_called_once()
-            validate_artifact(output, "E.ROIs")
 
     def test_invalid_contract_and_missing_checkpoint_fail(self) -> None:
         root = Path(__file__).resolve().parents[3]
@@ -159,11 +142,6 @@ class InterestPatternTest(TestCase):
         validate_artifact(output, "E.ROIs")
         stains = output["payload"]["case_list"][0]["tissue_blocks"][0]["stains"]
         self.assertEqual([0, 0], [stain["roi_num"] for stain in stains])
-
-    def test_stain_whitelist_is_validated(self) -> None:
-        config = {"component_version": "person-c:test", "mode": "example", "stain_type_whitelist": []}
-        with self.assertRaisesRegex(ValueError, "non-empty string list"):
-            run(_case_input("/data/synthetic.svs"), config)
 
 
 EXAMPLES = Path(__file__).resolve().parents[1] / "examples"

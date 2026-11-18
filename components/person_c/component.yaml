@@ -7,7 +7,7 @@ runtime:
   python: "3.10"
   gpu: true
   cuda_runtime: "11.8 via PyTorch 2.6.0 wheel"
-  minimum_vram_gb: 2        # measured peak 1.05 GiB (one network, batch_size 32)
+  minimum_vram_gb: 2        # measured peak 1.05 GiB (one network, 32 windows per pass)
   cpu: 8                    # 6 tile-reading workers + the main process
   memory_gb: 32             # measured peak host memory 7.3 GB (no figures) to 15.7 GB (three figures, a 22000 x 33000 px slide at 1 um/px)
   timeout_seconds: 1800     # measured 34 to 106 s per slide (0.7 to 2.4 GB files)

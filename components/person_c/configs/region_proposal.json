@@ -1,9 +1,6 @@
 {
   "component_version": "person-c/interest-pattern:0.5.0",
   "mode": "region_proposal",
-  "stain_type_whitelist": [
-    "HE"
-  ],
   "segnet": {
     "checkpoint": {
       "path": "../reference/person_c/checkpoint/segnet/c9_sclip_bracs_s0.pt",
@@ -12,17 +9,10 @@
     "roi_classes": [
       "TUM",
       "BEN"
-    ],
-    "tile_um": 1792,
-    "margin_um": 112,
-    "batch_size": 32,
-    "num_workers": 6
+    ]
   },
-  "device": "auto",
   "postprocess_mpp": 1.0,
   "min_object_size": 6400,
-  "save_roi_png": false,
-  "roi_output_dir": "../run/output/materialized/person_c/roi-images",
   "figures": {
     "dir": "../run/output/materialized/person_c/figures",
     "tissue": false,

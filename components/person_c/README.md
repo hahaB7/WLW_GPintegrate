@@ -23,8 +23,8 @@ in its example profile.
 | `configs/region_proposal.json` | `region_proposal` | Finds the regions of the epithelium with the SEGNET student (section 2). The mode names the stage (region proposal), not the algorithm. |
 | `configs/example.json` | `example` | No slide is opened and no ROI is made. For the pipeline's example profile and the contract tests. |
 
-Everything after the mask (boxes, ROI records, E) is shared. `stain_type_whitelist` (default `["HE"]`) selects the stains that are
-opened. Every other stain stays in E with `roi_num = 0` and `roi_list = []`.
+Everything after the mask (boxes, ROI records, E) is shared. Only H&E stains are opened (the student was trained on H&E); every other stain stays in E with
+`roi_num = 0` and `roi_list = []`.
 
 ## 2. Mode `region_proposal`
 
@@ -67,8 +67,8 @@ change the ROIs. All are off by default; every key is in [configs/README.md](con
   whole or not at all.
 - **Size.** By default the figure has the resolution of the segmentation, 1 µm/px: a 60 000 × 70 000 px slide gives about
   16 000 × 18 000 px (about 50 MB). `figures.downscale` makes the figure that many times smaller (`4`: 4 µm/px, 16 times fewer
-  pixels). It only shrinks the picture; the segmentation and the boxes are the same. `figures.quality` is the JPEG quality and
-  `figures.box_thickness` the line width (default 2 px). Colours are fixed.
+  pixels). It only shrinks the picture; the segmentation and the boxes are the same. Colours, line width (2 px) and JPEG quality (90)
+  are fixed.
 - **How the boxes are drawn.** Both sets are dashed rectangles laid over the slide as a **translucent colour** (70 % opacity)
   with a translucent dark edge of 1 px on each side, so the slide shows through the line as well as between the dashes, and the
   line still stands out on light and on dark tissue. The colours lie outside the hues of H&E (pink, purple, blue, white): **amber**
@@ -112,10 +112,10 @@ Decoding a whole figure needs several GB of memory: do it inside a job, not on a
 - **Selection history.** One event per ROI: stage `interest_pattern_extraction`, owner `person_C`, action
   `candidate_generated`, status `selected`. `DxPair`, `visualAttrs` and `visualAttrs_info` are `null`.
 - **Empty.** A stain without objects gives `roi_num = 0`; a case without any ROI is a valid E.
-- **`save_roi_png`**: `true` writes the crop of every ROI below `run/output` and sets `main_info.roi_path`; otherwise downstream
-  components reopen the slide.
-- **Failure.** A case with more than one entry, a missing slide, a missing MPP, a missing or wrong checkpoint, an unavailable
-  CUDA device that was asked for, a model error, or an E that violates the contract ends with a non-zero exit code and
+- **No crops.** `main_info.roi_path` and `level0_info.roi_path` are `null`; downstream components reopen the slide with `filepath` and
+  the box.
+- **Failure.** A case with more than one entry, a missing slide, a missing MPP, a missing or wrong checkpoint, no
+  CUDA GPU, a model error, or an E that violates the contract ends with a non-zero exit code and
   writes no E. (A figure that was written before a later failure may remain in `figures.dir`.)
 
 ## 5. Code structure
@@ -140,8 +140,8 @@ The call chain of one case:
 interest_pattern.main
   └─ run(source, config)
        ├─ wsi.validate_settings(config)                    every key checked here, nowhere else
-       ├─ segnet.load_model(settings)                      checkpoint path + SHA-256, classes, device
-       └─ per stain (whitelist), per WSI:
+       ├─ segnet.load_model(settings)                      checkpoint path + SHA-256, classes
+       └─ per H&E stain, per WSI:
             ├─ wsi.slide_mpp(slide)
             ├─ segnet.infer_stages(path, slide, mpp, ...)  -> {"tissue", "epithelium", "classes", ["image"]}
             ├─ wsi.level0_boxes(epithelium, ...)           -> boxes (connected objects)
@@ -154,7 +154,7 @@ Where the work runs:
 
 | Step | Where | Why |
 |---|---|---|
-| Reading tiles | `segnet.num_workers` CPU processes (`TileReader`, one slide handle each) | decoding the slide is the slowest part; the GPU predicts the previous tile meanwhile |
+| Reading tiles | 6 CPU processes (`NUM_WORKERS`, `TileReader`, one slide handle each) | decoding the slide is the slowest part; the GPU predicts the previous tile meanwhile |
 | Windows, enlarging, argmax, label map, union of the classes | GPU | per-pixel work |
 | Hole filling (`cv2.floodFill`), connected objects (`cv2.connectedComponentsWithStats`) | CPU | one pass over the mask, about 1 s; torch has no equivalent |
 | Painting of the figures | GPU, in bands of 1024 rows | blending and outline per pixel |
@@ -214,9 +214,9 @@ docker run --rm --gpus all \
 | Python | 3.10 in the image (`Dockerfile`); the development runs used 3.12 |
 | WSI library | `openslide-python 1.4.6` (any format OpenSlide reads that carries MPP; SVS was used) |
 | Framework | `torch 2.6.0`, `torchvision 0.21.0` in the image (cu118 wheels); development runs: torch 2.14.0 with CUDA 13.0 |
-| Other | `numpy`, `opencv-python-headless`, `Pillow` (`requirements.txt`); `scipy` only for one test (it checks the hole filling against `scipy.ndimage.binary_fill_holes`) |
-| GPU | one; peak GPU memory 1.05 GiB measured during inference (one network, `batch_size` 32) |
-| CPU | 8 (6 tile readers and the main process); `device: "cpu"` is accepted but was not run |
+| Other | `numpy`, `opencv-python-headless` (`requirements.txt`); `scipy` only for one test (it checks the hole filling against `scipy.ndimage.binary_fill_holes`) |
+| GPU | one; peak GPU memory 1.05 GiB measured during inference (one network, 32 windows per pass) |
+| CPU | 8 (6 tile readers and the main process) |
 | Checkpoint | `reference/person_c/checkpoint/segnet/c9_sclip_bracs_s0.pt`, SHA-256 `b13895d5cf7ca919cb6b78e43931a5e9174f7305573964c3ed1ac5cea5b3e95b`, 238 008 769 bytes |
 
 External assets (the checkpoint, a test slide) are listed with digests in `external-assets.yaml`. Nothing is downloaded at build or
@@ -238,7 +238,7 @@ One H200, 8 CPUs, `configs/region_proposal.json`, BRACS slides (SVS, 0.2524 µm/
 The boxes of BRACS_1003691 take 0.5 s on the CPU (the hole filling is not timed separately; it is part of the 20 s above). The first version of this mode took 6 min 2 s
 on BRACS_1003691: the tiles were read at the full-resolution level (a requested 3.96 µm/px is 1 % below the 4.0 of level 1, and
 `get_best_level_for_downsample` then skips it) and in the main loop; they are now read at the right level
-(`wsi_processing.read_level`, 1 % tolerance) by `segnet.num_workers` processes. The memory of a run with figures is mostly the slide image
+(`wsi_processing.read_level`, 1 % tolerance) by 6 processes. The memory of a run with figures is mostly the slide image
 and the three figures at 1 µm/px.
 
 ## 10. Limits

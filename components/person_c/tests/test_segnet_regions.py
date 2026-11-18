@@ -24,7 +24,6 @@ class SegnetSettingsTests(unittest.TestCase):
 
     def test_bad_values_are_rejected(self) -> None:
         for path, value in (
-            (("segnet", "tile_um"), 1790),
             (("segnet", "checkpoint"), {"path": "x.pt", "revision": "abc"}),
             (("segnet", "roi_classes"), []),
         ):
@@ -36,8 +35,6 @@ class SegnetSettingsTests(unittest.TestCase):
 
 class ReadTests(unittest.TestCase):
     def test_a_level_one_percent_coarser_is_still_used(self) -> None:
-        from PIL import Image
-
         from components.person_c.region.segnet import read_um
 
         class Slide:
@@ -46,7 +43,7 @@ class ReadTests(unittest.TestCase):
 
             def read_region(self, origin, level, size):
                 self.levels_read.append(level)
-                return Image.new("RGBA", size, (200, 100, 150, 255))
+                return np.full((size[1], size[0], 4), (200, 100, 150, 255), dtype=np.uint8)
 
         slide = Slide()
         img = read_um(slide, (0.2524, 0.2524), 100, 100, 200, 120, 1.0)   # 3.96 px per um: the level of 4.0 is the one
@@ -87,7 +84,7 @@ class FigureTests(unittest.TestCase):
             self.assertGreater(int(((edge[..., 2] > 200) & (edge[..., 0] < 100) & (edge[..., 1] > 120)).sum()), 60)
             self.assertEqual([], figures.save_figures((1.0, 1.0), 1.0, stages, [], {"dir": tmp}, "S2", "cpu"))
 
-    def test_figure_options_downscale_quality_thickness_and_validation(self) -> None:
+    def test_figure_downscale_and_validation(self) -> None:
         import tempfile
 
         import cv2
@@ -96,7 +93,7 @@ class FigureTests(unittest.TestCase):
         labels[500:2500, 500:2000] = 0
         stages = {"tissue": labels, "epithelium": labels == 0, "classes": ["TUM", "BEN"],
                   "image": np.full((3001, 4003, 3), 235, dtype=np.uint8)}
-        config = wsi.validate_figures({"dir": "x", "boxes": True, "downscale": 4, "quality": 70, "box_thickness": 3})
+        config = wsi.validate_figures({"dir": "x", "boxes": True, "downscale": 4})
         with tempfile.TemporaryDirectory() as tmp:
             config["dir"] = tmp
             figures.save_figures((1.0, 1.0), 1.0, stages, [[800, 600, 400, 300]], config, "S", "cpu")
@@ -104,8 +101,8 @@ class FigureTests(unittest.TestCase):
             self.assertEqual((751, 1001, 3), image.shape)                # 4 um/px
             top = image[150, 200:300]                                    # the top edge of the box at (800, 600) -> (200, 150), amber
             amber = (top[:, 2].astype(int) - top[:, 0].astype(int)) > 50       # amber is red without blue; the translucent line keeps part of the slide
-            self.assertTrue(amber[1:10].all() and not amber[12:16].any())     # a dash of about 10 px (3.5 x thickness 3), then a gap of about 8
-        for bad in ({"downscale": 0}, {"quality": 101}, {"box_thickness": 0}):
+            self.assertTrue(amber[0:7].all() and not amber[9:11].any())     # a dash of 7 px (3.5 x thickness 2), then a gap of 5
+        for bad in ({"downscale": 0}, {"downscale": 65}):
             with self.assertRaises(ValueError):
                 wsi.validate_figures({"dir": "x", **bad})
 

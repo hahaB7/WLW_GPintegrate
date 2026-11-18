@@ -144,14 +144,14 @@ def draw_boxes(image: np.ndarray, boxes: Sequence[Sequence[int]], mpp0: tuple[fl
         tag(image, str(number), (x0, y0), color)
 
 
-def write_jpeg(image: np.ndarray, path: Path, quality: int = QUALITY) -> str:
+def write_jpeg(image: np.ndarray, path: Path) -> str:
     """Atomic: the file appears whole or not at all."""
 
     import cv2
 
     temp = path.with_name(path.stem + ".tmp.jpg")
     try:
-        if not cv2.imwrite(str(temp), image, [cv2.IMWRITE_JPEG_QUALITY, quality]):
+        if not cv2.imwrite(str(temp), image, [cv2.IMWRITE_JPEG_QUALITY, QUALITY]):
             raise OSError(f"could not write {temp}")
         temp.replace(path)
     finally:
@@ -163,8 +163,8 @@ def save_figures(mpp0: tuple[float, float], mpp: float, stages: Mapping[str, Any
                  figures: Mapping[str, Any], name: str, device: Any, annotations: Sequence[Sequence[int]] = ()) -> list[str]:
     """Write the JPEGs whose switch is on; return their paths.
 
-    Optional keys of ``figures`` (validated in ``wsi_processing.validate_figures``): ``downscale`` (integer, the figure is that
-    many times smaller than the stages), ``quality`` (JPEG) and ``box_thickness`` (px). Colours are fixed.
+    Optional key of ``figures`` (validated in ``wsi_processing.validate_figures``): ``downscale`` (integer, the figure is that
+    many times smaller than the stages).
 
     ``stages`` are the arrays of ``segnet.infer_stages(..., with_image=True)`` (at ``mpp`` um/px), ``mpp0`` the level-0 MPP of
     the slide. ``annotations`` are level-0 ``[x, y, w, h]`` ROIs of an annotation, if there is one: they are drawn in green
@@ -194,7 +194,7 @@ def save_figures(mpp0: tuple[float, float], mpp: float, stages: Mapping[str, Any
                 band = cv2.resize(band, (out_cols, -(-(r1 - r0) // step)), interpolation=cv2.INTER_AREA)
             images[stage][r0 // step:r0 // step + band.shape[0]] = band
     unit = out_cols / 1600                                  # sizes of text and lines are those of a 1600 px wide image
-    thickness = figures.get("box_thickness") or BOX_THICKNESS
+    thickness = BOX_THICKNESS
     directory = Path(figures["dir"])
     directory.mkdir(parents=True, exist_ok=True)
     for stage in wanted:
@@ -204,6 +204,5 @@ def save_figures(mpp0: tuple[float, float], mpp: float, stages: Mapping[str, Any
         if stage == "tissue":
             legend(images[stage], stages["classes"], counts[:len(stages["classes"])] > 0, unit)
         caption(images[stage], f"{name} {stage}" + (f" ({len(boxes)}" + (f", annotation {len(annotations)}" if len(annotations) else "") + ")" if stage == "boxes" else ""), unit)
-    quality = figures.get("quality", QUALITY)
     with ThreadPoolExecutor(len(wanted)) as pool:
-        return list(pool.map(lambda stage: write_jpeg(images[stage], directory / f"{name}_{stage}.jpg", quality), wanted))
+        return list(pool.map(lambda stage: write_jpeg(images[stage], directory / f"{name}_{stage}.jpg"), wanted))

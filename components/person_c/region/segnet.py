@@ -4,7 +4,7 @@ A DeepLab student trained without annotation (PIPELINE/SEGNET, ``Unsup``, pseudo
 BRACS slides, class set c9) labels the slide; the union of ``roi_classes`` (TUM, BEN) is returned as a boolean
 mask at ``postprocess_mpp`` (1 um/px), which ``wsi_processing.level0_boxes`` turns into ROI boxes.
 
-* The slide is read at the student's 1 um/px in tiles of ``tile_um`` with ``margin_um`` of context on every side;
+* The slide is read at the student's 1 um/px in tiles of ``TILE_UM`` with ``MARGIN_UM`` of context on every side;
   the student's windows (224 px, half overlap, cosine-squared blending, one network) are those of SEGNET's ``Predictor``.
 * The student outputs one probability vector per 4 um cell; it is enlarged bilinearly to ``postprocess_mpp`` and the label of a pixel is the class of the highest probability (argmax over c9).
 * Heavy imports (torch, openslide, cv2) happen inside the functions so contract tests stay light.
@@ -51,12 +51,9 @@ def load_model(settings: Mapping[str, Any]) -> tuple[dict[str, Any], Any]:
     from contracts.paths import resolve_person_reference_path
 
     cfg = settings["segnet"]
-    device_name = settings["device"]
-    if device_name == "auto":
-        device_name = "cuda" if torch.cuda.is_available() else "cpu"
-    if device_name == "cuda" and not torch.cuda.is_available():
-        raise RuntimeError("person_c CUDA was requested but is unavailable")
-    device = torch.device(device_name)
+    if not torch.cuda.is_available():
+        raise RuntimeError("person_c needs a CUDA GPU and none is available")
+    device = torch.device("cuda")
     entry = cfg["checkpoint"]
     path = resolve_person_reference_path("person_c", entry["path"])
     if not path.is_file():
@@ -135,7 +132,10 @@ def read_um(slide: Any, mpp0: tuple[float, float], x_um: int, y_um: int, w_um: i
     return cv2.resize(rgb, (round(w_um / mpp), round(h_um / mpp)), interpolation=cv2.INTER_AREA)
 
 
-UNLABELED = 255          # a cell that no tile covered (never happens for a whole slide)
+UNLABELED = 255          # initial value of the label map; every pixel of a slide is covered by a tile
+TILE_UM, MARGIN_UM = 1792, 112      # the slide is read in tiles of TILE_UM at the student's mpp, with MARGIN_UM of context around
+BATCH_SIZE = 32                     # windows per forward pass (about 1 GiB of GPU memory)
+NUM_WORKERS = 6                     # processes that read the tiles while the GPU predicts the previous ones
 
 
 class TileReader:
@@ -170,7 +170,7 @@ def infer_stages(path: str, slide: Any, mpp0: tuple[float, float], settings: Map
 
     The class probabilities of the cells (4 um) are enlarged bilinearly to ``postprocess_mpp`` before the argmax, so
     the borders are smooth. Everything that is a per-pixel operation (enlarging, argmax, the label map, the union of the
-    classes) stays on the GPU; the tiles are read by ``segnet.num_workers`` processes while the GPU predicts the previous ones."""
+    classes) stays on the GPU; the tiles are read by ``NUM_WORKERS`` processes while the GPU predicts the previous ones."""
 
     import cv2
     import torch
@@ -179,22 +179,21 @@ def infer_stages(path: str, slide: Any, mpp0: tuple[float, float], settings: Map
 
     cfg = settings["segnet"]
     classes, mpp = model["classes"], model["mpp"]
-    tile, margin = cfg["tile_um"], cfg["margin_um"]
+    tile, margin = TILE_UM, MARGIN_UM
     w0, h0 = slide.dimensions
     w_um, h_um = math.ceil(w0 * mpp0[0]), math.ceil(h0 * mpp0[1])
     target = float(settings["postprocess_mpp"])
     scale = CELL_STRIDE * mpp / target
     origins = [(tx, ty) for ty in range(0, h_um, tile) for tx in range(0, w_um, tile)]
     boxes = [(max(tx - margin, 0), max(ty - margin, 0), min(tx + tile + margin, w_um), min(ty + tile + margin, h_um)) for tx, ty in origins]
-    workers = cfg["num_workers"]
-    loader = DataLoader(TileReader(path, mpp0, origins, boxes, mpp), batch_size=None, shuffle=False, num_workers=workers,
-                        prefetch_factor=2 if workers else None)
+    loader = DataLoader(TileReader(path, mpp0, origins, boxes, mpp), batch_size=None, shuffle=False, num_workers=NUM_WORKERS,
+                        prefetch_factor=2)
     shape = (math.ceil(h0 * mpp0[1] / target), math.ceil(w0 * mpp0[0] / target))
     tissue = torch.full(shape, UNLABELED, dtype=torch.uint8, device=device)
     image = np.full((*shape, 3), 255, dtype=np.uint8) if with_image else None
     side = round(tile / target)
     for (tx, ty), (x0, y0, img) in zip(origins, loader):
-        probs = predict_cells(img.numpy(), model["net"], model["window"], device, cfg["batch_size"])
+        probs = predict_cells(img.numpy(), model["net"], model["window"], device, BATCH_SIZE)
         label = F.interpolate(probs[None], scale_factor=scale, mode="bilinear", align_corners=False)[0].argmax(0).to(torch.uint8)
         cx, cy = round((tx - int(x0)) / target), round((ty - int(y0)) / target)
         part = label[cy:cy + side, cx:cx + side]

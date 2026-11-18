@@ -17,6 +17,8 @@ from contracts.runtime import (
 
 from . import wsi_processing as wsi
 
+STAIN_TYPE = "HE"          # the student was trained on H&E: every other stain keeps roi_num = 0
+
 def _selection_event(producer: str) -> dict[str, Any]:
     return {
         "stage": "interest_pattern_extraction", "owner": "person_C",
@@ -28,7 +30,7 @@ def _selection_event(producer: str) -> dict[str, Any]:
 
 def _make_roi(case_id: str, stain_id: str, box: list[int], slide: Any,
               mpp: tuple[float, float], global_index: int, local_index: int,
-              settings: dict[str, Any]) -> dict[str, Any]:
+              producer: str) -> dict[str, Any]:
     size = tuple(slide.dimensions)
     x, y, width, height = box
     if width <= 0 or height <= 0 or x < 0 or y < 0 or x+width > size[0] or y+height > size[1]:
@@ -36,17 +38,12 @@ def _make_roi(case_id: str, stain_id: str, box: list[int], slide: Any,
     target = wsi.target_mpp(width * height)
     main_box, main_size = wsi.main_box(box, mpp, target, size)
     identifier = wsi.roi_id(case_id, stain_id, box)
-    path = None
-    if settings["save_roi_png"]:
-        output_dir = resolve_run_path(settings["roi_output_dir"])
-        path = wsi.save_png(slide, box, tuple(main_box[2:]), target, mpp,
-                            output_dir, identifier)
     return {
         "roi_id": identifier, "global_idx": global_index, "local_idx": local_index,
         "level0_info": wsi.roi_info(box, size, list(mpp)),
-        "main_info": wsi.roi_info(main_box, main_size, target, path),
+        "main_info": wsi.roi_info(main_box, main_size, target),
         "DxPair": None, "visualAttrs": None, "visualAttrs_info": None,
-        "selection_history": [_selection_event(settings["component_version"])],
+        "selection_history": [_selection_event(producer)],
     }
 
 
@@ -68,11 +65,10 @@ def run(source: dict[str, Any], config: dict[str, Any]) -> dict[str, Any]:
         seg = settings["segnet"]
         payload["reference_versions"] = {"interest_pattern": {
             "mode": "region_proposal",
-            "segnet": {key: seg[key] for key in ("checkpoint", "roi_classes", "tile_um", "margin_um")},
+            "segnet": {key: seg[key] for key in ("checkpoint", "roi_classes")},
             "postprocess_mpp": settings["postprocess_mpp"], "min_object_size": settings["min_object_size"],
         }}
-    allowed_stains = set(settings["stain_type_whitelist"])
-    selected_stains = [stain for stain in iter_stains(payload) if stain["stain_type"].upper() in allowed_stains]
+    selected_stains = [stain for stain in iter_stains(payload) if stain["stain_type"].upper() == STAIN_TYPE]
     model = device = None
     if settings["mode"] == "region_proposal":
         from .region import figures, segnet
@@ -91,7 +87,7 @@ def run(source: dict[str, Any], config: dict[str, Any]) -> dict[str, Any]:
 
     global_index = 0
     for stain in iter_stains(payload):
-        if stain["stain_type"].upper() not in allowed_stains:
+        if stain["stain_type"].upper() != STAIN_TYPE:
             rois = []
         elif settings["mode"] == "example":
             rois = []
@@ -106,7 +102,7 @@ def run(source: dict[str, Any], config: dict[str, Any]) -> dict[str, Any]:
                     boxes = wsi.drop_enclosed(wsi.level0_boxes(stages["epithelium"], mpp, slide.dimensions, settings))
                     rois = [
                         _make_roi(case_id, stain["stain_id"], box, slide, mpp,
-                                  global_index + index, index, settings)
+                                  global_index + index, index, settings["component_version"])
                         for index, box in enumerate(boxes)
                     ]
                     figures.save_figures(mpp, settings["postprocess_mpp"], stages, boxes, settings["figures"], Path(stain["filename"]).stem, device,
