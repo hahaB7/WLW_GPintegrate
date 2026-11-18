@@ -84,7 +84,7 @@ class FigureTests(unittest.TestCase):
             image = cv2.imread(str(Path(tmp) / "S1_boxes.jpg"))
             self.assertEqual((3000, 4000, 3), image.shape)
             edge = image[597:604, 800:1200].astype(int)               # the top edge of the box: dashes in amber (BGR 0, 176, 255)
-            self.assertGreater(int(((edge[..., 2] > 200) & (edge[..., 0] < 100) & (edge[..., 1] > 120)).sum()), 150)
+            self.assertGreater(int(((edge[..., 2] > 200) & (edge[..., 0] < 100) & (edge[..., 1] > 120)).sum()), 60)
             self.assertEqual([], figures.save_figures((1.0, 1.0), 1.0, stages, [], {"dir": tmp}, "S2", "cpu"))
 
     def test_figure_options_downscale_quality_thickness_and_validation(self) -> None:
@@ -103,8 +103,8 @@ class FigureTests(unittest.TestCase):
             image = cv2.imread(str(Path(tmp) / "S_boxes.jpg"))
             self.assertEqual((751, 1001, 3), image.shape)                # 4 um/px
             top = image[150, 200:300]                                    # the top edge of the box at (800, 600) -> (200, 150), amber
-            amber = (top[:, 2] > 200) & (top[:, 0] < 100)
-            self.assertTrue(amber[4:9].all() and not amber[12:15].any())     # a dash of about 10 px (3.5 x thickness 3), then a gap of about 8
+            amber = (top[:, 2].astype(int) - top[:, 0].astype(int)) > 50       # amber is red without blue; the translucent line keeps part of the slide
+            self.assertTrue(amber[1:10].all() and not amber[12:16].any())     # a dash of about 10 px (3.5 x thickness 3), then a gap of about 8
         for bad in ({"downscale": 0}, {"quality": 101}, {"box_thickness": 0}):
             with self.assertRaises(ValueError):
                 wsi.validate_figures({"dir": "x", **bad})
@@ -124,7 +124,7 @@ class FigureTests(unittest.TestCase):
             with_ann = cv2.imread(str(Path(tmp) / "With_boxes.jpg"))
             without = cv2.imread(str(Path(tmp) / "Without_boxes.jpg"))
             edge = with_ann[96:105, 100:300].astype(int)                  # the top edge of the annotation: long lime dashes (BGR 79, 255, 124)
-            self.assertGreater(int(((edge[..., 1] > 200) & (edge[..., 0] < 130) & (edge[..., 2] < 170)).sum()), 400)
+            self.assertGreater(int(((edge[..., 1] > 200) & (edge[..., 0] < 150) & (edge[..., 2] < 180)).sum()), 400)
             self.assertLess(int(np.abs(without[97:104, 100:300].astype(int) - 235).max()), 12)   # nothing without an annotation
             self.assertLess(int(np.abs(with_ann[200:230, 250:285].astype(int) - 235).max()), 12)   # the inside is not tinted
 

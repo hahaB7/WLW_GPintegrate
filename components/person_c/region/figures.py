@@ -20,6 +20,7 @@ EPITHELIUM = (0, 70, 255)                    # RGB
 # an annotation. BGR: the images of this module are BGR from ``paint`` on.
 BOX = (0, 176, 255)
 ANNOTATION = (79, 255, 124)
+LINE_ALPHA, EDGE_ALPHA = 0.7, 0.5            # opacity of a box line and of its dark edge: the slide shows through both
 # colours of the classes (c9 of the project's DATA/meta/classes.json); a class that is not listed is grey
 CLASS_COLORS = {"TUM": (215, 35, 55), "BEN": (240, 120, 30), "STR": (15, 155, 65), "LYM": (35, 95, 215), "NEC": (240, 180, 10),
                 "FAT": (40, 190, 230), "VES": (130, 60, 190), "BLD": (110, 20, 45), "SEC": (200, 50, 160), "OTH": (25, 30, 75)}
@@ -44,12 +45,16 @@ def paint(stage: str, band: np.ndarray, labels: np.ndarray, epithelium: np.ndarr
         for index, name in enumerate(classes):
             lut[index] = torch.tensor(CLASS_COLORS.get(name, (128, 128, 128)), dtype=torch.float32)
         color, mask = lut[lab.long()], lab != UNLABELED
+        lf = lab[None, None].float()                              # a black line of about 3 px between two classes
+        edge = (F.max_pool2d(lf, 3, 1, 1) != -F.max_pool2d(-lf, 3, 1, 1))[0, 0] & mask
     else:
         color, mask = torch.tensor(EPITHELIUM, dtype=torch.float32, device=device), epi
     alpha = ALPHA[stage]
     mixed = ((1 - alpha) * image.float() + alpha * color).to(torch.uint8)
     image = torch.where(mask[..., None], mixed, image)
-    if stage in ("epithelium", "boxes"):                        # a black line of about 3 px along the border
+    if stage == "tissue":
+        image = torch.where(edge[..., None], torch.zeros_like(image), image)
+    else:                                                       # a black line of about 3 px along the border of the mask
         inner = -F.max_pool2d(-epi[None, None].float(), 7, 1, 3)[0, 0] > 0.5
         image = torch.where((epi & ~inner)[..., None], torch.zeros_like(image), image)
     return image.flip(-1).cpu().numpy()                        # BGR, the order OpenCV draws and writes in
@@ -73,10 +78,8 @@ def caption(image: np.ndarray, text: str, unit: float) -> None:
         cv2.putText(image, text, (int(12 * unit), int(32 * unit)), cv2.FONT_HERSHEY_SIMPLEX, unit, color, max(1, int(width * unit)))
 
 
-def dashed_line(image: np.ndarray, start: tuple[int, int], end: tuple[int, int], color: tuple[int, int, int], thickness: int,
-                pattern: tuple[float, float] = (3.5, 2.5)) -> None:
-    """In place: a dashed line (dash and gap in line widths, ``pattern``) with a dark edge one pixel wide on each side, so that
-    it stands out on a light and on a dark background alike while the slide shows between the dashes."""
+def dashed_line(mask: np.ndarray, start: tuple[int, int], end: tuple[int, int], thickness: int, pattern: tuple[float, float]) -> None:
+    """In place: a dashed line on a one-channel ``mask`` (dash and gap in line widths, ``pattern``)."""
 
     import cv2
 
@@ -85,8 +88,31 @@ def dashed_line(image: np.ndarray, start: tuple[int, int], end: tuple[int, int],
     for t in range(0, length, on + off):
         a, b = t / length, min(t + on, length) / length
         p, q = ((round(start[0] + (end[0] - start[0]) * u), round(start[1] + (end[1] - start[1]) * u)) for u in (a, b))
-        cv2.line(image, p, q, (0, 0, 0), thickness + 2)
-        cv2.line(image, p, q, color, thickness)
+        cv2.line(mask, p, q, 255, thickness)
+
+
+def blend_box(image: np.ndarray, box: Sequence[int], color: tuple[int, int, int], thickness: int, pattern: tuple[float, float]) -> None:
+    """In place: the dashed rectangle ``box`` (pixels ``x0, y0, x1, y1``) laid over the slide as a translucent colour, with a
+    translucent dark edge of 1 px on each side, so that the slide shows through the line as well as between the dashes. Only the
+    part of the image around the box is touched."""
+
+    x0, y0, x1, y1 = box
+    pad = thickness + 2
+    left, top = max(x0 - pad, 0), max(y0 - pad, 0)
+    right, bottom = min(x1 + pad + 1, image.shape[1]), min(y1 + pad + 1, image.shape[0])
+    if right <= left or bottom <= top:
+        return
+    core = np.zeros((bottom - top, right - left), dtype=np.uint8)
+    halo = np.zeros_like(core)
+    corners = ((x0 - left, y0 - top), (x1 - left, y0 - top), (x1 - left, y1 - top), (x0 - left, y1 - top))
+    for start, end in zip(corners, corners[1:] + corners[:1]):
+        dashed_line(halo, start, end, thickness + 2, pattern)
+        dashed_line(core, start, end, thickness, pattern)
+    part = image[top:bottom, left:right]
+    dark = (halo > 0) & (core == 0)
+    part[dark] = (part[dark] * (1 - EDGE_ALPHA)).astype(np.uint8)
+    line = core > 0
+    part[line] = (part[line] * (1 - LINE_ALPHA) + np.array(color, dtype=np.float32) * LINE_ALPHA).astype(np.uint8)
 
 
 def tag(image: np.ndarray, text: str, corner: tuple[int, int], color: tuple[int, int, int]) -> None:
@@ -114,8 +140,7 @@ def draw_boxes(image: np.ndarray, boxes: Sequence[Sequence[int]], mpp0: tuple[fl
     for number, (x, y, w, h) in enumerate(boxes, 1 if annotation else 0):
         x0, y0 = round(x * mpp0[0] / mpp), round(y * mpp0[1] / mpp)
         x1, y1 = round((x + w) * mpp0[0] / mpp), round((y + h) * mpp0[1] / mpp)
-        for start, end in (((x0, y0), (x1, y0)), ((x1, y0), (x1, y1)), ((x1, y1), (x0, y1)), ((x0, y1), (x0, y0))):
-            dashed_line(image, start, end, color, width, pattern)
+        blend_box(image, (x0, y0, x1, y1), color, width, pattern)
         tag(image, str(number), (x0, y0), color)
 
 

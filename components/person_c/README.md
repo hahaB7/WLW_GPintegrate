@@ -59,7 +59,7 @@ change the ROIs. All are off by default; every key is in [configs/README.md](con
 
 | Figure | Switch | Shows |
 |---|---|---|
-| `tissue` | `figures.tissue` | the class map, one colour per class, with a legend |
+| `tissue` | `figures.tissue` | the class map, one colour per class with a black line between classes, and a legend |
 | `epithelium` | `figures.epithelium` | the epithelium mask the boxes come from, with its outline |
 | `boxes` | `figures.boxes` | the ROI boxes (amber) over the epithelium, drawn as in the `epithelium` figure (tint and black outline); the caption gives their number |
 
@@ -69,12 +69,13 @@ change the ROIs. All are off by default; every key is in [configs/README.md](con
   16 000 × 18 000 px (about 50 MB). `figures.downscale` makes the figure that many times smaller (`4`: 4 µm/px, 16 times fewer
   pixels). It only shrinks the picture; the segmentation and the boxes are the same. `figures.quality` is the JPEG quality and
   `figures.box_thickness` the line width (default 2 px). Colours are fixed.
-- **How the boxes are drawn.** Both sets are dashed rectangles with a dark edge of 1 px on each side, so that they stand out on light
-  and on dark tissue while the slide shows between the dashes; nothing is filled. The colours lie outside the hues of H&E (pink,
-  purple, blue, white): **amber** for the boxes of the method (short dashes), **lime** for an annotation (a pixel wider, long
-  dashes), so the two stay apart where they overlap. Each box has its number on a small dark label above its upper left corner, the
-  same size for every box: for the boxes of the method it is `local_idx` of the ROI in E (from 0), so a box in the figure is found
-  in the JSON; annotations are numbered from 1 and counted in the caption. The epithelium (tint and black outline) is the same as in the `epithelium` figure.
+- **How the boxes are drawn.** Both sets are dashed rectangles laid over the slide as a **translucent colour** (70 % opacity)
+  with a translucent dark edge of 1 px on each side, so the slide shows through the line as well as between the dashes, and the
+  line still stands out on light and on dark tissue. The colours lie outside the hues of H&E (pink, purple, blue, white): **amber**
+  for the boxes of the method (short dashes), **lime** for an annotation (a pixel wider, long dashes), so the two stay apart where
+  they overlap. Each box has its number on a small dark label above its upper left corner, the same size for every box: for the
+  boxes of the method it is `local_idx` of the ROI in E (from 0), so a box in the figure is found in the JSON; annotations are
+  numbered from 1 and counted in the caption. The epithelium (tint and black outline) is the same as in the `epithelium` figure.
 - **Annotations.** If `figures.annotations` points to a JSON `{stain_id: [[x, y, w, h], ...]}` (level-0 pixels), the annotation ROIs
   of that stain are drawn on the boxes figure as above. Without an entry nothing is drawn.
 
