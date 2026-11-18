@@ -10,7 +10,7 @@ rebuild the pixels; Person E (`clee`) reads the ROI geometry through H.
    one case              WSI → tissue classes → epithelium → boxes
 ```
 
-| | |
+| Item | Value |
 |---|---|
 | **Owner** | Person C |
 | **Version** | `0.5.0`, producer string `person-c/interest-pattern:0.5.0` |
@@ -81,11 +81,11 @@ docker run --rm --gpus all \
   WSI (H&E)
     │   tiles of 1792 µm at 1 µm/px, +112 µm of context, read by 6 worker processes
     ▼
-  ┌──────────────────────────────────────────────────────────────────────────────────────┐
-  │ student      224 px windows, half overlap, cosine² blending       one net   GPU      │
-  │              one probability vector per 4 µm cell, 10 classes (c9)                   │
-  │              enlarged bilinearly to 1 µm/px, then argmax                              │
-  └──────────────────────────────────────────────────────────────────────────────────────┘
+  ┌─ student ───────────────────────────────────────────────────────────────────────────┐
+  │  224 px windows, half overlap, cosine² blending                  one net   GPU      │
+  │  one probability vector per 4 µm cell, 10 classes (c9)                              │
+  │  enlarged bilinearly to 1 µm/px, then argmax                                        │
+  └─────────────────────────────────────────────────────────────────────────────────────┘
     │  STAGE 1   tissue    class of every pixel (the student labels the glass too: class OTH)
     ▼
     │  STAGE 2   epithelium    union of TUM and BEN, every closed hole filled
@@ -143,8 +143,10 @@ change the ROIs. All are off by default (`figures` in the config).
 **Reading the boxes figure**
 
 ```text
-   amber, short dashes   the boxes of the method;  the number above the upper left corner is local_idx of the ROI in E (from 0)
-   lime,  long dashes    an annotation ROI (a pixel wider), numbered from 1; the caption gives both counts
+   amber, short dashes   the boxes of the method; the number above the upper left
+                         corner is local_idx of the ROI in E (from 0)
+   lime,  long dashes    an annotation ROI (a pixel wider), numbered from 1;
+                         the caption gives both counts
 ```
 
 - Lines are laid over the slide as a **translucent colour** (70 %) with a translucent dark edge of 1 px, so the slide shows through
@@ -164,8 +166,10 @@ segmentation and the boxes are unchanged. Colours, line width (2 px) and JPEG qu
 ```python
 import cv2
 f = "BRACS_1228_boxes.jpg"
-cv2.imwrite("overview.jpg", cv2.imread(f, cv2.IMREAD_REDUCED_COLOR_8))     # 1/8 of the size: 8 µm/px, about 2000 px
-cv2.imwrite("crop.jpg", cv2.imread(f)[6500:8300, 3800:5800])               # a 2000 × 1800 px window at 1 µm/px (rows, columns)
+# 1/8 of the size: 8 µm/px, about 2000 px
+cv2.imwrite("overview.jpg", cv2.imread(f, cv2.IMREAD_REDUCED_COLOR_8))
+# a 2000 × 1800 px window at 1 µm/px (rows, columns)
+cv2.imwrite("crop.jpg", cv2.imread(f)[6500:8300, 3800:5800])
 ```
 
 ---
@@ -225,7 +229,7 @@ interest_pattern.main
 
 ## 6. Environment and performance
 
-| | |
+| Item | Value |
 |---|---|
 | Python | 3.10 in the image; the development runs used 3.12 |
 | Framework | `torch 2.6.0`, `torchvision 0.21.0` (cu118 wheels) in the image; development runs: torch 2.14.0, CUDA 13.0 |
