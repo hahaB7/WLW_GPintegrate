@@ -52,6 +52,18 @@ opened. Every other stain stays in E with `roi_num = 0` and `roi_list = []`.
   16 000 × 18 000 px, about 50 MB): the class map with a legend, the epithelium mask with its outline, and the boxes (red) over
   it. If `figures.annotations` points to a JSON `{stain_id: [[x, y, w, h], ...]}` (level-0 pixels) the annotation ROIs of the
   stain are drawn in green on the boxes figure; without an entry nothing is drawn. A file appears whole or not at all.
+- **Looking at a figure.** A figure is too large for most viewers and for a web page (hundreds of megapixels). Two ways:
+  copy it to a computer (`scp`) and open it with a viewer that handles large images (for example Fiji / ImageJ, IrfanView or an
+  image editor), or make a small overview and crops where it is, with OpenCV (a reduced decode is fast and takes little memory):
+
+  ```python
+  import cv2
+  f = "<case_id>_<stain_id>_boxes.jpg"
+  cv2.imwrite("overview.jpg", cv2.imread(f, cv2.IMREAD_REDUCED_COLOR_8))     # 1/8 of the size: 8 um/px, about 2000 px
+  cv2.imwrite("crop.jpg", cv2.imread(f)[6500:8300, 3800:5800])               # a 2000 x 1800 px window at 1 um/px (rows, columns)
+  ```
+
+  Do this inside a job or with small files only: decoding a whole figure needs several GB of memory (a login node is not the place).
 - **Checkpoint.** `reference/person_c/checkpoint/segnet/c9_sclip_bracs_s0.pt`, pinned by `revision` (SHA-256) in the config and
   checked before it is loaded.
 - **What produced the ROIs** is written to `payload.reference_versions.interest_pattern` of E: the mode, the checkpoints with
