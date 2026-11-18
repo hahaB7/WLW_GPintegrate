@@ -154,14 +154,35 @@ def read_um(slide: Any, mpp0: tuple[float, float], x_um: int, y_um: int, w_um: i
     return cv2.resize(rgb, (round(w_um / mpp), round(h_um / mpp)), interpolation=cv2.INTER_AREA)
 
 
-def tissue_fraction(img: np.ndarray) -> float:
-    """Share of pixels whose channels differ by more than 20 (glass is grey / white)."""
+def foreground_mask(slide: Any, mpp0: tuple[float, float], settings: Mapping[str, Any], shape: tuple[int, int]) -> np.ndarray:
+    """Foreground at ``postprocess_mpp``: pixels whose colour channels differ by more than ``segnet.foreground_chroma``
+    (glass is grey / white), small holes filled and dust removed with the thresholds of ``level0_boxes``.
+    It decides which tiles are read and keeps the stages inside the tissue; it is not a figure."""
 
-    return float((np.ptp(img.astype(np.int16), axis=2) > 20).mean())
+    import cv2
+    from skimage.morphology import remove_small_holes, remove_small_objects
+
+    from components.person_c import wsi_processing as wsi
+
+    level = wsi.read_level(slide, mpp0, float(settings["postprocess_mpp"]))
+    width, height = slide.level_dimensions[level]
+    rgb = wsi.read_rgb(slide, 0, 0, level, width, height)
+    chroma = (np.ptp(rgb.astype(np.int16), axis=2) > settings["segnet"]["foreground_chroma"]).astype(np.float32)
+    mask = cv2.resize(chroma, (shape[1], shape[0]), interpolation=cv2.INTER_AREA) > 0.5
+    mask = remove_small_holes(mask, area_threshold=settings["hole_area_threshold"])
+    return remove_small_objects(mask, min_size=settings["min_object_size"])
 
 
-def infer_mask(slide: Any, mpp0: tuple[float, float], settings: Mapping[str, Any], model: Mapping[str, Any], device: Any) -> np.ndarray:
-    """Boolean mask of the union of ``segnet.roi_classes`` at ``postprocess_mpp``, shape as ``wsi_processing.mask_shape``."""
+UNLABELED = 255          # not predicted: glass, or outside the foreground
+
+
+def infer_stages(slide: Any, mpp0: tuple[float, float], settings: Mapping[str, Any], model: Mapping[str, Any], device: Any) -> dict[str, Any]:
+    """The stages at ``postprocess_mpp`` (shape as ``wsi_processing.mask_shape``):
+    ``tissue`` (stage 1: the multi-class tissue segmentation, the index of the class of every pixel in ``classes``,
+    ``UNLABELED`` outside the foreground) and ``epithelium`` (stage 2: the union of ``segnet.roi_classes``, holes
+    filled). The boxes (stage 3) are made from ``epithelium`` by the caller."""
+
+    import cv2
 
     cfg = settings["segnet"]
     classes, mpp = model["classes"], model["mpp"]
@@ -169,22 +190,26 @@ def infer_mask(slide: Any, mpp0: tuple[float, float], settings: Mapping[str, Any
     tile, margin, views = cfg["tile_um"], cfg["margin_um"], cfg["tta_views"]
     w0, h0 = slide.dimensions
     w_um, h_um = math.ceil(w0 * mpp0[0]), math.ceil(h0 * mpp0[1])
+    target = float(settings["postprocess_mpp"])
+    out_shape = (math.ceil(h0 * mpp0[1] / target), math.ceil(w0 * mpp0[0] / target))
+    foreground = foreground_mask(slide, mpp0, settings, out_shape)
     cell = CELL_STRIDE * mpp
-    mask = np.zeros((math.ceil(h_um / cell), math.ceil(w_um / cell)), dtype=bool)
+    labels = np.full((math.ceil(h_um / cell), math.ceil(w_um / cell)), UNLABELED, dtype=np.uint8)
     for ty in range(0, h_um, tile):
         for tx in range(0, w_um, tile):
+            core = foreground[int(ty / target):math.ceil((ty + tile) / target), int(tx / target):math.ceil((tx + tile) / target)]
+            if core.size == 0 or core.mean() < cfg["min_foreground_frac"]:
+                continue                                         # glass: nothing to label
             x0, y0 = max(tx - margin, 0), max(ty - margin, 0)
             x1, y1 = min(tx + tile + margin, w_um), min(ty + tile + margin, h_um)
             img = read_um(slide, mpp0, x0, y0, x1 - x0, y1 - y0, mpp)
-            if tissue_fraction(img) < cfg["min_tissue_frac"]:
-                continue                                         # glass: no class of interest
             probs = predict_cells(img, model["nets"], model["window"], device, views, cfg["batch_size"])
-            label = probs.argmax(0).cpu().numpy()
+            label = probs.argmax(0).cpu().numpy().astype(np.uint8)
             cx, cy = int((tx - x0) / cell), int((ty - y0) / cell)
-            part = np.isin(label, keep)[cy:cy + int(tile / cell), cx:cx + int(tile / cell)]
+            part = label[cy:cy + int(tile / cell), cx:cx + int(tile / cell)]
             gx, gy = int(tx / cell), int(ty / cell)
-            h, w = mask[gy:gy + part.shape[0], gx:gx + part.shape[1]].shape
-            mask[gy:gy + h, gx:gx + w] = part[:h, :w]
-    target = float(settings["postprocess_mpp"])
-    resampled = resample_mask(mask, (math.ceil(h0 * mpp0[1] / target), math.ceil(w0 * mpp0[0] / target)))
-    return fill_holes(resampled)
+            h, w = labels[gy:gy + part.shape[0], gx:gx + part.shape[1]].shape
+            labels[gy:gy + h, gx:gx + w] = part[:h, :w]
+    tissue = cv2.resize(labels, (out_shape[1], out_shape[0]), interpolation=cv2.INTER_NEAREST)
+    tissue[~foreground] = UNLABELED
+    return {"tissue": tissue, "epithelium": fill_holes(np.isin(tissue, keep)), "classes": classes}

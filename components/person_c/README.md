@@ -42,7 +42,8 @@ geometry and E.
   pinned by `revision` in the config and checked before loading.
 - The holes of the mask are filled, whatever their size, before the boxes are made: an object inside the hole of a ring is part of that ring and gets no box of its own. A box is the minimum bounding box of a connected object.
 - Rings that are not closed cannot be filled, so after `level0_boxes` a box with at least `segnet.nested_overlap` of its area inside a larger kept box is dropped (mrcps does not do this).
-- A tile with fewer than `segnet.min_tissue_frac` coloured pixels is glass and gives no ROI.
+- A foreground mask (colour-channel difference, `segnet.foreground_chroma`) decides which tiles are read (`segnet.min_foreground_frac`) and keeps the stages inside the tissue; it is not a figure.
+- Figures for whoever follows the segmentation: `figures.tissue`, `figures.epithelium`, `figures.boxes` (all off by default) write one PNG per WSI and stage to `figures.dir` below `run/output`: the multi-class tissue segmentation (c9, one colour per class with a legend), the processed epithelium segmentation (TUM ∪ BEN, holes filled), and the boxes over it. Code: `region/figures.py`.
 - The student was trained on unlabeled BRACS slides; a slide of that set is not an independent test. The quality of the
   ROIs is not measured yet.
 

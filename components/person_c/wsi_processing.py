@@ -66,6 +66,7 @@ def validate_settings(config: dict[str, Any]) -> dict[str, Any]:
             raise ValueError("person_c background bounds must satisfy 0 <= lower < upper <= 255")
     else:
         result["segnet"] = validate_segnet(result.get("segnet"))
+        result["figures"] = validate_figures(result.get("figures"))
     result["min_object_size"] = integer(result.get("min_object_size"), "min_object_size", 1)
     result["postprocess_mpp"] = positive_number(result.get("postprocess_mpp"), "postprocess_mpp")
     result["hole_area_threshold"] = integer(result.get("hole_area_threshold"), "hole_area_threshold")
@@ -105,9 +106,29 @@ def validate_segnet(cfg: Any) -> dict[str, Any]:
     overlap = cfg.get("nested_overlap")
     if isinstance(overlap, bool) or not isinstance(overlap, (int, float)) or not 0 < overlap <= 1:
         raise ValueError("person_c segnet.nested_overlap must be a number in (0, 1]")
-    fraction = cfg.get("min_tissue_frac")
+    result["foreground_chroma"] = integer(cfg.get("foreground_chroma"), "segnet.foreground_chroma", 1)
+    if result["foreground_chroma"] > 255:
+        raise ValueError("person_c segnet.foreground_chroma must be 1..255")
+    fraction = cfg.get("min_foreground_frac")
     if isinstance(fraction, bool) or not isinstance(fraction, (int, float)) or not 0 <= fraction <= 1:
-        raise ValueError("person_c segnet.min_tissue_frac must be a number in [0, 1]")
+        raise ValueError("person_c segnet.min_foreground_frac must be a number in [0, 1]")
+    return result
+
+
+def validate_figures(cfg: Any) -> dict[str, Any]:
+    """``figures``: one switch per stage (tissue, epithelium, boxes) and the directory below sibling ``run/output``."""
+
+    if cfg is None:
+        return {"dir": None, "tissue": False, "epithelium": False, "boxes": False}
+    if not isinstance(cfg, dict):
+        raise ValueError("person_c figures must be an object")
+    result = {"dir": cfg.get("dir")}
+    for stage in ("tissue", "epithelium", "boxes"):
+        if not isinstance(cfg.get(stage, False), bool):
+            raise ValueError(f"person_c figures.{stage} must be boolean")
+        result[stage] = cfg.get(stage, False)
+    if any(result[stage] for stage in ("tissue", "epithelium", "boxes")) and not result["dir"]:
+        raise ValueError("person_c figures.dir is required when a figure is switched on")
     return result
 
 

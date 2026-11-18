@@ -91,8 +91,12 @@ def run(source: dict[str, Any], config: dict[str, Any]) -> dict[str, Any]:
         "case_list": [case],
     }
     allowed_stains = set(settings["stain_type_whitelist"])
+    if settings["backend"] == "segnet":
+        from .region import figures, segnet
+
+        if any(settings["figures"][stage] for stage in ("tissue", "epithelium", "boxes")):
+            settings["figures"] = {**settings["figures"], "dir": str(resolve_run_path(settings["figures"]["dir"]))}
     model = device = None
-    infer = wsi.infer_mask
     if settings["backend"] in {"mrcps", "segnet"}:
         selected_stains = [
             stain
@@ -104,10 +108,7 @@ def run(source: dict[str, Any], config: dict[str, Any]) -> dict[str, Any]:
             if not path.is_file():
                 raise FileNotFoundError(f"person_c WSI is missing for stain {stain['stain_id']}: {path}")
         if selected_stains and settings["backend"] == "segnet":
-            from .region import segnet
-
             model, device = segnet.load_model(settings)
-            infer = segnet.infer_mask
         elif selected_stains:
             model, device = wsi.load_model(settings)
 
@@ -124,7 +125,11 @@ def run(source: dict[str, Any], config: dict[str, Any]) -> dict[str, Any]:
             try:
                 with openslide.OpenSlide(str(path)) as slide:
                     mpp = wsi.slide_mpp(slide)
-                    mask = infer(slide, mpp, settings, model, device)
+                    if settings["backend"] == "segnet":
+                        stages = segnet.infer_stages(slide, mpp, settings, model, device)
+                        mask = stages["epithelium"]
+                    else:
+                        mask = wsi.infer_mask(slide, mpp, settings, model, device)
                     boxes = wsi.level0_boxes(mask, mpp, slide.dimensions, settings)
                     if settings["backend"] == "segnet":
                         boxes = wsi.drop_nested(boxes, settings["segnet"]["nested_overlap"])
@@ -133,6 +138,8 @@ def run(source: dict[str, Any], config: dict[str, Any]) -> dict[str, Any]:
                                   global_index + index, index, settings)
                         for index, box in enumerate(boxes)
                     ]
+                    if settings["backend"] == "segnet":
+                        figures.save_figures(slide, stages, boxes, settings["figures"], case_id, stain["stain_id"])
             except Exception as exc:
                 raise RuntimeError(f"person_c failed on stain {stain['stain_id']} ({path}): {exc}") from exc
         stain["roi_list"] = rois

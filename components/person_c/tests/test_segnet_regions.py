@@ -7,6 +7,7 @@ from pathlib import Path
 import numpy as np
 
 from components.person_c import wsi_processing as wsi
+from components.person_c.region import figures
 from components.person_c.region.segnet import fill_holes, resample_mask, window_starts
 
 CONFIG = Path(__file__).resolve().parents[1] / "configs" / "segnet.json"
@@ -25,7 +26,7 @@ class SegnetSettingsTests(unittest.TestCase):
         for path, value in (
             (("segnet", "tile_um"), 1790),
             (("segnet", "tta_views"), 9),
-            (("segnet", "min_tissue_frac"), 2),
+            (("segnet", "min_foreground_frac"), 2),
             (("segnet", "checkpoints"), [{"path": "x.pt", "revision": "abc"}]),
             (("segnet", "roi_classes"), []),
         ):
@@ -33,6 +34,37 @@ class SegnetSettingsTests(unittest.TestCase):
             config[path[0]][path[1]] = value
             with self.assertRaises(ValueError, msg=str(path)):
                 wsi.validate_settings(config)
+
+
+class FigureTests(unittest.TestCase):
+    def test_switches_are_validated(self) -> None:
+        self.assertFalse(wsi.validate_figures(None)["boxes"])
+        with self.assertRaises(ValueError):
+            wsi.validate_figures({"dir": "x", "tissue": "yes"})
+        with self.assertRaises(ValueError):
+            wsi.validate_figures({"boxes": True})                  # a switch on needs a directory
+
+    def test_only_the_switched_stages_are_written(self) -> None:
+        import tempfile
+
+        class Slide:
+            dimensions = (4000, 3000)
+
+            def get_thumbnail(self, size):
+                from PIL import Image
+                return Image.new("RGB", (1000, 750), (240, 200, 220))
+
+        labels = np.full((30, 40), 255, dtype=np.uint8)
+        labels[5:25, 5:20] = 0
+        labels[5:25, 20:35] = 2
+        stages = {"tissue": labels, "epithelium": labels == 0, "classes": ["TUM", "BEN", "STR"]}
+        with tempfile.TemporaryDirectory() as tmp:
+            paths = figures.save_figures(Slide(), stages, [[800, 600, 400, 300]],
+                                         {"dir": tmp, "tissue": True, "epithelium": False, "boxes": True}, "c1", "s1")
+            names = sorted(Path(p).name for p in paths)
+            self.assertEqual(["c1_s1_boxes.png", "c1_s1_tissue.png"], names)
+            self.assertEqual(names, sorted(p.name for p in Path(tmp).iterdir()))
+            self.assertEqual([], figures.save_figures(Slide(), stages, [], {"dir": tmp}, "c1", "s2"))
 
 
 class NestedTests(unittest.TestCase):
