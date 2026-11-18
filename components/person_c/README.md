@@ -140,7 +140,7 @@ change the ROIs. All are off by default (`figures` in the config).
 
 `<name>` is the stem of the slide's file name (`BRACS_1003691`); the files go to `figures.dir` below `run/output`, whole or not at all.
 
-**Example** — a 1000 × 800 µm window of BRACS_1003691 (the full figures are about 50 MB each; the upper left corner of the window is at (4 300, 7 500) of the 1 µm/px figure):
+**Example** — a 1000 × 800 µm window of BRACS_1003691 (the full figures are about 50 MB each; the upper left corner of the window is at (4 150, 4 787) of the 1 µm/px figure):
 
 <table>
 <tr>
