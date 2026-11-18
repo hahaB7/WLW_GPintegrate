@@ -136,7 +136,7 @@ change the ROIs. All are off by default (`figures` in the config).
 |---|---|---|
 | `<name>_tissue.jpg` | `figures.tissue` | the class map, one colour per class, a black line between classes, a legend |
 | `<name>_epithelium.jpg` | `figures.epithelium` | the epithelium mask the boxes come from, tinted, with a black outline |
-| `<name>_boxes.jpg` | `figures.boxes` | the epithelium as above, and over it the ROI boxes (amber) and, if given, the annotation ROIs (lime) |
+| `<name>_boxes.jpg` | `figures.boxes` | the epithelium as above, and over it the ROI boxes (amber); optionally annotation ROIs (lime) |
 
 `<name>` is the stem of the slide's file name (`BRACS_1003691`); the files go to `figures.dir` below `run/output`, whole or not at all.
 
@@ -157,19 +157,14 @@ change the ROIs. All are off by default (`figures` in the config).
 
 **Reading the boxes figure**
 
-```text
-   amber, short dashes   the boxes of the method; the number above the upper left
-                         corner is local_idx of the ROI in E (from 0)
-   lime,  long dashes    an annotation ROI (a pixel wider), numbered from 1;
-                         the caption gives both counts
-```
-
+- Each box of the method is an **amber** dashed rectangle. The number on the small dark label above its upper left corner is the
+  `local_idx` of the ROI in E (from 0), so a box in the figure is found in the JSON. The caption gives the number of boxes.
 - Lines are laid over the slide as a **translucent colour** (70 %) with a translucent dark edge of 1 px, so the slide shows through
-  the line and between the dashes, and the line still stands out on light and on dark tissue.
-- The two colours lie outside the hues of H&E (pink, purple, blue, white); the two sets also differ in rhythm and width, so they
-  stay apart where they overlap.
-- Numbers sit on small dark labels of the same size for every box.
-- `figures.annotations` is a JSON `{stain_id: [[x, y, w, h], …]}` in level-0 pixels. A stain without an entry gets nothing drawn.
+  the line and between the dashes, and the line still stands out on light and on dark tissue. Amber lies outside the hues of H&E
+  (pink, purple, blue, white).
+- Optional: `figures.annotations` is a JSON `{stain_id: [[x, y, w, h], …]}` in level-0 pixels. Those ROIs are drawn in **lime**
+  (long dashes, a pixel wider, numbered from 1) so that they stay apart from the amber boxes where they overlap; the caption
+  gives both counts. A stain without an entry gets nothing drawn. The example above has none.
 
 **Size.** By default a figure has the resolution of the segmentation, 1 µm/px (a 60 000 × 70 000 px slide gives about
 16 000 × 18 000 px, about 50 MB). `figures.downscale` makes it that many times smaller (`4` → 4 µm/px, 16 times fewer pixels); the
