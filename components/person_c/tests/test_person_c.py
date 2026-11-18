@@ -1,0 +1,349 @@
+from __future__ import annotations
+
+from pathlib import Path
+import json
+import subprocess
+import sys
+from tempfile import TemporaryDirectory
+from unittest import TestCase
+from unittest.mock import patch
+
+import numpy as np
+import unittest
+
+from contracts.paths import RUN_ROOT
+from contracts.runtime import validate_artifact, validate_case_list_input
+from components.person_c.interest_pattern import run
+from components.person_c import interest_pattern as ip
+from components.person_c import segmentation as seg
+from components.person_c.segmentation import fill_holes, window_starts
+
+
+WORK = RUN_ROOT / "output" / "work"
+WORK.mkdir(parents=True, exist_ok=True)
+
+
+def _case_input(he_path: str) -> dict:
+    return {
+        "DxItem_list": ["Histologic_Type"], "case_list": [{
+                "sample_idx": 0, "case_id": "test-case", "hospital": "synthetic",
+                "patient_info": {}, "date": "", "source": {}, "organ": "breast",
+                "report_raw_content": "Pathologic diagnosis: Unremarkable.",
+                "tissue_blocks": [{"block_id": "A", "memo": "", "stains": [
+                    {"stain_id": "he-1", "stain_type": "HE", "filename": "tiny.svs",
+                     "filepath": he_path, "memo": ""},
+                    {"stain_id": "er-1", "stain_type": "ER", "filename": "missing-er.svs",
+                     "filepath": "/missing-er.svs", "memo": ""},
+                ]}], "memo": "",
+            }],
+    }
+
+
+def _config() -> dict:
+    return {
+        "component_version": "person-c/interest-pattern:test", "mode": "region_proposal",
+        "segnet": {
+            "checkpoint": {"path": "../reference/person_c/checkpoint/segnet/missing-test.pt", "revision": "sha256:" + "0" * 64},
+            "roi_classes": ["TUM", "BEN"],
+        },
+        "postprocess_mpp": 8, "min_object_size": 1,
+    }
+
+
+def _stages(mask: np.ndarray) -> dict:
+    return {"tissue": np.full(mask.shape, 255, dtype=np.uint8), "epithelium": mask, "classes": ["TUM", "BEN"]}
+
+
+class _Slide:
+    dimensions = (128, 128)
+    level_dimensions = ((128, 128),)
+    level_downsamples = (1.0,)
+    properties = {"openslide.mpp-x": "1", "openslide.mpp-y": "1"}
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *_):
+        return None
+
+
+class InterestPatternTest(TestCase):
+    def test_he_roi_geometry_and_non_he_preservation(self) -> None:
+        with TemporaryDirectory(dir=WORK) as temp_dir:
+            he_path = Path(temp_dir) / "tiny.svs"
+            he_path.touch()
+            original = _case_input(str(he_path))
+            validate_case_list_input(original, single_case=True)
+            mask = np.zeros((16, 16), dtype=bool)
+            mask[1:4, 2:6] = True
+            with patch("components.person_c.segmentation.load_model", return_value=(object(), "cpu")), \
+                 patch("openslide.OpenSlide", return_value=_Slide()), \
+                 patch("components.person_c.segmentation.infer_stages", return_value=_stages(mask)):
+                output = run(original, _config())
+                repeated = run(original, _config())
+            validate_artifact(output, "E.ROIs")
+            used = output["payload"]["reference_versions"]["interest_pattern"]      # what produced the ROIs
+            self.assertEqual(["TUM", "BEN"], used["segnet"]["roi_classes"])
+            self.assertTrue(used["segnet"]["checkpoint"]["revision"].startswith("sha256:"))
+            self.assertEqual(output, repeated)
+            self.assertEqual(original, _case_input(str(he_path)))
+            he, er = output["payload"]["case_list"][0]["tissue_blocks"][0]["stains"]
+            self.assertEqual(1, he["roi_num"])
+            self.assertEqual([], er["roi_list"])
+            self.assertEqual("/missing-er.svs", er["filepath"])
+            roi = he["roi_list"][0]
+            self.assertEqual([16, 8, 32, 24], roi["level0_info"]["xywh"])
+            self.assertEqual([1.0, 1.0], roi["level0_info"]["mpp"])
+            self.assertTrue(all(0 <= value <= 1 for value in roi["level0_info"]["cxcywh"]))
+            self.assertIsNone(roi["main_info"]["roi_path"])
+            self.assertIsNone(roi["DxPair"])
+            self.assertEqual("interest_pattern_extraction", roi["selection_history"][0]["stage"])
+
+    def test_empty_result_and_missing_wsi(self) -> None:
+        with TemporaryDirectory(dir=WORK) as temp_dir:
+            he_path = Path(temp_dir) / "tiny.svs"
+            he_path.touch()
+            empty = np.zeros((16, 16), dtype=bool)
+            with patch("components.person_c.segmentation.load_model", return_value=(object(), "cpu")), \
+                 patch("openslide.OpenSlide", return_value=_Slide()), \
+                 patch("components.person_c.segmentation.infer_stages", return_value=_stages(empty)):
+                output = run(_case_input(str(he_path)), _config())
+            validate_artifact(output, "E.ROIs")
+            he = output["payload"]["case_list"][0]["tissue_blocks"][0]["stains"][0]
+            self.assertEqual((0, []), (he["roi_num"], he["roi_list"]))
+            with patch("components.person_c.segmentation.load_model", return_value=(object(), "cpu")):
+                with self.assertRaisesRegex(FileNotFoundError, "WSI is missing"):
+                    run(_case_input(str(Path(temp_dir) / "absent.svs")), _config())
+
+    def test_coordinate_semantics(self) -> None:
+        self.assertEqual([2, 10, 8, 20], ip.main_box([10, 20, 30, 40], (0.25, 0.5), 1.0, (100, 100))[0])
+        self.assertEqual([0.25, 0.4, 0.3, 0.4], ip.normalized_box([10, 20, 30, 40], (100, 100)))
+
+    def test_invalid_contract_and_missing_checkpoint_fail(self) -> None:
+        root = Path(__file__).resolve().parents[3]
+        with TemporaryDirectory(dir=WORK) as temp_dir:
+            input_path = Path(temp_dir) / "invalid.json"
+            output_path = Path(temp_dir) / "E.json"
+            invalid = _case_input("/data/missing.svs")
+            invalid["case_list"][0].pop("case_id")
+            input_path.write_text(json.dumps(invalid))
+            command = [sys.executable, "-m", "components.person_c.interest_pattern",
+                       "--input", str(input_path), "--output", str(output_path),
+                       "--config", str(root / "components/person_c/configs/example.json")]
+            result = subprocess.run(command, cwd=root, capture_output=True, text=True)
+            self.assertNotEqual(0, result.returncode)
+            self.assertIn("missing required property 'case_id'", result.stderr)
+            self.assertFalse(output_path.exists())
+
+            he_path = Path(temp_dir) / "tiny.svs"
+            he_path.touch()
+            with self.assertRaisesRegex(FileNotFoundError, "SEGNET checkpoint is missing"):
+                run(_case_input(str(he_path)), _config())
+
+    def test_example_mode_opens_no_slide_and_makes_no_roi(self) -> None:
+        output = run(_case_input("/data/synthetic.svs"), {"component_version": "person-c:test", "mode": "example"})
+        validate_artifact(output, "E.ROIs")
+        stains = output["payload"]["case_list"][0]["tissue_blocks"][0]["stains"]
+        self.assertEqual([0, 0], [stain["roi_num"] for stain in stains])
+
+
+EXAMPLES = Path(__file__).resolve().parents[1] / "examples"
+
+
+def canonical_output() -> dict:
+    """E of examples/case_list.valid.json in mode region_proposal with a slide and an epithelium mask that are made up here
+    (the student is not run): a ring with a small object in its hole (that box is enclosed and dropped), an object at the
+    border of the slide, and one object below ``min_object_size`` (no box)."""
+
+    config = json.loads((EXAMPLES.parents[0] / "configs" / "region_proposal.json").read_text(encoding="utf-8"))
+    source = json.loads((EXAMPLES / "case_list.valid.json").read_text(encoding="utf-8"))
+    mask = np.zeros((7500, 10000), dtype=bool)                  # 1 um/px: a 10 mm x 7.5 mm slide at 0.25 um/px
+    mask[1000:1600, 2000:3000] = True
+    mask[1100:1500, 2100:2900] = False                          # the ring ...
+    mask[1200:1300, 2300:2400] = True                           # ... and an object in its hole
+    mask[7400:7500, 9900:10000] = True                          # at the border
+    mask[3000:3050, 3000:3050] = True                           # 2500 px: too small
+    stages = {"tissue": np.full(mask.shape, 255, dtype=np.uint8), "epithelium": mask, "classes": ["TUM", "BEN"]}
+
+    class Slide(_Slide):
+        dimensions = (40000, 30000)
+        level_dimensions = ((40000, 30000),)
+        properties = {"openslide.mpp-x": "0.25", "openslide.mpp-y": "0.25"}
+
+    with patch("pathlib.Path.is_file", return_value=True), \
+         patch("components.person_c.segmentation.load_model", return_value=(object(), "cpu")), \
+         patch("openslide.OpenSlide", return_value=Slide()), \
+         patch("components.person_c.segmentation.infer_stages", return_value=stages):
+        return run(source, config)
+
+
+class CanonicalExampleTests(TestCase):
+    def test_expected_e_is_what_the_code_writes(self) -> None:
+        output = canonical_output()
+        validate_artifact(output, "E.ROIs")
+        stains = output["payload"]["case_list"][0]["tissue_blocks"][0]["stains"]
+        self.assertEqual([2, 0], [stain["roi_num"] for stain in stains])      # the HE stain; the IHC stain is not processed
+        self.assertEqual(json.loads((EXAMPLES / "E_rois.expected.json").read_text(encoding="utf-8")), output)
+
+
+CONFIG = Path(__file__).resolve().parents[1] / "configs" / "region_proposal.json"
+
+
+class SegnetSettingsTests(unittest.TestCase):
+    def config(self) -> dict:
+        return json.loads(CONFIG.read_text(encoding="utf-8"))
+
+    def test_shipped_config_is_valid(self) -> None:
+        settings = ip.validate_settings(self.config())
+        self.assertEqual("region_proposal", settings["mode"])
+        self.assertEqual(["TUM", "BEN"], settings["segnet"]["roi_classes"])
+
+    def test_bad_values_are_rejected(self) -> None:
+        for path, value in (
+            (("segnet", "checkpoint"), {"path": "x.pt", "revision": "abc"}),
+            (("segnet", "roi_classes"), []),
+        ):
+            config = self.config()
+            config[path[0]][path[1]] = value
+            with self.assertRaises(ValueError, msg=str(path)):
+                ip.validate_settings(config)
+
+
+class ReadTests(unittest.TestCase):
+    def test_a_level_one_percent_coarser_is_still_used(self) -> None:
+        from components.person_c.segmentation import read_um
+
+        class Slide:
+            level_downsamples = [1.0, 4.0, 16.0]
+            levels_read: list[int] = []
+
+            def read_region(self, origin, level, size):
+                self.levels_read.append(level)
+                return np.full((size[1], size[0], 4), (200, 100, 150, 255), dtype=np.uint8)
+
+        slide = Slide()
+        img = read_um(slide, (0.2524, 0.2524), 100, 100, 200, 120, 1.0)   # 3.96 px per um: the level of 4.0 is the one
+        self.assertEqual([1], slide.levels_read)
+        self.assertEqual((120, 200, 3), img.shape)
+
+
+class FigureTests(unittest.TestCase):
+    def test_switches_are_validated(self) -> None:
+        self.assertFalse(ip.validate_figures(None)["boxes"])
+        with self.assertRaises(ValueError):
+            ip.validate_figures({"dir": "x", "tissue": "yes"})
+        with self.assertRaises(ValueError):
+            ip.validate_figures({"boxes": True})                  # a switch on needs a directory
+        with self.assertRaises(ValueError):
+            ip.validate_figures({"dir": "x", "annotations": 3})
+        self.assertIsNone(ip.validate_figures({"dir": "x"})["annotations"])
+
+    def test_only_the_switched_stages_are_written_at_the_size_of_the_stages(self) -> None:
+        import tempfile
+
+        import cv2
+
+        labels = np.full((3000, 4000), 255, dtype=np.uint8)           # 1 um/px: a 4 mm x 3 mm slide
+        labels[500:2500, 500:2000] = 0
+        labels[500:2500, 2000:3500] = 2
+        stages = {"tissue": labels, "epithelium": labels == 0, "classes": ["TUM", "BEN", "STR"],
+                  "image": np.full((3000, 4000, 3), 235, dtype=np.uint8)}
+        with tempfile.TemporaryDirectory() as tmp:
+            paths = seg.save_figures((1.0, 1.0), 1.0, stages, [[800, 600, 400, 300]],
+                                         {"dir": tmp, "tissue": True, "epithelium": False, "boxes": True}, "S1", "cpu")
+            names = sorted(Path(p).name for p in paths)
+            self.assertEqual(["S1_boxes.jpg", "S1_tissue.jpg"], names)
+            self.assertEqual(names, sorted(p.name for p in Path(tmp).iterdir()))
+            image = cv2.imread(str(Path(tmp) / "S1_boxes.jpg"))
+            self.assertEqual((3000, 4000, 3), image.shape)
+            edge = image[597:604, 800:1200].astype(int)               # the top edge of the box: dashes in amber (BGR 0, 176, 255)
+            self.assertGreater(int(((edge[..., 2] > 200) & (edge[..., 0] < 100) & (edge[..., 1] > 120)).sum()), 60)
+            self.assertEqual([], seg.save_figures((1.0, 1.0), 1.0, stages, [], {"dir": tmp}, "S2", "cpu"))
+
+    def test_figure_downscale_and_validation(self) -> None:
+        import tempfile
+
+        import cv2
+
+        labels = np.full((3001, 4003), 255, dtype=np.uint8)           # sizes that are not multiples of the downscale
+        labels[500:2500, 500:2000] = 0
+        stages = {"tissue": labels, "epithelium": labels == 0, "classes": ["TUM", "BEN"],
+                  "image": np.full((3001, 4003, 3), 235, dtype=np.uint8)}
+        config = ip.validate_figures({"dir": "x", "boxes": True, "downscale": 4})
+        with tempfile.TemporaryDirectory() as tmp:
+            config["dir"] = tmp
+            seg.save_figures((1.0, 1.0), 1.0, stages, [[800, 600, 400, 300]], config, "S", "cpu")
+            image = cv2.imread(str(Path(tmp) / "S_boxes.jpg"))
+            self.assertEqual((751, 1001, 3), image.shape)                # 4 um/px
+            top = image[150, 200:300]                                    # the top edge of the box at (800, 600) -> (200, 150), amber
+            amber = (top[:, 2].astype(int) - top[:, 0].astype(int)) > 50       # amber is red without blue; the translucent line keeps part of the slide
+            self.assertTrue(amber[0:7].all() and not amber[9:11].any())     # a dash of 7 px (3.5 x thickness 2), then a gap of 5
+        for bad in ({"downscale": 0}, {"downscale": 65}):
+            with self.assertRaises(ValueError):
+                ip.validate_figures({"dir": "x", **bad})
+
+    def test_annotation_rois_are_lime_dashes_and_only_drawn_when_there_are_some(self) -> None:
+        import tempfile
+
+        import cv2
+
+        stages = {"tissue": np.full((600, 800), 255, dtype=np.uint8), "epithelium": np.zeros((600, 800), dtype=bool),
+                  "classes": ["TUM"], "image": np.full((600, 800, 3), 235, dtype=np.uint8)}
+        switches = {"boxes": True}
+        with tempfile.TemporaryDirectory() as tmp:
+            switches["dir"] = tmp
+            seg.save_figures((1.0, 1.0), 1.0, stages, [], switches, "With", "cpu", [[100, 100, 200, 150]])
+            seg.save_figures((1.0, 1.0), 1.0, stages, [], switches, "Without", "cpu")
+            with_ann = cv2.imread(str(Path(tmp) / "With_boxes.jpg"))
+            without = cv2.imread(str(Path(tmp) / "Without_boxes.jpg"))
+            edge = with_ann[96:105, 100:300].astype(int)                  # the top edge of the annotation: long lime dashes (BGR 79, 255, 124)
+            self.assertGreater(int(((edge[..., 1] > 200) & (edge[..., 0] < 150) & (edge[..., 2] < 180)).sum()), 400)
+            self.assertLess(int(np.abs(without[97:104, 100:300].astype(int) - 235).max()), 12)   # nothing without an annotation
+            self.assertLess(int(np.abs(with_ann[200:230, 250:285].astype(int) - 235).max()), 12)   # the inside is not tinted
+
+
+class EnclosedTests(unittest.TestCase):
+    def test_only_a_box_completely_inside_another_is_dropped(self) -> None:
+        big = [0, 0, 1000, 1000]
+        boxes = [[100, 100, 50, 50], big, [950, 100, 100, 100], [0, 0, 1000, 1000], [2000, 2000, 10, 10], [0, 500, 1000, 500]]
+        # [950,100,100,100] sticks out of big by 50 px, so it stays; the copy of big and the box touching its edge go
+        self.assertEqual([big, [950, 100, 100, 100], [2000, 2000, 10, 10]], ip.drop_enclosed(boxes))
+
+
+class HoleTests(unittest.TestCase):
+    def test_a_ring_is_filled_with_what_is_inside_and_a_border_gap_is_not(self) -> None:
+        mask = np.zeros((60, 60), dtype=bool)
+        mask[5:50, 5:50] = True
+        mask[15:40, 15:40] = False          # the hole of a ring ...
+        mask[25:30, 25:30] = True           # ... with another object in it
+        mask[5:50, 54:58] = True            # a separate object
+        out = fill_holes(mask)
+        self.assertTrue(out[5:50, 5:50].all())
+        self.assertTrue(out[5:50, 54:58].all() and not out[:, 50:54].any())
+
+
+class MaskTests(unittest.TestCase):
+    def test_fill_holes_equals_scipy_on_random_masks(self) -> None:
+        from scipy import ndimage
+
+        rng = np.random.default_rng(0)
+        for density in (0.3, 0.5, 0.6, 0.7):
+            mask = rng.random((200, 300)) < density
+            self.assertTrue(np.array_equal(fill_holes(mask), ndimage.binary_fill_holes(mask)))
+
+    def test_window_starts_cover_the_axis(self) -> None:
+        self.assertEqual([0, 112, 224, 300], window_starts(524, 224, 112))
+        self.assertEqual([0], window_starts(100, 224, 112))
+
+    def test_boxes_follow_the_mask_in_level0_pixels(self) -> None:
+        settings = {"postprocess_mpp": 1.0, "min_object_size": 100}
+        mask = np.zeros((400, 600), dtype=bool)
+        mask[100:150, 100:200] = True
+        mask[100:150, 201:300] = True                  # one pixel apart: two objects
+        mask[300:305, 50:55] = True                    # 25 px: below min_object_size
+        boxes = ip.level0_boxes(mask, (0.5, 0.5), (1200, 800), settings)
+        self.assertEqual([[200, 200, 200, 100], [402, 200, 198, 100]], boxes)   # um x 0.5 -> level-0 px: x 2 per um
+
+
+if __name__ == "__main__":
+    unittest.main()

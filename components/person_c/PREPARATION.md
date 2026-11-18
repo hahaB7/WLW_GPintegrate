@@ -205,21 +205,19 @@ docker build --no-cache \
 ```
 
 實測（H200、單張 WSI、一個網路）：GPU 記憶體峰值 1.05 GiB、主機記憶體 7.3 GB（不畫圖）到 15.7 GB（三張圖，
-最大的一張）、單張 34 到 106 秒。CPU 模式可設定（`device: "cpu"`）但未測。Docker build 不下載 checkpoint，
+最大的一張）、單張 34 到 106 秒。需要 CUDA GPU（沒有就報錯，不提供 CPU 模式）。Docker build 不下載 checkpoint，
 也不把 WSI 複製進 image。**image 尚未 build**（開發環境沒有 Docker）。
 
 ## 6. Canonical example
 
 ```text
 components/person_c/examples/
-├── case_list.valid.json        單案 CaseList（example mode 使用）
-├── E_rois.expected.json        example mode 的 E
-├── e2e/                        真實切片的指令（需要 GPU 與 checkpoint）
-└── README.md
+├── case_list.valid.json        單案 CaseList（含一張 H&E 與一張 IHC）
+└── E_rois.expected.json        region_proposal 對該輸入的預期 E（由 tests 以假的切片與遮罩比對）
 ```
 
-範例與 expected E 是 `mode: example` 的輸出；沒有提交合成切片或 `region_proposal` 的真實輸出（WSI 與 checkpoint 不得
-提交）。`region_proposal` 的行為由 `tests/` 以假的模型與分割結果覆蓋（座標、空 ROI、非處理 stain、缺檔、
+expected E 是 `region_proposal` 在假的切片與上皮遮罩（tests 內的 `canonical_output()`）上的輸出，不是真實切片的結果
+（WSI 與 checkpoint 不得提交）。`region_proposal` 的行為由 `tests/` 以假的模型與分割結果覆蓋（座標、空 ROI、非處理 stain、缺檔、
 缺 checkpoint non-zero fail、框的規則），並以真實 BRACS 切片實測（見 README）。
 
 ## 7. README 必填資訊

@@ -120,18 +120,25 @@ Decoding a whole figure needs several GB of memory: do it inside a job, not on a
 
 ## 5. Code structure
 
+Two program files, each with numbered blocks, and no sub-packages:
+
 ```text
 components/person_c/
-├── interest_pattern.py       entry point: CLI, the stain loop, E.ROIs (contract boundary)
-├── wsi_processing.py         settings check, slide MPP and levels, mask -> boxes, ROI geometry, no torch
-├── region/
-│   ├── segnet.py             the student on a slide: checkpoint, windows, tiles, the stages (torch, openslide)
-│   ├── segnet_net.py         DeepLab v3+ network, inference copy of PIPELINE/SEGNET's SegNet
-│   └── figures.py            the JPEG of a stage (torch for the painting, OpenCV for text and writing)
-├── configs/                  region_proposal.json, example.json, README.md (every key)
-├── examples/                 canonical CaseList and expected E (example mode), command, e2e/run_e2e.sh
-├── tests/                    test_interest_pattern.py (contract, E), test_segnet_regions.py (settings, boxes, figures)
-├── component.yaml  external-assets.yaml  requirements.txt  Dockerfile  PREPARATION.md
+├── interest_pattern.py   what the pipeline sees                        (no torch: the contract tests need no GPU)
+│     1 Settings    the config, every key checked here
+│     2 Boxes       epithelium mask -> level-0 boxes (connected objects, enclosed boxes dropped)
+│     3 ROI         level0_info / main_info records of a box, roi_id, selection history
+│     4 Case        CaseList -> E, one H&E stain after the other
+│     5 CLI
+├── segmentation.py       what the student does                          (torch, OpenSlide, OpenCV)
+│     1 Network     DeepLab v3+ (inference copy of PIPELINE/SEGNET's SegNet)
+│     2 Student     checkpoint check and loading, window prediction
+│     3 Slide       tiles read by worker processes, class map, epithelium mask
+│     4 Figures     the JPEG of a stage
+├── configs/          region_proposal.json  example.json  README.md (every key)
+├── examples/         case_list.valid.json  E_rois.expected.json
+├── tests/            test_person_c.py
+└── README.md  PREPARATION.md  component.yaml  external-assets.yaml  requirements.txt  Dockerfile
 ```
 
 The call chain of one case:
@@ -139,15 +146,15 @@ The call chain of one case:
 ```text
 interest_pattern.main
   └─ run(source, config)
-       ├─ wsi.validate_settings(config)                    every key checked here, nowhere else
-       ├─ segnet.load_model(settings)                      checkpoint path + SHA-256, classes
+       ├─ validate_settings(config)                           every key checked here, nowhere else
+       ├─ segmentation.load_model(settings)                   checkpoint path + SHA-256, classes
        └─ per H&E stain, per WSI:
-            ├─ wsi.slide_mpp(slide)
-            ├─ segnet.infer_stages(path, slide, mpp, ...)  -> {"tissue", "epithelium", "classes", ["image"]}
-            ├─ wsi.level0_boxes(epithelium, ...)           -> boxes (connected objects)
-            ├─ wsi.drop_enclosed(boxes)
-            ├─ _make_roi(...)                              level-0 and main_info records, optional crop
-            └─ figures.save_figures(...)                   only if a switch is on
+            ├─ slide_mpp(slide)
+            ├─ segmentation.infer_stages(path, slide, ...)    -> {"tissue", "epithelium", "classes", ["image"]}
+            ├─ level0_boxes(epithelium, ...)                  -> boxes (connected objects)
+            ├─ drop_enclosed(boxes)
+            ├─ _make_roi(...)                                 level-0 and main_info records
+            └─ segmentation.save_figures(...)                 only if a switch is on
 ```
 
 Where the work runs:
@@ -162,12 +169,11 @@ Where the work runs:
 
 Rules for changes:
 
-- Every config key is validated in `wsi.validate_settings` (and its helpers) and documented in `configs/README.md`; a new key is
-  added to both and to a test.
-- `wsi_processing.py` imports no torch, so the contract tests need no GPU. Heavy imports (torch, openslide, cv2) are inside the
-  functions of `region/`.
+- Every config key is validated in `validate_settings` (and its helpers) and documented in `configs/README.md`; a new key is added to
+  both and to a test.
+- `interest_pattern.py` imports no torch (`segmentation` is imported only when a slide is processed), so the contract tests need no GPU.
 - The ROI geometry (section 4) is what Person D and E rely on; a change to it is a contract question, not a code cleanup.
-- The network code in `segnet_net.py` must keep the module names of PIPELINE/SEGNET's `SegNet`: the checkpoint is loaded with
+- The network class in `segmentation.py` must keep the module names of PIPELINE/SEGNET's `SegNet`: the checkpoint is loaded with
   `strict` key checking.
 
 ## 6. Configuration
@@ -185,7 +191,6 @@ python -m components.person_c.interest_pattern \
 
 `--input` and `--output` must be below the sibling `run/`, `--config` below `components/person_c/configs/`. On a cluster, run it
 inside a job (one GPU, 8 CPUs; memory in section 9); a real slide is not a job for a login node.
-`examples/e2e/run_e2e.sh` does the same for one slide and prints the ROI summary.
 
 Tests (no GPU, no slide, no checkpoint):
 
@@ -238,7 +243,7 @@ One H200, 8 CPUs, `configs/region_proposal.json`, BRACS slides (SVS, 0.2524 µm/
 The boxes of BRACS_1003691 take 0.5 s on the CPU (the hole filling is not timed separately; it is part of the 20 s above). The first version of this mode took 6 min 2 s
 on BRACS_1003691: the tiles were read at the full-resolution level (a requested 3.96 µm/px is 1 % below the 4.0 of level 1, and
 `get_best_level_for_downsample` then skips it) and in the main loop; they are now read at the right level
-(`wsi_processing.read_level`, 1 % tolerance) by 6 processes. The memory of a run with figures is mostly the slide image
+(`segmentation.read_level`, 1 % tolerance) by 6 processes. The memory of a run with figures is mostly the slide image
 and the three figures at 1 µm/px.
 
 ## 10. Limits
@@ -253,7 +258,7 @@ and the three figures at 1 µm/px.
 - **Output is deterministic** for a given checkpoint (an argmax, no sampling); differences between GPU models were not checked.
 - **Slide size.** A figure of a very large slide has more than 2^31 bytes of pixels; the figures are written as BGR for that
   reason (a conversion copy of such an image gave black files). Slides above about 1 gigapixel at 1 µm/px were not tried.
-- **Not run:** the container image, the CPU mode, the full pipeline (the reference assets of Person A and E were not at hand),
+- **Not run:** the container image, the full pipeline (the reference assets of Person A and E were not at hand),
   and Person D / E reading these ROIs.
 
 ## 11. Notes for the pipeline
