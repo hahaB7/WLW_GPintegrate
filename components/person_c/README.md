@@ -63,7 +63,7 @@ change the ROIs. All are off by default; every key is in [configs/README.md](con
 | `epithelium` | `figures.epithelium` | the epithelium mask the boxes come from, with its outline |
 | `boxes` | `figures.boxes` | the ROI boxes (red, dashed) over the epithelium; the caption gives their number |
 
-- **File.** One JPEG per WSI and stage, `<figures.dir>/<case_id>_<stain_id>_<stage>.jpg`, below `run/output`. A file appears
+- **File.** One JPEG per WSI and stage, `<figures.dir>/<name>_<stage>.jpg`, `name` being the stem of the slide's file name (`BRACS_1228_boxes.jpg`), below `run/output`. A file appears
   whole or not at all.
 - **Size.** By default the figure has the resolution of the segmentation, 1 µm/px: a 60 000 × 70 000 px slide gives about
   16 000 × 18 000 px (about 50 MB). `figures.downscale` makes the figure that many times smaller (`4`: 4 µm/px, 16 times fewer
@@ -78,7 +78,7 @@ cut an overview and crops where it is:
 
 ```python
 import cv2
-f = "<case_id>_<stain_id>_boxes.jpg"
+f = "BRACS_1228_boxes.jpg"
 cv2.imwrite("overview.jpg", cv2.imread(f, cv2.IMREAD_REDUCED_COLOR_8))     # 1/8 of the size: 8 um/px, about 2000 px
 cv2.imwrite("crop.jpg", cv2.imread(f)[6500:8300, 3800:5800])               # a 2000 x 1800 px window at 1 um/px (rows, columns)
 ```

@@ -3,7 +3,7 @@
 Stages: ``tissue`` (the multi-class tissue segmentation, one colour per class with a legend), ``epithelium`` (the processed
 segmentation the boxes are made from) and ``boxes`` (the level-0 boxes of the ROIs over the epithelium, dashed lines). Each is the slide at
 the resolution of the segmentation (``postprocess_mpp``, 1 um/px) with the stage drawn over it, written to ``figures.dir``
-below ``run/output`` as ``<case_id>_<stain_id>_<stage>.jpg``. The slide image is the one the student already read; the
+below ``run/output`` as ``<name>_<stage>.jpg`` (``name``: the stem of the slide's file name, ``BRACS_1228``). The slide image is the one the student already read; the
 painting runs on the GPU in bands of rows, so that the memory stays at a few images of the final size.
 """
 
@@ -111,7 +111,7 @@ def write_jpeg(image: np.ndarray, path: Path, quality: int = QUALITY) -> str:
 
 
 def save_figures(mpp0: tuple[float, float], mpp: float, stages: Mapping[str, Any], boxes: Sequence[Sequence[int]],
-                 figures: Mapping[str, Any], case_id: str, stain_id: str, device: Any, annotations: Sequence[Sequence[int]] = ()) -> list[str]:
+                 figures: Mapping[str, Any], name: str, device: Any, annotations: Sequence[Sequence[int]] = ()) -> list[str]:
     """Write the JPEGs whose switch is on; return their paths.
 
     Optional keys of ``figures`` (validated in ``wsi_processing.validate_figures``): ``downscale`` (integer, the figure is that
@@ -154,7 +154,7 @@ def save_figures(mpp0: tuple[float, float], mpp: float, stages: Mapping[str, Any
             draw_boxes(images[stage], annotations, mpp0, fig_mpp, thickness, ANNOTATION)
         if stage == "tissue":
             legend(images[stage], stages["classes"], counts[:len(stages["classes"])] > 0, unit)
-        caption(images[stage], f"{stain_id} {stage}" + (f" ({len(boxes)}" + (f", annotation {len(annotations)}" if len(annotations) else "") + ")" if stage == "boxes" else ""), unit)
+        caption(images[stage], f"{name} {stage}" + (f" ({len(boxes)}" + (f", annotation {len(annotations)}" if len(annotations) else "") + ")" if stage == "boxes" else ""), unit)
     quality = figures.get("quality", QUALITY)
     with ThreadPoolExecutor(len(wanted)) as pool:
-        return list(pool.map(lambda stage: write_jpeg(images[stage], directory / f"{case_id}_{stain_id}_{stage}.jpg", quality), wanted))
+        return list(pool.map(lambda stage: write_jpeg(images[stage], directory / f"{name}_{stage}.jpg", quality), wanted))

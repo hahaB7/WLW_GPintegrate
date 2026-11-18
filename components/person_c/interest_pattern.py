@@ -135,7 +135,7 @@ def run(source: dict[str, Any], config: dict[str, Any]) -> dict[str, Any]:
                                   global_index + index, index, settings)
                         for index, box in enumerate(boxes)
                     ]
-                    figures.save_figures(mpp, settings["postprocess_mpp"], stages, boxes, settings["figures"], case_id, stain["stain_id"], device,
+                    figures.save_figures(mpp, settings["postprocess_mpp"], stages, boxes, settings["figures"], Path(stain["filename"]).stem, device,
                                         annotations.get(stain["stain_id"], ()))
             except Exception as exc:
                 raise RuntimeError(f"person_c failed on stain {stain['stain_id']} ({path}): {exc}") from exc

@@ -78,15 +78,15 @@ class FigureTests(unittest.TestCase):
                   "image": np.full((3000, 4000, 3), 235, dtype=np.uint8)}
         with tempfile.TemporaryDirectory() as tmp:
             paths = figures.save_figures((1.0, 1.0), 1.0, stages, [[800, 600, 400, 300]],
-                                         {"dir": tmp, "tissue": True, "epithelium": False, "boxes": True}, "c1", "s1", "cpu")
+                                         {"dir": tmp, "tissue": True, "epithelium": False, "boxes": True}, "S1", "cpu")
             names = sorted(Path(p).name for p in paths)
-            self.assertEqual(["c1_s1_boxes.jpg", "c1_s1_tissue.jpg"], names)
+            self.assertEqual(["S1_boxes.jpg", "S1_tissue.jpg"], names)
             self.assertEqual(names, sorted(p.name for p in Path(tmp).iterdir()))
-            image = cv2.imread(str(Path(tmp) / "c1_s1_boxes.jpg"))
+            image = cv2.imread(str(Path(tmp) / "S1_boxes.jpg"))
             self.assertEqual((3000, 4000, 3), image.shape)
             self.assertGreater(int(image[600, 1000, 2]), 200)          # the top edge of the box is red (BGR channel 2)
             self.assertLess(int(image[600, 1000, 0]), 60)
-            self.assertEqual([], figures.save_figures((1.0, 1.0), 1.0, stages, [], {"dir": tmp}, "c1", "s2", "cpu"))
+            self.assertEqual([], figures.save_figures((1.0, 1.0), 1.0, stages, [], {"dir": tmp}, "S2", "cpu"))
 
     def test_figure_options_downscale_quality_thickness_and_validation(self) -> None:
         import tempfile
@@ -100,8 +100,8 @@ class FigureTests(unittest.TestCase):
         config = wsi.validate_figures({"dir": "x", "boxes": True, "downscale": 4, "quality": 70, "box_thickness": 3})
         with tempfile.TemporaryDirectory() as tmp:
             config["dir"] = tmp
-            figures.save_figures((1.0, 1.0), 1.0, stages, [[800, 600, 400, 300]], config, "c", "s", "cpu")
-            image = cv2.imread(str(Path(tmp) / "c_s_boxes.jpg"))
+            figures.save_figures((1.0, 1.0), 1.0, stages, [[800, 600, 400, 300]], config, "S", "cpu")
+            image = cv2.imread(str(Path(tmp) / "S_boxes.jpg"))
             self.assertEqual((751, 1001, 3), image.shape)                # 4 um/px
             top = image[150, 200:300]                                    # the top edge of the box at (800, 600) -> (200, 150)
             red = (top[:, 0] < 100) & (top[:, 2] > 200)
@@ -120,10 +120,10 @@ class FigureTests(unittest.TestCase):
         switches = {"boxes": True}
         with tempfile.TemporaryDirectory() as tmp:
             switches["dir"] = tmp
-            figures.save_figures((1.0, 1.0), 1.0, stages, [], switches, "c", "with", "cpu", [[100, 100, 200, 150]])
-            figures.save_figures((1.0, 1.0), 1.0, stages, [], switches, "c", "without", "cpu")
-            with_ann = cv2.imread(str(Path(tmp) / "c_with_boxes.jpg"))
-            without = cv2.imread(str(Path(tmp) / "c_without_boxes.jpg"))
+            figures.save_figures((1.0, 1.0), 1.0, stages, [], switches, "With", "cpu", [[100, 100, 200, 150]])
+            figures.save_figures((1.0, 1.0), 1.0, stages, [], switches, "Without", "cpu")
+            with_ann = cv2.imread(str(Path(tmp) / "With_boxes.jpg"))
+            without = cv2.imread(str(Path(tmp) / "Without_boxes.jpg"))
             pixel = with_ann[100, 200]                                    # the top edge of the annotation (BGR)
             self.assertTrue(pixel[1] > 120 and pixel[0] < 60 and pixel[2] < 60)
             self.assertLess(int(np.abs(without[100, 200].astype(int) - 235).max()), 12)   # nothing there without it

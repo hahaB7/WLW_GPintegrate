@@ -43,7 +43,7 @@ The working MPP of `main_info` follows from the box area in level-0 pixels²: up
 | `figures.tissue` | boolean | The multi-class tissue segmentation: one colour per class, a legend. |
 | `figures.epithelium` | boolean | The epithelium mask the boxes are made from (`segnet.roi_classes`, holes filled). |
 | `figures.boxes` | boolean | The level-0 boxes of the ROIs over the epithelium; the title gives their number. |
-| `figures.dir` | path below `run/output` | Directory of the JPEGs, `<case_id>_<stain_id>_<stage>.jpg`; required when a switch is on. |
+| `figures.dir` | path below `run/output` | Directory of the JPEGs, `<name>_<stage>.jpg` (`name`: the stem of the slide's file name); required when a switch is on. |
 | `figures.annotations` | path below `run/` (optional) | JSON `{stain_id: [[x, y, w, h], ...]}` of annotation ROIs in level-0 pixels. A stain with an entry gets them in green on the boxes figure; a stain without gets nothing. |
 
 Look of the figures (optional; the values shown are the defaults; the colours are fixed):
