@@ -144,9 +144,9 @@ change the ROIs. All are off by default (`figures` in the config).
 
 <table>
 <tr>
-<td valign="top"><img src="docs/BRACS_1003691_tissue.jpg" width="330"></td>
-<td valign="top"><img src="docs/BRACS_1003691_epithelium.jpg" width="330"></td>
-<td valign="top"><img src="docs/BRACS_1003691_boxes.jpg" width="330"></td>
+<td valign="top"><img src="docs/BRACS_1003691_tissue.jpg" width="300"></td>
+<td valign="top"><img src="docs/BRACS_1003691_epithelium.jpg" width="300"></td>
+<td valign="top"><img src="docs/BRACS_1003691_boxes.jpg" width="300"></td>
 </tr>
 <tr>
 <td valign="top"><b>tissue</b><br><sub>TUM red, BEN orange, STR green, SEC pink, FAT cyan, VES purple, OTH dark (glass, lumen)</sub></td>
@@ -183,8 +183,8 @@ import cv2
 f = "BRACS_1003691_boxes.jpg"
 # 1/8 of the size: 8 µm/px, about 2000 px
 cv2.imwrite("overview.jpg", cv2.imread(f, cv2.IMREAD_REDUCED_COLOR_8))
-# a 2000 × 1800 px window at 1 µm/px (rows, columns)
-cv2.imwrite("crop.jpg", cv2.imread(f)[6500:8300, 3800:5800])
+# the example window above: 1000 × 800 px at 1 µm/px (rows, columns)
+cv2.imwrite("crop.jpg", cv2.imread(f)[4787:5587, 4150:5150])
 ```
 
 ---
