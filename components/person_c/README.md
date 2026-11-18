@@ -40,7 +40,8 @@ geometry and E.
 - The network code is `region/segnet_net.py` (a copy of SEGNET's `SegNet`, inference only); the code of the mask is
   `region/segnet.py` (`load_model`, `infer_mask`). The weights are `reference/person_c/checkpoint/segnet/c9_sclip_bracs_s{0,1,2}.pt`,
   pinned by `revision` in the config and checked before loading.
-- The holes of the mask are filled, whatever their size, before the boxes are made: an object inside the hole of a ring is part of that ring and gets no box of its own. A box is the minimum bounding box of a connected object; boxes are not compared with each other.
+- The holes of the mask are filled, whatever their size, before the boxes are made: an object inside the hole of a ring is part of that ring and gets no box of its own. A box is the minimum bounding box of a connected object.
+- Rings that are not closed cannot be filled, so after `level0_boxes` a box with at least `segnet.nested_overlap` of its area inside a larger kept box is dropped (mrcps does not do this).
 - A tile with fewer than `segnet.min_tissue_frac` coloured pixels is glass and gives no ROI.
 - The student was trained on unlabeled BRACS slides; a slide of that set is not an independent test. The quality of the
   ROIs is not measured yet.

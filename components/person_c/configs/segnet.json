@@ -13,7 +13,8 @@
     "margin_um": 112,
     "tta_views": 8,
     "batch_size": 32,
-    "min_tissue_frac": 0.02
+    "min_tissue_frac": 0.02,
+    "nested_overlap": 0.9
   },
   "device": "auto",
   "postprocess_mpp": 8.0,
