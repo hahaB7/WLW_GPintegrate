@@ -51,7 +51,7 @@ Look of the figures (optional; the values shown are the defaults; the colours ar
 |---|---|---|
 | `figures.downscale` | integer 1..64 (1) | The figure is this many times smaller than the 1 µm/px stages (4: 4 µm/px, 16 times fewer pixels, a viewable overview). |
 | `figures.quality` | integer 1..100 (90) | JPEG quality. |
-| `figures.box_thickness` | integer 1..20 (4) | Line width of the boxes and annotation ROIs in pixels of the figure, without the dark edge of 1 px on each side. |
+| `figures.box_thickness` | integer 1..20 (4 at least, about 1 per 3200 px of figure width) | Line width of the boxes and annotation ROIs in pixels of the figure, without the dark edge of 1 px on each side. |
 
 All switches are off by default.
 

@@ -98,23 +98,17 @@ def draw_boxes(image: np.ndarray, boxes: Sequence[Sequence[int]], mpp0: tuple[fl
 
 
 def mark_annotations(image: np.ndarray, boxes: Sequence[Sequence[int]], mpp0: tuple[float, float], mpp: float, unit: float) -> None:
-    """In place: a ring and a number around every annotation ROI, so that it is found at a glance in a zoomed-out figure.
+    """In place: a ring close around every annotation ROI, so that it is found at a glance in a zoomed-out figure.
 
-    The ring lies outside the box (radius: half the diagonal plus a margin) and is as wide as the figure is large; the box
-    itself stays a thin dashed line."""
+    The ring lies just outside the box (half the diagonal plus a small margin); the box itself stays a thin dashed line."""
 
     import cv2
 
-    for number, (x, y, w, h) in enumerate(boxes, 1):
+    for x, y, w, h in boxes:
         cx, cy = round((x + w / 2) * mpp0[0] / mpp), round((y + h / 2) * mpp0[1] / mpp)
-        radius = round((((w * mpp0[0]) ** 2 + (h * mpp0[1]) ** 2) ** 0.5 / 2) / mpp + 25 * unit)
-        cv2.circle(image, (cx, cy), radius, ANNOTATION, max(2, int(2 * unit)))
-        label = str(number)
-        scale, width = 1.6 * unit, max(2, int(3 * unit))
-        (tw, th), _ = cv2.getTextSize(label, cv2.FONT_HERSHEY_SIMPLEX, scale, width)
-        origin = (min(max(cx + radius, 0), image.shape[1] - tw - 1), max(cy - radius, th + 1))   # above right of the ring, inside the figure
-        cv2.putText(image, label, origin, cv2.FONT_HERSHEY_SIMPLEX, scale, (0, 0, 0), width + 4 * max(1, int(unit)))
-        cv2.putText(image, label, origin, cv2.FONT_HERSHEY_SIMPLEX, scale, ANNOTATION, width)
+        radius = round((((w * mpp0[0]) ** 2 + (h * mpp0[1]) ** 2) ** 0.5 / 2) / mpp + 3 * unit)
+        cv2.circle(image, (cx, cy), radius, (0, 0, 0), max(3, int(1.2 * unit)) + 2)
+        cv2.circle(image, (cx, cy), radius, ANNOTATION, max(3, int(1.2 * unit)))
 
 
 def write_jpeg(image: np.ndarray, path: Path, quality: int = QUALITY) -> str:
@@ -167,7 +161,7 @@ def save_figures(mpp0: tuple[float, float], mpp: float, stages: Mapping[str, Any
                 band = cv2.resize(band, (out_cols, -(-(r1 - r0) // step)), interpolation=cv2.INTER_AREA)
             images[stage][r0 // step:r0 // step + band.shape[0]] = band
     unit = out_cols / 1600                                  # sizes of text and lines are those of a 1600 px wide image
-    thickness = figures.get("box_thickness", BOX_THICKNESS)    # thin: the figure is looked at zoomed in
+    thickness = figures.get("box_thickness") or max(BOX_THICKNESS, int(0.5 * unit))   # thin, but it grows a little with the figure
     directory = Path(figures["dir"])
     directory.mkdir(parents=True, exist_ok=True)
     for stage in wanted:

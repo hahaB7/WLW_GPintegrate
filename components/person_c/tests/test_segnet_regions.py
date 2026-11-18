@@ -126,9 +126,9 @@ class FigureTests(unittest.TestCase):
             pixel = with_ann[100, 200]                                    # the top edge of the annotation (BGR)
             self.assertTrue(pixel[1] > 120 and pixel[0] < 60 and pixel[2] < 60)
             self.assertLess(int(np.abs(without[100, 200].astype(int) - 235).max()), 12)   # nothing there without it
-            ring = with_ann[175, 330:345]                                  # the ring around the box: centre (200, 175), radius 137
+            ring = with_ann[175, 320:334]                                  # the ring around the box: centre (200, 175), radius about 127
             self.assertTrue(((ring[:, 1] > 120) & (ring[:, 0] < 80) & (ring[:, 2] < 80)).any())
-            self.assertLess(int(np.abs(without[175, 330:345].astype(int) - 235).max()), 12)
+            self.assertLess(int(np.abs(without[175, 320:334].astype(int) - 235).max()), 12)
 
 
 class EnclosedTests(unittest.TestCase):

@@ -104,7 +104,7 @@ def validate_figures(cfg: Any) -> dict[str, Any]:
     result["downscale"] = _bounded_int(cfg.get("downscale", 1), 1, 64, "figures.downscale")
     result["quality"] = _bounded_int(cfg.get("quality", 90), 1, 100, "figures.quality")
     thickness = cfg.get("box_thickness")
-    result["box_thickness"] = 4 if thickness is None else _bounded_int(thickness, 1, 20, "figures.box_thickness")
+    result["box_thickness"] = None if thickness is None else _bounded_int(thickness, 1, 20, "figures.box_thickness")
     if any(result[stage] for stage in ("tissue", "epithelium", "boxes")) and not result["dir"]:
         raise ValueError("person_c figures.dir is required when a figure is switched on")
     return result
