@@ -144,14 +144,14 @@ change the ROIs. All are off by default (`figures` in the config).
 
 <table>
 <tr>
+<td valign="top"><img src="docs/BRACS_1003691_he.jpg" width="300"></td>
 <td valign="top"><img src="docs/BRACS_1003691_tissue.jpg" width="300"></td>
-<td valign="top"><img src="docs/BRACS_1003691_epithelium.jpg" width="300"></td>
 <td valign="top"><img src="docs/BRACS_1003691_boxes.jpg" width="300"></td>
 </tr>
 <tr>
+<td valign="top"><b>H&amp;E</b><br><sub>the slide, as read at 1 µm/px</sub></td>
 <td valign="top"><b>tissue</b><br><sub>TUM red, BEN orange, STR green, SEC pink, FAT cyan, VES purple, OTH dark (glass, lumen)</sub></td>
-<td valign="top"><b>epithelium</b><br><sub>TUM ∪ BEN, holes filled</sub></td>
-<td valign="top"><b>boxes</b><br><sub>the ROIs of the method, numbered by <code>local_idx</code></sub></td>
+<td valign="top"><b>boxes</b><br><sub>the ROIs of the method, numbered by <code>local_idx</code>, over the epithelium (TUM ∪ BEN, holes filled, black outline)</sub></td>
 </tr>
 </table>
 
