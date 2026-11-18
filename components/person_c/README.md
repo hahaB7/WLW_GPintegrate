@@ -144,16 +144,18 @@ change the ROIs. All are off by default (`figures` in the config).
 
 <table>
 <tr>
-<td width="33%" valign="top"><img src="docs/BRACS_1003691_he.jpg" width="100%"></td>
-<td width="33%" valign="top"><img src="docs/BRACS_1003691_tissue.jpg" width="100%"></td>
-<td width="33%" valign="top"><img src="docs/BRACS_1003691_boxes.jpg" width="100%"></td>
+<td width="50%" valign="top"><img src="docs/BRACS_1003691_he.jpg" width="100%"></td>
+<td width="50%" valign="top"><img src="docs/BRACS_1003691_tissue.jpg" width="100%"></td>
 </tr>
 <tr>
 <td valign="top"><b>H&amp;E</b><br><sub>the slide, as read at 1 µm/px</sub></td>
 <td valign="top"><b>tissue</b><br><sub>TUM red, BEN orange, STR green, SEC pink, FAT cyan, VES purple, OTH dark (glass, lumen)</sub></td>
-<td valign="top"><b>boxes</b><br><sub>the ROIs of the method, numbered by <code>local_idx</code>, over the epithelium (TUM ∪ BEN, holes filled, black outline)</sub></td>
 </tr>
 </table>
+
+<img src="docs/BRACS_1003691_boxes.jpg" width="100%">
+
+**boxes** — the ROIs of the method, numbered by `local_idx`, over the epithelium (TUM ∪ BEN, holes filled, black outline).
 
 **Reading the boxes figure**
 
