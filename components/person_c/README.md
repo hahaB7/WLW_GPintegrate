@@ -21,7 +21,7 @@ in its example profile.
 | Config | `mode` | What it does |
 |---|---|---|
 | `configs/region_proposal.json` | `region_proposal` | Finds the regions of the epithelium with the SEGNET student (section 2). The mode names the stage (region proposal), not the algorithm. |
-| `configs/example.json` | `example` | No slide is opened: no ROIs, or the fixed boxes of `demo_regions` if the config has them. For the pipeline's example profile and the contract tests. |
+| `configs/example.json` | `example` | No slide is opened and no ROI is made. For the pipeline's example profile and the contract tests. |
 
 Everything after the mask (boxes, ROI records, E) is shared. `stain_type_whitelist` (default `["HE"]`) selects the stains that are
 opened. Every other stain stays in E with `roi_num = 0` and `roi_list = []`.
@@ -49,8 +49,8 @@ opened. Every other stain stays in E with `roi_num = 0` and `roi_list = []`.
   Boxes that only overlap are all kept.
 - **Checkpoint.** `reference/person_c/checkpoint/segnet/c9_sclip_bracs_s0.pt`, pinned by `revision` (SHA-256) in the config and
   checked before it is loaded.
-- **What produced the ROIs** is written to `payload.reference_versions.interest_pattern` of E: the mode, the checkpoints with
-  their SHA-256, the classes, the tile size, `postprocess_mpp` and `min_object_size`.
+- **What produced the ROIs** is written to `payload.reference_versions.interest_pattern` of E: the mode, the checkpoint with
+  its SHA-256, the classes, the tile size, `postprocess_mpp` and `min_object_size`.
 
 ## 3. Figures
 
@@ -118,7 +118,7 @@ components/person_c/
 ├── interest_pattern.py       entry point: CLI, the stain loop, E.ROIs (contract boundary)
 ├── wsi_processing.py         settings check, slide MPP and levels, mask -> boxes, ROI geometry, no torch
 ├── region/
-│   ├── segnet.py             the student on a slide: checkpoints, windows, tiles, the stages (torch, openslide)
+│   ├── segnet.py             the student on a slide: checkpoint, windows, tiles, the stages (torch, openslide)
 │   ├── segnet_net.py         DeepLab v3+ network, inference copy of PIPELINE/SEGNET's SegNet
 │   └── figures.py            the JPEG of a stage (torch for the painting, OpenCV for text and writing)
 ├── configs/                  region_proposal.json, example.json, README.md (every key)
@@ -231,7 +231,7 @@ One H200, 8 CPUs, `configs/region_proposal.json`, BRACS slides (SVS, 0.2524 µm/
 The boxes of BRACS_1003691 take 0.5 s on the CPU (the hole filling is not timed separately; it is part of the 20 s above). The first version of this mode took 6 min 2 s
 on BRACS_1003691: the tiles were read at the full-resolution level (a requested 3.96 µm/px is 1 % below the 4.0 of level 1, and
 `get_best_level_for_downsample` then skips it) and in the main loop; they are now read at the right level
-(`wsi_processing.read_level`, 1 % tolerance) by `segnet.num_workers` processes. More checkpoints (`segnet.checkpoints`) multiply the GPU time; one is the default. The memory of a run with figures is mostly the slide image
+(`wsi_processing.read_level`, 1 % tolerance) by `segnet.num_workers` processes. The memory of a run with figures is mostly the slide image
 and the three figures at 1 µm/px.
 
 ## 10. Limits

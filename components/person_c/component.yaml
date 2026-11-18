@@ -14,5 +14,5 @@ runtime:
 models:
   - name: segnet-c9-sclip-bracs-s0
     revision: sha256:b13895d5cf7ca919cb6b78e43931a5e9174f7305573964c3ed1ac5cea5b3e95b
-    configured_by: configs/region_proposal.json:segnet.checkpoints
+    configured_by: configs/region_proposal.json:segnet.checkpoint
 entrypoint: python -m components.person_c.interest_pattern

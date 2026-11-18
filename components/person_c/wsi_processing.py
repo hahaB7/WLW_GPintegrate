@@ -44,11 +44,7 @@ def validate_settings(config: dict[str, Any]) -> dict[str, Any]:
     if len(normalized_whitelist) != len(set(normalized_whitelist)):
         raise ValueError("person_c stain_type_whitelist contains duplicates")
     result["stain_type_whitelist"] = normalized_whitelist
-    if mode == "example":                                  # no slide is opened: the fixed boxes of the config, or none
-        result.setdefault("demo_regions", [])
-        result.setdefault("demo_mpp", {"x": 0.5, "y": 0.5})
-        if not isinstance(result["demo_regions"], list) or not isinstance(result["demo_mpp"], dict):
-            raise ValueError("person_c example demo_regions must be a list and demo_mpp an object")
+    if mode == "example":                                  # no slide is opened and no ROI is made
         return result
     result["segnet"] = validate_segnet(result.get("segnet"))
     result["figures"] = validate_figures(result.get("figures"))
@@ -68,13 +64,10 @@ def validate_settings(config: dict[str, Any]) -> dict[str, Any]:
 def validate_segnet(cfg: Any) -> dict[str, Any]:
     if not isinstance(cfg, dict):
         raise ValueError("person_c segnet requires a segnet object")
-    checkpoints = cfg.get("checkpoints")
-    if not isinstance(checkpoints, list) or not checkpoints or any(
-        not isinstance(c, dict) or not isinstance(c.get("path"), str) or not c["path"]
-        or not isinstance(c.get("revision"), str) or not c["revision"].startswith("sha256:")
-        for c in checkpoints
-    ):
-        raise ValueError("person_c segnet.checkpoints must be a non-empty list of {path, revision: sha256:<digest>}")
+    checkpoint = cfg.get("checkpoint")
+    if (not isinstance(checkpoint, dict) or not isinstance(checkpoint.get("path"), str) or not checkpoint["path"]
+            or not isinstance(checkpoint.get("revision"), str) or not checkpoint["revision"].startswith("sha256:")):
+        raise ValueError("person_c segnet.checkpoint must be {path, revision: sha256:<digest>}")
     classes = cfg.get("roi_classes")
     if not isinstance(classes, list) or not classes or any(not isinstance(c, str) or not c for c in classes):
         raise ValueError("person_c segnet.roi_classes must be a non-empty string list")

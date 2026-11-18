@@ -5,12 +5,10 @@
     "HE"
   ],
   "segnet": {
-    "checkpoints": [
-      {
-        "path": "../reference/person_c/checkpoint/segnet/c9_sclip_bracs_s0.pt",
-        "revision": "sha256:b13895d5cf7ca919cb6b78e43931a5e9174f7305573964c3ed1ac5cea5b3e95b"
-      }
-    ],
+    "checkpoint": {
+      "path": "../reference/person_c/checkpoint/segnet/c9_sclip_bracs_s0.pt",
+      "revision": "sha256:b13895d5cf7ca919cb6b78e43931a5e9174f7305573964c3ed1ac5cea5b3e95b"
+    },
     "roi_classes": [
       "TUM",
       "BEN"

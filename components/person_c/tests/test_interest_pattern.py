@@ -41,7 +41,7 @@ def _config(save_png: bool = False, output_dir: str = "") -> dict:
         "component_version": "person-c/interest-pattern:test", "mode": "region_proposal",
         "stain_type_whitelist": ["HE"],
         "segnet": {
-            "checkpoints": [{"path": "../reference/person_c/checkpoint/segnet/missing-test.pt", "revision": "sha256:" + "0" * 64}],
+            "checkpoint": {"path": "../reference/person_c/checkpoint/segnet/missing-test.pt", "revision": "sha256:" + "0" * 64},
             "roi_classes": ["TUM", "BEN"], "tile_um": 1792, "margin_um": 112, "batch_size": 1, "num_workers": 0,
         },
         "device": "cpu", "postprocess_mpp": 8,
@@ -84,7 +84,7 @@ class InterestPatternTest(TestCase):
             validate_artifact(output, "E.ROIs")
             used = output["payload"]["reference_versions"]["interest_pattern"]      # what produced the ROIs
             self.assertEqual(["TUM", "BEN"], used["segnet"]["roi_classes"])
-            self.assertTrue(used["segnet"]["checkpoints"][0]["revision"].startswith("sha256:"))
+            self.assertTrue(used["segnet"]["checkpoint"]["revision"].startswith("sha256:"))
             self.assertEqual(output, repeated)
             self.assertEqual(original, _case_input(str(he_path)))
             he, er = output["payload"]["case_list"][0]["tissue_blocks"][0]["stains"]
@@ -154,25 +154,14 @@ class InterestPatternTest(TestCase):
             with self.assertRaisesRegex(FileNotFoundError, "SEGNET checkpoint is missing"):
                 run(_case_input(str(he_path)), _config())
 
-    def test_explicit_demo_keeps_non_he_empty(self) -> None:
-        config = {"component_version": "person-c:test", "mode": "example",
-                  "stain_type_whitelist": ["HE"],
-                  "demo_mpp": {"x": 0.5, "y": 0.5},
-                  "demo_regions": [{"x": 0, "y": 0, "width": 32, "height": 32}]}
-        output = run(_case_input("/data/synthetic.svs"), config)
+    def test_example_mode_opens_no_slide_and_makes_no_roi(self) -> None:
+        output = run(_case_input("/data/synthetic.svs"), {"component_version": "person-c:test", "mode": "example"})
         validate_artifact(output, "E.ROIs")
         stains = output["payload"]["case_list"][0]["tissue_blocks"][0]["stains"]
-        self.assertEqual([1, 0], [stain["roi_num"] for stain in stains])
+        self.assertEqual([0, 0], [stain["roi_num"] for stain in stains])
 
-    def test_stain_whitelist_is_configurable_and_required(self) -> None:
-        config = {"component_version": "person-c:test", "mode": "example",
-                  "stain_type_whitelist": ["ER"],
-                  "demo_mpp": {"x": 0.5, "y": 0.5},
-                  "demo_regions": [{"x": 0, "y": 0, "width": 32, "height": 32}]}
-        output = run(_case_input("/data/synthetic.svs"), config)
-        stains = output["payload"]["case_list"][0]["tissue_blocks"][0]["stains"]
-        self.assertEqual([0, 1], [stain["roi_num"] for stain in stains])
-        config["stain_type_whitelist"] = []
+    def test_stain_whitelist_is_validated(self) -> None:
+        config = {"component_version": "person-c:test", "mode": "example", "stain_type_whitelist": []}
         with self.assertRaisesRegex(ValueError, "non-empty string list"):
             run(_case_input("/data/synthetic.svs"), config)
 

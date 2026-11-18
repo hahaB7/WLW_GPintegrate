@@ -5,8 +5,7 @@ BRACS slides, class set c9) labels the slide; the union of ``roi_classes`` (TUM,
 mask at ``postprocess_mpp`` (1 um/px), which ``wsi_processing.level0_boxes`` turns into ROI boxes.
 
 * The slide is read at the student's 1 um/px in tiles of ``tile_um`` with ``margin_um`` of context on every side;
-  the student's windows (224 px, half overlap, cosine-squared blending, mean over
-  the checkpoints) are those of SEGNET's ``Predictor``.
+  the student's windows (224 px, half overlap, cosine-squared blending, one network) are those of SEGNET's ``Predictor``.
 * The student outputs one probability vector per 4 um cell; it is enlarged bilinearly to ``postprocess_mpp`` and the label of a pixel is the class of the highest probability (argmax over c9).
 * Heavy imports (torch, openslide, cv2) happen inside the functions so contract tests stay light.
 """
@@ -15,7 +14,7 @@ from __future__ import annotations
 
 import hashlib
 import math
-from typing import Any, Mapping, Sequence
+from typing import Any, Mapping
 
 import numpy as np
 
@@ -41,9 +40,9 @@ def window_starts(n: int, win: int, step: int) -> list[int]:
 
 
 def load_model(settings: Mapping[str, Any]) -> tuple[dict[str, Any], Any]:
-    """Resolve and verify the checkpoints, load them -> ({"nets", "classes", "window", "mpp"}, device).
+    """Resolve and verify the checkpoint, load it -> ({"net", "classes", "window", "mpp"}, device).
 
-    Every ``segnet.checkpoints`` entry is ``{"path": below reference/person_c, "revision": "sha256:<digest>"}``.
+    ``segnet.checkpoint`` is ``{"path": below reference/person_c, "revision": "sha256:<digest>"}``.
     """
 
     import torch
@@ -58,38 +57,33 @@ def load_model(settings: Mapping[str, Any]) -> tuple[dict[str, Any], Any]:
     if device_name == "cuda" and not torch.cuda.is_available():
         raise RuntimeError("person_c CUDA was requested but is unavailable")
     device = torch.device(device_name)
-    nets, classes, window, mpp = [], None, None, None
-    for entry in cfg["checkpoints"]:
-        path = resolve_person_reference_path("person_c", entry["path"])
-        if not path.is_file():
-            raise FileNotFoundError(f"person_c SEGNET checkpoint is missing: {path}")
-        digest = hashlib.sha256()
-        with path.open("rb") as stream:
-            for chunk in iter(lambda: stream.read(4 * 1024 * 1024), b""):
-                digest.update(chunk)
-        if f"sha256:{digest.hexdigest()}" != entry["revision"]:
-            raise ValueError(f"person_c SEGNET checkpoint checksum mismatch: {path}")
-        ck = torch.load(path, map_location="cpu", weights_only=True)
-        if classes is None:
-            classes, window, mpp = list(ck["classes"]), int(ck["config"]["window_px"]), float(ck["config"]["mpp"])
-        elif list(ck["classes"]) != classes:
-            raise ValueError(f"person_c SEGNET checkpoint {path} has other classes than the first one")
-        net = SegNet(len(classes))
-        result = net.load_state_dict(ck["state"], strict=False)
-        if result.unexpected_keys or result.missing_keys:
-            raise ValueError(f"person_c SEGNET checkpoint {path} does not fit the network: {result}")
-        nets.append(net.to(device).eval())
+    entry = cfg["checkpoint"]
+    path = resolve_person_reference_path("person_c", entry["path"])
+    if not path.is_file():
+        raise FileNotFoundError(f"person_c SEGNET checkpoint is missing: {path}")
+    digest = hashlib.sha256()
+    with path.open("rb") as stream:
+        for chunk in iter(lambda: stream.read(4 * 1024 * 1024), b""):
+            digest.update(chunk)
+    if f"sha256:{digest.hexdigest()}" != entry["revision"]:
+        raise ValueError(f"person_c SEGNET checkpoint checksum mismatch: {path}")
+    ck = torch.load(path, map_location="cpu", weights_only=True)
+    classes, window, mpp = list(ck["classes"]), int(ck["config"]["window_px"]), float(ck["config"]["mpp"])
+    net = SegNet(len(classes))
+    result = net.load_state_dict(ck["state"], strict=False)
+    if result.unexpected_keys or result.missing_keys:
+        raise ValueError(f"person_c SEGNET checkpoint {path} does not fit the network: {result}")
     missing = [c for c in cfg["roi_classes"] if c not in classes]
     if missing:
-        raise ValueError(f"person_c segnet.roi_classes {missing} are not classes of the checkpoints {classes}")
-    return {"nets": nets, "classes": classes, "window": window, "mpp": mpp}, device
+        raise ValueError(f"person_c segnet.roi_classes {missing} are not classes of the checkpoint {classes}")
+    return {"net": net.to(device).eval(), "classes": classes, "window": window, "mpp": mpp}, device
 
 
-def predict_cells(img: np.ndarray, nets: Sequence[Any], window: int, device: Any, batch: int) -> Any:
+def predict_cells(img: np.ndarray, net: Any, window: int, device: Any, batch: int) -> Any:
     """uint8 (H, W, 3) at the student's mpp -> class probabilities (K, ceil(H/4), ceil(W/4)) on the device.
 
     The same rule as ``Predictor._probs`` of SEGNET: windows of ``window`` px at half overlap blended with a
-    cosine-squared weight, the mean of the networks; an image smaller than
+    cosine-squared weight; an image smaller than
     the window is one window of its own size.
     """
 
@@ -112,11 +106,8 @@ def predict_cells(img: np.ndarray, nets: Sequence[Any], window: int, device: Any
         for i in range(0, len(coords), batch):
             chunk = coords[i:i + batch]
             wins = torch.cat([x[:, :, y:y + size, x0:x0 + size] for y, x0 in chunk])
-            p = 0
-            for net in nets:
-                with torch.autocast("cuda", dtype=torch.bfloat16, enabled=device.type == "cuda"):
-                    p = p + torch.softmax(net(wins).float(), 1)
-            p = p / len(nets)
+            with torch.autocast("cuda", dtype=torch.bfloat16, enabled=device.type == "cuda"):
+                p = torch.softmax(net(wins).float(), 1)
             if acc is None:
                 k_classes = p.shape[1]
                 acc = torch.zeros(k_classes, Hp // s, Wp // s, device=device)
@@ -203,7 +194,7 @@ def infer_stages(path: str, slide: Any, mpp0: tuple[float, float], settings: Map
     image = np.full((*shape, 3), 255, dtype=np.uint8) if with_image else None
     side = round(tile / target)
     for (tx, ty), (x0, y0, img) in zip(origins, loader):
-        probs = predict_cells(img.numpy(), model["nets"], model["window"], device, cfg["batch_size"])
+        probs = predict_cells(img.numpy(), model["net"], model["window"], device, cfg["batch_size"])
         label = F.interpolate(probs[None], scale_factor=scale, mode="bilinear", align_corners=False)[0].argmax(0).to(torch.uint8)
         cx, cy = round((tx - int(x0)) / target), round((ty - int(y0)) / target)
         part = label[cy:cy + side, cx:cx + side]

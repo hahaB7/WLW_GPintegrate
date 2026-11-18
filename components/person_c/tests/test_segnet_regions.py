@@ -25,7 +25,7 @@ class SegnetSettingsTests(unittest.TestCase):
     def test_bad_values_are_rejected(self) -> None:
         for path, value in (
             (("segnet", "tile_um"), 1790),
-            (("segnet", "checkpoints"), [{"path": "x.pt", "revision": "abc"}]),
+            (("segnet", "checkpoint"), {"path": "x.pt", "revision": "abc"}),
             (("segnet", "roi_classes"), []),
         ):
             config = self.config()

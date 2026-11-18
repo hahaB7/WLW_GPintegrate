@@ -50,32 +50,6 @@ def _make_roi(case_id: str, stain_id: str, box: list[int], slide: Any,
     }
 
 
-def _demo_rois(case_id: str, stain: dict[str, Any], settings: dict[str, Any],
-               first_index: int) -> list[dict[str, Any]]:
-    """Retain the historical pipeline fixture, which has no mounted WSI."""
-    mpp_config = settings["demo_mpp"]
-    mpp = (wsi.positive_number(mpp_config.get("x"), "demo_mpp.x"),
-           wsi.positive_number(mpp_config.get("y"), "demo_mpp.y"))
-    boxes = []
-    for region in settings["demo_regions"]:
-        if not isinstance(region, dict):
-            raise ValueError("person_c demo_regions entries must be objects")
-        boxes.append([wsi.integer(region.get("x"), "demo x"),
-                      wsi.integer(region.get("y"), "demo y"),
-                      wsi.integer(region.get("width"), "demo width", 1),
-                      wsi.integer(region.get("height"), "demo height", 1)])
-    size = (max((box[0]+box[2] for box in boxes), default=1),
-            max((box[1]+box[3] for box in boxes), default=1))
-    return [{
-        "roi_id": wsi.roi_id(case_id, stain["stain_id"], box),
-        "global_idx": first_index + index, "local_idx": index,
-        "level0_info": wsi.roi_info(box, size, list(mpp)),
-        "main_info": wsi.roi_info(box, size, mpp[0]),
-        "DxPair": None, "visualAttrs": None, "visualAttrs_info": None,
-        "selection_history": [_selection_event(settings["component_version"])],
-    } for index, box in enumerate(boxes)]
-
-
 def run(source: dict[str, Any], config: dict[str, Any]) -> dict[str, Any]:
     validate_case_list_input(source, single_case=True)
     settings = wsi.validate_settings(config)
@@ -94,7 +68,7 @@ def run(source: dict[str, Any], config: dict[str, Any]) -> dict[str, Any]:
         seg = settings["segnet"]
         payload["reference_versions"] = {"interest_pattern": {
             "mode": "region_proposal",
-            "segnet": {key: seg[key] for key in ("checkpoints", "roi_classes", "tile_um", "margin_um")},
+            "segnet": {key: seg[key] for key in ("checkpoint", "roi_classes", "tile_um", "margin_um")},
             "postprocess_mpp": settings["postprocess_mpp"], "min_object_size": settings["min_object_size"],
         }}
     allowed_stains = set(settings["stain_type_whitelist"])
@@ -120,7 +94,7 @@ def run(source: dict[str, Any], config: dict[str, Any]) -> dict[str, Any]:
         if stain["stain_type"].upper() not in allowed_stains:
             rois = []
         elif settings["mode"] == "example":
-            rois = _demo_rois(case_id, stain, settings, global_index)
+            rois = []
         else:
             import openslide
 
