@@ -144,9 +144,9 @@ change the ROIs. All are off by default (`figures` in the config).
 
 <table>
 <tr>
-<td valign="top"><img src="docs/BRACS_1003691_he.jpg" width="300"></td>
-<td valign="top"><img src="docs/BRACS_1003691_tissue.jpg" width="300"></td>
-<td valign="top"><img src="docs/BRACS_1003691_boxes.jpg" width="300"></td>
+<td width="33%" valign="top"><img src="docs/BRACS_1003691_he.jpg" width="100%"></td>
+<td width="33%" valign="top"><img src="docs/BRACS_1003691_tissue.jpg" width="100%"></td>
+<td width="33%" valign="top"><img src="docs/BRACS_1003691_boxes.jpg" width="100%"></td>
 </tr>
 <tr>
 <td valign="top"><b>H&amp;E</b><br><sub>the slide, as read at 1 µm/px</sub></td>
