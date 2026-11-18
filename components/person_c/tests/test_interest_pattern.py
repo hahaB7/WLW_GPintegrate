@@ -82,6 +82,9 @@ class InterestPatternTest(TestCase):
                 output = run(original, _config())
                 repeated = run(original, _config())
             validate_artifact(output, "E.ROIs")
+            used = output["payload"]["reference_versions"]["interest_pattern"]      # what produced the ROIs
+            self.assertEqual(["TUM", "BEN"], used["segnet"]["roi_classes"])
+            self.assertTrue(used["segnet"]["checkpoints"][0]["revision"].startswith("sha256:"))
             self.assertEqual(output, repeated)
             self.assertEqual(original, _case_input(str(he_path)))
             he, er = output["payload"]["case_list"][0]["tissue_blocks"][0]["stains"]
@@ -172,3 +175,42 @@ class InterestPatternTest(TestCase):
         config["stain_type_whitelist"] = []
         with self.assertRaisesRegex(ValueError, "non-empty string list"):
             run(_case_input("/data/synthetic.svs"), config)
+
+
+EXAMPLES = Path(__file__).resolve().parents[1] / "examples"
+
+
+def canonical_output() -> dict:
+    """E of examples/case_list.valid.json in mode region_proposal with a slide and an epithelium mask that are made up here
+    (the student is not run): a ring with a small object in its hole (that box is enclosed and dropped), an object at the
+    border of the slide, and one object below ``min_object_size`` (no box)."""
+
+    config = json.loads((EXAMPLES.parents[0] / "configs" / "region_proposal.json").read_text(encoding="utf-8"))
+    source = json.loads((EXAMPLES / "case_list.valid.json").read_text(encoding="utf-8"))
+    mask = np.zeros((7500, 10000), dtype=bool)                  # 1 um/px: a 10 mm x 7.5 mm slide at 0.25 um/px
+    mask[1000:1600, 2000:3000] = True
+    mask[1100:1500, 2100:2900] = False                          # the ring ...
+    mask[1200:1300, 2300:2400] = True                           # ... and an object in its hole
+    mask[7400:7500, 9900:10000] = True                          # at the border
+    mask[3000:3050, 3000:3050] = True                           # 2500 px: too small
+    stages = {"tissue": np.full(mask.shape, 255, dtype=np.uint8), "epithelium": mask, "classes": ["TUM", "BEN"]}
+
+    class Slide(_Slide):
+        dimensions = (40000, 30000)
+        level_dimensions = ((40000, 30000),)
+        properties = {"openslide.mpp-x": "0.25", "openslide.mpp-y": "0.25"}
+
+    with patch("pathlib.Path.is_file", return_value=True), \
+         patch("components.person_c.region.segnet.load_model", return_value=(object(), "cpu")), \
+         patch("openslide.OpenSlide", return_value=Slide()), \
+         patch("components.person_c.region.segnet.infer_stages", return_value=stages):
+        return run(source, config)
+
+
+class CanonicalExampleTests(TestCase):
+    def test_expected_e_is_what_the_code_writes(self) -> None:
+        output = canonical_output()
+        validate_artifact(output, "E.ROIs")
+        stains = output["payload"]["case_list"][0]["tissue_blocks"][0]["stains"]
+        self.assertEqual([2, 0], [stain["roi_num"] for stain in stains])      # the HE stain; the IHC stain is not processed
+        self.assertEqual(json.loads((EXAMPLES / "E_rois.expected.json").read_text(encoding="utf-8")), output)

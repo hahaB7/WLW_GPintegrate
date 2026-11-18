@@ -90,6 +90,13 @@ def run(source: dict[str, Any], config: dict[str, Any]) -> dict[str, Any]:
         "DxItem_list": list(source["DxItem_list"]),
         "case_list": [case],
     }
+    if settings["mode"] == "region_proposal":            # what produced the ROIs, for whoever reads E later
+        seg = settings["segnet"]
+        payload["reference_versions"] = {"interest_pattern": {
+            "mode": "region_proposal",
+            "segnet": {key: seg[key] for key in ("checkpoints", "roi_classes", "tile_um", "margin_um", "tta_views")},
+            "postprocess_mpp": settings["postprocess_mpp"], "min_object_size": settings["min_object_size"],
+        }}
     allowed_stains = set(settings["stain_type_whitelist"])
     selected_stains = [stain for stain in iter_stains(payload) if stain["stain_type"].upper() in allowed_stains]
     model = device = None

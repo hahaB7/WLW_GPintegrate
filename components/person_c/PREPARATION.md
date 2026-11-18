@@ -1,8 +1,9 @@
 # 丙（Person C）：Interest Pattern／ROI Extraction 準備與交付
 
-丙負責將單案 CaseList 的 WSI metadata 轉成 `[E]` ROI artifact。`mode: region_proposal` 已實作
-CONCH dense feature、vMF 分群與 ROI 產生；`mode: example` 才是保留給契約測試的空 ROI stub。
-2026-10-29 已以 production Docker image 與三張真實 MRXS 完成正式整合驗收。
+丙負責將單案 CaseList 的 WSI metadata 轉成 `[E]` ROI artifact。`mode: region_proposal`（`configs/region_proposal.json`）
+以 SEGNET student 在 WSI 上做 c9 組織分割，取 TUM 與 BEN 的聯集（填洞）後，以每個連通物件的最小包圍框產生 ROI；
+`mode: example`（`configs/example.json`）不開 WSI，只供契約與 pipeline 測試。演算法、座標規則、實測與限制見 `README.md`。
+先前的 CONCH region proposal（PR #1）與 MRCPS 已移除，仍在 git 歷史。
 
 ## 1. Input／output 規格
 
@@ -194,8 +195,8 @@ exit 且不得留下半套 E 或未完成 crop。
 
 ## 5. Dockerfile／requirements.txt
 
-正式 image 使用 Python 3.12、CUDA 13.0、PyTorch 2.14.0、OpenSlide 與 CONCH；完整固定版本見
-`requirements.txt` 與 `Dockerfile`。重建命令：
+image 使用 Python 3.10、PyTorch 2.6.0 + torchvision 0.21.0（cu118）、OpenSlide；固定版本見 `requirements.txt` 與
+`Dockerfile`。重建命令：
 
 ```bash
 docker build --no-cache \
@@ -203,25 +204,23 @@ docker build --no-cache \
   -t wlw/person-c:<version> .
 ```
 
-至少測試一次 CPU 或明確拒絕 CPU，並在目標 GPU 測量最低 VRAM、batch size、RAM、暫存磁碟與單張 WSI
-timeout。Docker build 不得下載私有 checkpoint 或把 WSI 複製進 image。
+實測（H200、單張 WSI、一個網路、無 TTA）：GPU 記憶體峰值 1.05 GiB、主機記憶體 7.3 GB（不畫圖）到 15.7 GB（三張圖，
+最大的一張）、單張 34 到 106 秒。CPU 模式可設定（`device: "cpu"`）但未測。Docker build 不下載 checkpoint，
+也不把 WSI 複製進 image。**image 尚未 build**（開發環境沒有 Docker）。
 
 ## 6. Canonical example
 
-至少交付：
-
 ```text
 components/person_c/examples/
-├── case_list.valid.json
-├── synthetic_slide.<supported-format>
-├── E_rois.expected.json
-├── config.example.json
+├── case_list.valid.json        單案 CaseList（example mode 使用）
+├── E_rois.expected.json        example mode 的 E
+├── e2e/                        真實切片的指令（需要 GPU 與 checkpoint）
 └── README.md
 ```
 
-使用小型合成、可再散布且含已知 MPP 的 slide；expected E 至少覆蓋一個 ROI、空 ROI、非處理 stain 與
-接近影像邊界的座標。若真實模型輸出非決定性，需固定 seed 或定義座標／score 容許誤差。另測試缺檔與
-錯誤 MPP 會 non-zero fail。
+範例與 expected E 是 `mode: example` 的輸出；沒有提交合成切片或 `region_proposal` 的真實輸出（WSI 與 checkpoint 不得
+提交）。`region_proposal` 的行為由 `tests/` 以假的模型與分割結果覆蓋（座標、空 ROI、非處理 stain、缺檔、
+缺 checkpoint non-zero fail、框的規則），並以真實 BRACS 切片實測（見 README）。
 
 ## 7. README 必填資訊
 
@@ -231,9 +230,13 @@ MPP／座標規則、CLI、Docker build/run、canonical example、效能與限�
 
 ## 8. 提交檢查
 
-- [x] E 與每個 ROI 都通過 canonical schema 及 selection semantics。
-- [x] 座標／MPP round-trip 已和丁的 native WSI 讀取方式做三案例整合測試。
-- [x] production image 能讀真實 MRXS 並產生 E；image 內 24 項測試通過。
+- [x] E 與每個 ROI 通過 canonical schema 及 selection semantics（tests）。
+- [x] `pipeline/run_pipeline.py` 的 production 與 example 設定檢查接受 `configs/region_proposal.json` 與 `configs/example.json`。
 - [x] source、configs、examples、tests、Dockerfile、requirements、README、PREPARATION 已具備。
-- [x] checkpoint 只放 `reference/person_c/` 並附 manifest；WSI 與 run artifacts 不進 image。
-- [x] 根目錄 107 項測試與三案例 production pipeline 全部通過（另 1 項平台限定 skip）。
+- [x] checkpoint 只放 `reference/person_c/` 並附 manifest（SHA-256）；WSI 與 run artifacts 不進 image。
+- [x] 真實 BRACS 切片以 CLI 實測（`region_proposal.json`，見 README 第 8 節）。
+- [ ] production image 尚未 build 與在 pipeline 內執行（沒有 Docker）。
+- [ ] 完整 pipeline（A 到 E）尚未在含 SEGNET 的版本跑通：本機缺 Person A、E 的 reference 檔，根目錄測試因此有 14 項錯誤，
+      與丙無關。
+- [ ] 座標／MPP round-trip 尚未和丁的 native WSI 讀取方式重測（先前的三案例整合測試是 CONCH 版本）。
+- [ ] ROI 品質尚無與標註比較的數字（見 README 限制）。

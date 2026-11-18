@@ -17,9 +17,8 @@ Snapshot the config, the checkpoint revision and the WSI references with each ex
 | `mode` | `region_proposal`, `example` | See above. |
 | `stain_type_whitelist` | nonempty list[string] | Case-insensitive stain types that are opened; the others keep `roi_list = []`. Default `["HE"]`. |
 | `device` | `auto`, `cpu`, `cuda` | `auto` uses CUDA when available; an explicit `cuda` fails when it is not. |
-| `postprocess_mpp` | positive number | MPP of the mask the boxes are made from (8 µm/px). |
-| `hole_area_threshold` | nonnegative integer | Holes of at most this many mask pixels are filled before the boxes are made. |
-| `min_object_size` | positive integer | Objects smaller than this many mask pixels get no box. |
+| `postprocess_mpp` | positive number | MPP of the segmentation and the mask the boxes are made from (1 µm/px). The figures have the same resolution. |
+| `min_object_size` | positive integer | Objects with fewer mask pixels (at `postprocess_mpp`) get no box; 6400 is 6400 µm² at 1 µm/px. |
 | `save_roi_png` | boolean | Write the crop of every ROI and set `main_info.roi_path`. |
 | `roi_output_dir` | path below `run/output` | Where the crops go; required when `save_roi_png` is true. |
 
@@ -37,17 +36,18 @@ The working MPP of `main_info` follows from the box area in level-0 pixels²: up
 | `segnet.batch_size` | positive integer | Windows per forward pass. Reduce after a CUDA out-of-memory error. |
 | `segnet.num_workers` | integer >= 0 | Processes that read the tiles while the GPU predicts (0: the main process reads). At most the CPUs of the job minus two. |
 
-### `figures` (`region_proposal` only; one JPEG per WSI and stage)
+### `figures` (`region_proposal` only; one JPEG per WSI and stage, at `postprocess_mpp`)
 
 | Key | Type | Meaning |
 |---|---|---|
 | `figures.tissue` | boolean | The multi-class tissue segmentation: one colour per class, a legend. |
 | `figures.epithelium` | boolean | The epithelium mask the boxes are made from (`segnet.roi_classes`, holes filled). |
 | `figures.boxes` | boolean | The level-0 boxes of the ROIs over the epithelium; the title gives their number. |
-| `figures.dir` | path below `run/output` | Directory of the PNGs, `<case_id>_<stain_id>_<stage>.png`; required when a switch is on. |
+| `figures.dir` | path below `run/output` | Directory of the JPEGs, `<case_id>_<stain_id>_<stage>.jpg`; required when a switch is on. |
+| `figures.annotations` | path below `run/` (optional) | JSON `{stain_id: [[x, y, w, h], ...]}` of annotation ROIs in level-0 pixels. A stain with an entry gets them in green on the boxes figure; a stain without gets nothing. |
 
 All switches are off by default.
 
 ## `example` only
 
-`magnification`, `demo_mpp` (`x`, `y`) and `demo_regions` (a list of `x`, `y`, `width`, `height`, `level`): the fixed boxes.
+`component_version` and `mode` are enough: no slide is opened and no ROI is written. Optional: `demo_mpp` (`x`, `y`) and `demo_regions` (a list of `x`, `y`, `width`, `height`, `level`) give fixed boxes; `stain_type_whitelist` as above.
