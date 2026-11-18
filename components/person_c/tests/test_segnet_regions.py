@@ -83,8 +83,8 @@ class FigureTests(unittest.TestCase):
             self.assertEqual(names, sorted(p.name for p in Path(tmp).iterdir()))
             image = cv2.imread(str(Path(tmp) / "S1_boxes.jpg"))
             self.assertEqual((3000, 4000, 3), image.shape)
-            edge = image[597:604, 800:1200].astype(int)               # the top edge of the box: dashes in cyan (BGR 255, 229, 0)
-            self.assertGreater(int(((edge[..., 0] > 150) & (edge[..., 2] < 100)).sum()), 300)
+            edge = image[597:604, 800:1200].astype(int)               # the top edge of the box: dashes in amber (BGR 0, 176, 255)
+            self.assertGreater(int(((edge[..., 2] > 200) & (edge[..., 0] < 100) & (edge[..., 1] > 120)).sum()), 150)
             self.assertEqual([], figures.save_figures((1.0, 1.0), 1.0, stages, [], {"dir": tmp}, "S2", "cpu"))
 
     def test_figure_options_downscale_quality_thickness_and_validation(self) -> None:
@@ -102,14 +102,14 @@ class FigureTests(unittest.TestCase):
             figures.save_figures((1.0, 1.0), 1.0, stages, [[800, 600, 400, 300]], config, "S", "cpu")
             image = cv2.imread(str(Path(tmp) / "S_boxes.jpg"))
             self.assertEqual((751, 1001, 3), image.shape)                # 4 um/px
-            top = image[150, 200:300]                                    # the top edge of the box at (800, 600) -> (200, 150), cyan
-            cyan = (top[:, 0] > 150) & (top[:, 2] < 100)
-            self.assertTrue(cyan[4:12].all() and not cyan[16:21].any())     # a dash of 12 px (4 x thickness 3), then a gap
+            top = image[150, 200:300]                                    # the top edge of the box at (800, 600) -> (200, 150), amber
+            amber = (top[:, 2] > 200) & (top[:, 0] < 100)
+            self.assertTrue(amber[4:9].all() and not amber[12:15].any())     # a dash of about 10 px (3.5 x thickness 3), then a gap of about 8
         for bad in ({"downscale": 0}, {"quality": 101}, {"box_thickness": 0}):
             with self.assertRaises(ValueError):
                 wsi.validate_figures({"dir": "x", **bad})
 
-    def test_annotation_rois_are_yellow_and_only_drawn_when_there_are_some(self) -> None:
+    def test_annotation_rois_are_lime_dashes_and_only_drawn_when_there_are_some(self) -> None:
         import tempfile
 
         import cv2
@@ -123,12 +123,10 @@ class FigureTests(unittest.TestCase):
             figures.save_figures((1.0, 1.0), 1.0, stages, [], switches, "Without", "cpu")
             with_ann = cv2.imread(str(Path(tmp) / "With_boxes.jpg"))
             without = cv2.imread(str(Path(tmp) / "Without_boxes.jpg"))
-            edge = with_ann[97:104, 100:300].astype(int)                  # the top edge of the annotation: dashes in yellow (BGR 0, 214, 255)
-            self.assertGreater(int(((edge[..., 2] > 200) & (edge[..., 1] > 150) & (edge[..., 0] < 80)).sum()), 150)
-            self.assertLess(int(np.abs(without[97:104, 100:300].astype(int) - 235).max()), 12)   # nothing there without it
-            inside = with_ann[200:230, 250:285].astype(int)                # a faint yellow tint inside, the slide still shows
-            self.assertTrue((inside[..., 0] < 225).all() and (inside[..., 2] > 225).all() and (inside[..., 1] > 200).all())
-            self.assertLess(int(np.abs(without[200:230, 250:285].astype(int) - 235).max()), 12)
+            edge = with_ann[96:105, 100:300].astype(int)                  # the top edge of the annotation: long lime dashes (BGR 79, 255, 124)
+            self.assertGreater(int(((edge[..., 1] > 200) & (edge[..., 0] < 130) & (edge[..., 2] < 170)).sum()), 400)
+            self.assertLess(int(np.abs(without[97:104, 100:300].astype(int) - 235).max()), 12)   # nothing without an annotation
+            self.assertLess(int(np.abs(with_ann[200:230, 250:285].astype(int) - 235).max()), 12)   # the inside is not tinted
 
 
 class EnclosedTests(unittest.TestCase):

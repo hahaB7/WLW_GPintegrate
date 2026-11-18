@@ -16,16 +16,15 @@ import numpy as np
 
 STAGES = ("tissue", "epithelium", "boxes")
 EPITHELIUM = (0, 70, 255)                    # RGB
-# The colours of the boxes are taken from outside the hues of H&E (pink, purple, blue, white): cyan for the boxes of the
-# method, yellow for an annotation. BGR: the images of this module are BGR from ``paint`` on.
-BOX = (255, 229, 0)
-ANNOTATION = (0, 214, 255)
-FILL = 0.18                                  # opacity of the tint inside an annotation box
+# The colours of the boxes lie outside the hues of H&E (pink, purple, blue, white): amber for the boxes of the method, lime for
+# an annotation. BGR: the images of this module are BGR from ``paint`` on.
+BOX = (0, 176, 255)
+ANNOTATION = (79, 255, 124)
 # colours of the classes (c9 of the project's DATA/meta/classes.json); a class that is not listed is grey
 CLASS_COLORS = {"TUM": (215, 35, 55), "BEN": (240, 120, 30), "STR": (15, 155, 65), "LYM": (35, 95, 215), "NEC": (240, 180, 10),
                 "FAT": (40, 190, 230), "VES": (130, 60, 190), "BLD": (110, 20, 45), "SEC": (200, 50, 160), "OTH": (25, 30, 75)}
 UNLABELED = 255
-BOX_THICKNESS = 4                            # px of the figure: a thin line, found by its colour and its dark edge
+BOX_THICKNESS = 2                            # px of the figure (a dark edge of 1 px is added on each side)
 BAND = 1024                                  # rows per band
 QUALITY = 90                                 # JPEG quality: clear to the eye, a tenth of the size of a PNG
 ALPHA = {"tissue": 0.6, "epithelium": 0.55, "boxes": 0.3}
@@ -74,51 +73,50 @@ def caption(image: np.ndarray, text: str, unit: float) -> None:
         cv2.putText(image, text, (int(12 * unit), int(32 * unit)), cv2.FONT_HERSHEY_SIMPLEX, unit, color, max(1, int(width * unit)))
 
 
-def dashed_line(image: np.ndarray, start: tuple[int, int], end: tuple[int, int], color: tuple[int, int, int], thickness: int) -> None:
-    """In place: a dashed line (dash 4 and gap 4 line widths, so that the slide shows between the dashes), with a dark edge one
-    pixel wide on each side, so that it stands out on a light and on a dark background alike."""
+def dashed_line(image: np.ndarray, start: tuple[int, int], end: tuple[int, int], color: tuple[int, int, int], thickness: int,
+                pattern: tuple[float, float] = (3.5, 2.5)) -> None:
+    """In place: a dashed line (dash and gap in line widths, ``pattern``) with a dark edge one pixel wide on each side, so that
+    it stands out on a light and on a dark background alike while the slide shows between the dashes."""
 
     import cv2
 
     length = max(abs(end[0] - start[0]), abs(end[1] - start[1]))
-    period, dash = 8 * thickness, 4 * thickness
-    for t in range(0, length, period):
-        a, b = t / length, min(t + dash, length) / length
+    on, off = max(2, round(pattern[0] * thickness)), max(2, round(pattern[1] * thickness))
+    for t in range(0, length, on + off):
+        a, b = t / length, min(t + on, length) / length
         p, q = ((round(start[0] + (end[0] - start[0]) * u), round(start[1] + (end[1] - start[1]) * u)) for u in (a, b))
         cv2.line(image, p, q, (0, 0, 0), thickness + 2)
         cv2.line(image, p, q, color, thickness)
 
 
-def label(image: np.ndarray, text: str, corner: tuple[int, int], height: int, color: tuple[int, int, int]) -> None:
-    """In place: ``text`` of about ``height`` px above the upper left corner of a box (below it at the top of the figure)."""
+def tag(image: np.ndarray, text: str, corner: tuple[int, int], color: tuple[int, int, int]) -> None:
+    """In place: a small number on a dark label just above the upper left ``corner`` (below it at the top of the figure).
+    The size is the same for every box."""
 
     import cv2
 
-    scale = height / 22
-    thick = max(1, round(scale * 2))
-    (width, text_height), base = cv2.getTextSize(text, cv2.FONT_HERSHEY_SIMPLEX, scale, thick)
-    x = min(max(corner[0], 0), max(image.shape[1] - width - 1, 0))
-    y = corner[1] - max(2, height // 4)
-    if y - text_height < 0:
-        y = corner[1] + text_height + max(2, height // 4)
-    cv2.putText(image, text, (x, y), cv2.FONT_HERSHEY_SIMPLEX, scale, (0, 0, 0), thick + 2 * max(1, round(scale)))
-    cv2.putText(image, text, (x, y), cv2.FONT_HERSHEY_SIMPLEX, scale, color, thick)
+    (width, height), _ = cv2.getTextSize(text, cv2.FONT_HERSHEY_SIMPLEX, 0.5, 1)
+    x = min(max(corner[0], 0), max(image.shape[1] - width - 7, 0))
+    y = corner[1] - 3
+    if y - height - 4 < 0:
+        y = corner[1] + height + 7
+    cv2.rectangle(image, (x, y - height - 4), (x + width + 6, y + 2), (0, 0, 0), -1)
+    cv2.putText(image, text, (x + 3, y - 1), cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 1, cv2.LINE_AA)
 
 
 def draw_boxes(image: np.ndarray, boxes: Sequence[Sequence[int]], mpp0: tuple[float, float], mpp: float, thickness: int,
-               color: tuple[int, int, int] = BOX, fill: float = 0.0, first: int = 0) -> None:
-    """In place: level-0 ``[x, y, w, h]`` boxes on an image of ``mpp`` um/px: a faint tint inside if ``fill`` > 0, a dashed
-    rectangle, and the number of the box (``first`` for the first one) above its upper left corner, as large as the box allows."""
+               annotation: bool = False) -> None:
+    """In place: level-0 ``[x, y, w, h]`` boxes on an image of ``mpp`` um/px, each with its number. The boxes of the method are
+    amber, short-dashed and numbered from 0 (``local_idx`` of the ROI in E); an annotation is lime, one pixel wider, with long
+    dashes, numbered from 1. The two sets differ in colour and in rhythm, so that they stay apart where they overlap."""
 
-    for number, (x, y, w, h) in enumerate(boxes, first):
+    color, width, pattern = (ANNOTATION, thickness + 1, (6.0, 3.0)) if annotation else (BOX, thickness, (3.5, 2.5))
+    for number, (x, y, w, h) in enumerate(boxes, 1 if annotation else 0):
         x0, y0 = round(x * mpp0[0] / mpp), round(y * mpp0[1] / mpp)
         x1, y1 = round((x + w) * mpp0[0] / mpp), round((y + h) * mpp0[1] / mpp)
-        if fill:
-            inside = image[max(y0, 0):y1, max(x0, 0):x1]
-            inside[:] = (inside * (1 - fill) + np.array(color, dtype=np.float32) * fill).astype(np.uint8)
         for start, end in (((x0, y0), (x1, y0)), ((x1, y0), (x1, y1)), ((x1, y1), (x0, y1)), ((x0, y1), (x0, y0))):
-            dashed_line(image, start, end, color, thickness)
-        label(image, str(number), (x0, y0), int(min(max(0.2 * min(x1 - x0, y1 - y0), 16), 120)), color)
+            dashed_line(image, start, end, color, width, pattern)
+        tag(image, str(number), (x0, y0), color)
 
 
 def write_jpeg(image: np.ndarray, path: Path, quality: int = QUALITY) -> str:
@@ -171,13 +169,13 @@ def save_figures(mpp0: tuple[float, float], mpp: float, stages: Mapping[str, Any
                 band = cv2.resize(band, (out_cols, -(-(r1 - r0) // step)), interpolation=cv2.INTER_AREA)
             images[stage][r0 // step:r0 // step + band.shape[0]] = band
     unit = out_cols / 1600                                  # sizes of text and lines are those of a 1600 px wide image
-    thickness = figures.get("box_thickness") or max(BOX_THICKNESS, int(0.5 * unit))   # thin, but it grows a little with the figure
+    thickness = figures.get("box_thickness") or BOX_THICKNESS
     directory = Path(figures["dir"])
     directory.mkdir(parents=True, exist_ok=True)
     for stage in wanted:
         if stage == "boxes":
-            draw_boxes(images[stage], boxes, mpp0, fig_mpp, thickness, BOX)                      # numbered as local_idx of E
-            draw_boxes(images[stage], annotations, mpp0, fig_mpp, thickness, ANNOTATION, FILL, 1)
+            draw_boxes(images[stage], boxes, mpp0, fig_mpp, thickness)
+            draw_boxes(images[stage], annotations, mpp0, fig_mpp, thickness, annotation=True)
         if stage == "tissue":
             legend(images[stage], stages["classes"], counts[:len(stages["classes"])] > 0, unit)
         caption(images[stage], f"{name} {stage}" + (f" ({len(boxes)}" + (f", annotation {len(annotations)}" if len(annotations) else "") + ")" if stage == "boxes" else ""), unit)
