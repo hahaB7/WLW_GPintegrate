@@ -5,7 +5,7 @@ BRACS slides, class set c9) labels the slide; the union of ``roi_classes`` (TUM,
 mask at ``postprocess_mpp`` (1 um/px), which ``wsi_processing.level0_boxes`` turns into ROI boxes.
 
 * The slide is read at the student's 1 um/px in tiles of ``tile_um`` with ``margin_um`` of context on every side;
-  the student's windows (224 px, half overlap, cosine-squared blending, ``tta_views`` dihedral views, mean over
+  the student's windows (224 px, half overlap, cosine-squared blending, mean over
   the checkpoints) are those of SEGNET's ``Predictor``.
 * The student outputs one probability vector per 4 um cell; it is enlarged bilinearly to ``postprocess_mpp`` and the label of a pixel is the class of the highest probability (argmax over c9).
 * Heavy imports (torch, openslide, cv2) happen inside the functions so contract tests stay light.
@@ -20,7 +20,6 @@ from typing import Any, Mapping, Sequence
 import numpy as np
 
 CELL_STRIDE = 4          # output stride of the student: a cell is CELL_STRIDE x mpp um wide
-VIEWS = tuple((k, f) for f in (0, 1) for k in range(4))   # the eight dihedral views of SEGNET's TTA
 
 
 def fill_holes(mask: np.ndarray) -> np.ndarray:
@@ -86,11 +85,11 @@ def load_model(settings: Mapping[str, Any]) -> tuple[dict[str, Any], Any]:
     return {"nets": nets, "classes": classes, "window": window, "mpp": mpp}, device
 
 
-def predict_cells(img: np.ndarray, nets: Sequence[Any], window: int, device: Any, views: int, batch: int) -> Any:
+def predict_cells(img: np.ndarray, nets: Sequence[Any], window: int, device: Any, batch: int) -> Any:
     """uint8 (H, W, 3) at the student's mpp -> class probabilities (K, ceil(H/4), ceil(W/4)) on the device.
 
     The same rule as ``Predictor._probs`` of SEGNET: windows of ``window`` px at half overlap blended with a
-    cosine-squared weight, the mean of the dihedral views, the mean of the networks; an image smaller than
+    cosine-squared weight, the mean of the networks; an image smaller than
     the window is one window of its own size.
     """
 
@@ -114,15 +113,10 @@ def predict_cells(img: np.ndarray, nets: Sequence[Any], window: int, device: Any
             chunk = coords[i:i + batch]
             wins = torch.cat([x[:, :, y:y + size, x0:x0 + size] for y, x0 in chunk])
             p = 0
-            for k, f in VIEWS[:views]:
-                v = torch.rot90(wins, k, (2, 3))
-                v = v.flip(3) if f else v
-                for net in nets:
-                    with torch.autocast("cuda", dtype=torch.bfloat16, enabled=device.type == "cuda"):
-                        o = torch.softmax(net(v).float(), 1)
-                    o = o.flip(3) if f else o
-                    p = p + torch.rot90(o, -k, (2, 3))
-            p = p / (views * len(nets))
+            for net in nets:
+                with torch.autocast("cuda", dtype=torch.bfloat16, enabled=device.type == "cuda"):
+                    p = p + torch.softmax(net(wins).float(), 1)
+            p = p / len(nets)
             if acc is None:
                 k_classes = p.shape[1]
                 acc = torch.zeros(k_classes, Hp // s, Wp // s, device=device)
@@ -209,7 +203,7 @@ def infer_stages(path: str, slide: Any, mpp0: tuple[float, float], settings: Map
     image = np.full((*shape, 3), 255, dtype=np.uint8) if with_image else None
     side = round(tile / target)
     for (tx, ty), (x0, y0, img) in zip(origins, loader):
-        probs = predict_cells(img.numpy(), model["nets"], model["window"], device, cfg["tta_views"], cfg["batch_size"])
+        probs = predict_cells(img.numpy(), model["nets"], model["window"], device, cfg["batch_size"])
         label = F.interpolate(probs[None], scale_factor=scale, mode="bilinear", align_corners=False)[0].argmax(0).to(torch.uint8)
         cx, cy = round((tx - int(x0)) / target), round((ty - int(y0)) / target)
         part = label[cy:cy + side, cx:cx + side]

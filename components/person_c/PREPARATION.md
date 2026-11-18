@@ -204,7 +204,7 @@ docker build --no-cache \
   -t wlw/person-c:<version> .
 ```
 
-實測（H200、單張 WSI、一個網路、無 TTA）：GPU 記憶體峰值 1.05 GiB、主機記憶體 7.3 GB（不畫圖）到 15.7 GB（三張圖，
+實測（H200、單張 WSI、一個網路）：GPU 記憶體峰值 1.05 GiB、主機記憶體 7.3 GB（不畫圖）到 15.7 GB（三張圖，
 最大的一張）、單張 34 到 106 秒。CPU 模式可設定（`device: "cpu"`）但未測。Docker build 不下載 checkpoint，
 也不把 WSI 複製進 image。**image 尚未 build**（開發環境沒有 Docker）。
 

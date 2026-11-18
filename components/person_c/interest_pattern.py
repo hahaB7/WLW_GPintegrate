@@ -94,7 +94,7 @@ def run(source: dict[str, Any], config: dict[str, Any]) -> dict[str, Any]:
         seg = settings["segnet"]
         payload["reference_versions"] = {"interest_pattern": {
             "mode": "region_proposal",
-            "segnet": {key: seg[key] for key in ("checkpoints", "roi_classes", "tile_um", "margin_um", "tta_views")},
+            "segnet": {key: seg[key] for key in ("checkpoints", "roi_classes", "tile_um", "margin_um")},
             "postprocess_mpp": settings["postprocess_mpp"], "min_object_size": settings["min_object_size"],
         }}
     allowed_stains = set(settings["stain_type_whitelist"])

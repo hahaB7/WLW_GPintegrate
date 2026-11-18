@@ -17,7 +17,6 @@
     ],
     "tile_um": 1792,
     "margin_um": 112,
-    "tta_views": 1,
     "batch_size": 32,
     "num_workers": 6
   },

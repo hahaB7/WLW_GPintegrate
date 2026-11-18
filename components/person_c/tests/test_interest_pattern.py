@@ -42,7 +42,7 @@ def _config(save_png: bool = False, output_dir: str = "") -> dict:
         "stain_type_whitelist": ["HE"],
         "segnet": {
             "checkpoints": [{"path": "../reference/person_c/checkpoint/segnet/missing-test.pt", "revision": "sha256:" + "0" * 64}],
-            "roi_classes": ["TUM", "BEN"], "tile_um": 1792, "margin_um": 112, "tta_views": 1, "batch_size": 1, "num_workers": 0,
+            "roi_classes": ["TUM", "BEN"], "tile_um": 1792, "margin_um": 112, "batch_size": 1, "num_workers": 0,
         },
         "device": "cpu", "postprocess_mpp": 8,
         "min_object_size": 1, "save_roi_png": save_png,

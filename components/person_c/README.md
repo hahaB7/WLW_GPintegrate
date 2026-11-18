@@ -30,7 +30,7 @@ opened. Every other stain stays in E with `roi_num = 0` and `roi_list = []`.
 
 ```text
  WSI ─> tiles of 1792 um at 1 um/px (+112 um context), read by worker processes
-     ─> student: 224 px windows at half overlap, cosine-squared blending            GPU, one network, no test-time augmentation
+     ─> student: 224 px windows at half overlap, cosine-squared blending            GPU, one network
      ─> one probability vector per 4 um cell, enlarged bilinearly to 1 um/px        GPU
      ─> class of the highest probability per pixel                                  GPU      STAGE 1  tissue segmentation (c9)
      ─> union of segnet.roi_classes (TUM, BEN), every hole filled                   GPU / CPU STAGE 2  epithelium
@@ -50,7 +50,7 @@ opened. Every other stain stays in E with `roi_num = 0` and `roi_list = []`.
 - **Checkpoint.** `reference/person_c/checkpoint/segnet/c9_sclip_bracs_s0.pt`, pinned by `revision` (SHA-256) in the config and
   checked before it is loaded.
 - **What produced the ROIs** is written to `payload.reference_versions.interest_pattern` of E: the mode, the checkpoints with
-  their SHA-256, the classes, the tile size, the number of test-time views, `postprocess_mpp` and `min_object_size`.
+  their SHA-256, the classes, the tile size, `postprocess_mpp` and `min_object_size`.
 
 ## 3. Figures
 
@@ -208,7 +208,7 @@ docker run --rm --gpus all \
 | WSI library | `openslide-python 1.4.6` (any format OpenSlide reads that carries MPP; SVS was used) |
 | Framework | `torch 2.6.0`, `torchvision 0.21.0` in the image (cu118 wheels); development runs: torch 2.14.0 with CUDA 13.0 |
 | Other | `numpy`, `opencv-python-headless`, `Pillow` (`requirements.txt`); `scipy` only for one test (it checks the hole filling against `scipy.ndimage.binary_fill_holes`) |
-| GPU | one; peak GPU memory 1.05 GiB measured during inference (one network, no TTA, `batch_size` 32) |
+| GPU | one; peak GPU memory 1.05 GiB measured during inference (one network, `batch_size` 32) |
 | CPU | 8 (6 tile readers and the main process); `device: "cpu"` is accepted but was not run |
 | Checkpoint | `reference/person_c/checkpoint/segnet/c9_sclip_bracs_s0.pt`, SHA-256 `b13895d5cf7ca919cb6b78e43931a5e9174f7305573964c3ed1ac5cea5b3e95b`, 238 008 769 bytes |
 
@@ -231,8 +231,7 @@ One H200, 8 CPUs, `configs/region_proposal.json`, BRACS slides (SVS, 0.2524 µm/
 The boxes of BRACS_1003691 take 0.5 s on the CPU (the hole filling is not timed separately; it is part of the 20 s above). The first version of this mode took 6 min 2 s
 on BRACS_1003691: the tiles were read at the full-resolution level (a requested 3.96 µm/px is 1 % below the 4.0 of level 1, and
 `get_best_level_for_downsample` then skips it) and in the main loop; they are now read at the right level
-(`wsi_processing.read_level`, 1 % tolerance) by `segnet.num_workers` processes. Test-time augmentation (`segnet.tta_views`) and more
-checkpoints multiply the GPU time and are off / one by default. The memory of a run with figures is mostly the slide image
+(`wsi_processing.read_level`, 1 % tolerance) by `segnet.num_workers` processes. More checkpoints (`segnet.checkpoints`) multiply the GPU time; one is the default. The memory of a run with figures is mostly the slide image
 and the three figures at 1 µm/px.
 
 ## 10. Limits

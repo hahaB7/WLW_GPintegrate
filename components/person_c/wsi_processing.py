@@ -83,9 +83,6 @@ def validate_segnet(cfg: Any) -> dict[str, Any]:
         result[name] = integer(cfg.get(name), f"segnet.{name}", 4)
         if result[name] % 4:
             raise ValueError(f"person_c segnet.{name} must be a multiple of 4")
-    result["tta_views"] = integer(cfg.get("tta_views"), "segnet.tta_views", 1)
-    if result["tta_views"] > 8:
-        raise ValueError("person_c segnet.tta_views must be 1..8")
     result["batch_size"] = integer(cfg.get("batch_size"), "segnet.batch_size", 1)
     result["num_workers"] = integer(cfg.get("num_workers"), "segnet.num_workers", 0)
     return result

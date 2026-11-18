@@ -32,7 +32,6 @@ The working MPP of `main_info` follows from the box area in level-0 pixels²: up
 | `segnet.checkpoints` | list of `{path, revision}` | Student checkpoints; `revision` is `sha256:<64 hex>` and is checked before loading. The probabilities of all are averaged; every extra network costs as much GPU time as the first (default: one). |
 | `segnet.roi_classes` | nonempty list[string] | Classes whose union is the epithelium mask; names from the checkpoint (`TUM`, `BEN`). |
 | `segnet.tile_um`, `segnet.margin_um` | multiples of 4 | The slide is read in tiles of `tile_um` at the student's 1 µm/px, with `margin_um` of context on every side. |
-| `segnet.tta_views` | 1..8 | Dihedral views per window. 1 is no test-time augmentation (default); SEGNET's own default is 8, and every view multiplies the GPU time. |
 | `segnet.batch_size` | positive integer | Windows per forward pass. Reduce after a CUDA out-of-memory error. |
 | `segnet.num_workers` | integer >= 0 | Processes that read the tiles while the GPU predicts (0: the main process reads). At most the CPUs of the job minus two. |
 

@@ -200,8 +200,7 @@
             "BEN"
           ],
           "tile_um": 1792,
-          "margin_um": 112,
-          "tta_views": 1
+          "margin_um": 112
         },
         "postprocess_mpp": 1.0,
         "min_object_size": 6400
