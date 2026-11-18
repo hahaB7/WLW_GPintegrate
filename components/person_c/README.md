@@ -61,18 +61,22 @@ change the ROIs. All are off by default; every key is in [configs/README.md](con
 |---|---|---|
 | `tissue` | `figures.tissue` | the class map, one colour per class, with a legend |
 | `epithelium` | `figures.epithelium` | the epithelium mask the boxes come from, with its outline |
-| `boxes` | `figures.boxes` | the ROI boxes (red, dashed) over the epithelium; the caption gives their number |
+| `boxes` | `figures.boxes` | the ROI boxes (cyan) over the epithelium; the caption gives their number |
 
 - **File.** One JPEG per WSI and stage, `<figures.dir>/<name>_<stage>.jpg`, `name` being the stem of the slide's file name (`BRACS_1228_boxes.jpg`), below `run/output`. A file appears
   whole or not at all.
 - **Size.** By default the figure has the resolution of the segmentation, 1 µm/px: a 60 000 × 70 000 px slide gives about
   16 000 × 18 000 px (about 50 MB). `figures.downscale` makes the figure that many times smaller (`4`: 4 µm/px, 16 times fewer
   pixels). It only shrinks the picture; the segmentation and the boxes are the same. `figures.quality` is the JPEG quality and
-  `figures.box_thickness` the line width (default: 4 px, a little more on a very large figure). Colours are fixed. The boxes (red) and the annotation ROIs (green) are dashed with a dark
-  edge, so that they stand out on light and dark tissue and the slide stays visible between the dashes.
+  `figures.box_thickness` the line width (default: 4 px, a little more on a very large figure). Colours are fixed.
+- **How the boxes are drawn.** The colours lie outside the hues of H&E (pink, purple, blue): cyan for the boxes of the method, yellow for
+  an annotation. A box is a dense dashed line with a dark edge of 1 px on each side, so that it stands out on light and on dark
+  tissue while the slide shows between the dashes. Every box has its number above its upper left corner, as large as the box
+  allows (16 to 120 px): for the boxes of the method it is `local_idx` of the ROI in E, so a box in the figure is found in the
+  JSON.
 - **Annotations.** If `figures.annotations` points to a JSON `{stain_id: [[x, y, w, h], ...]}` (level-0 pixels), the annotation
-  ROIs of that stain are drawn in green on the boxes figure and counted in its caption. Each has a dashed box and a green ring close around
-  it, so that it is found at a glance in a zoomed-out figure. Without an entry nothing is drawn.
+  ROIs of that stain are drawn in yellow, numbered from 1, with a faint yellow tint inside (18 % opacity; the slide stays
+  visible), and counted in the caption. Without an entry nothing is drawn.
 
 **Looking at a figure.** A full-size figure is too large for most viewers and for a web page. Either set `figures.downscale`, or
 copy the file to a computer (`scp`) and open it with a viewer for large images (Fiji / ImageJ, IrfanView, an image editor), or

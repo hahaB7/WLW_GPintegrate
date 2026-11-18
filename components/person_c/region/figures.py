@@ -16,8 +16,11 @@ import numpy as np
 
 STAGES = ("tissue", "epithelium", "boxes")
 EPITHELIUM = (0, 70, 255)                    # RGB
-ANNOTATION = (0, 170, 0)                     # BGR, green: the ROIs of an annotation
-BOX = (0, 0, 255)                            # BGR: the images of this module are BGR from ``paint`` on
+# The colours of the boxes are taken from outside the hues of H&E (pink, purple, blue, white): cyan for the boxes of the
+# method, yellow for an annotation. BGR: the images of this module are BGR from ``paint`` on.
+BOX = (255, 229, 0)
+ANNOTATION = (0, 214, 255)
+FILL = 0.18                                  # opacity of the tint inside an annotation box
 # colours of the classes (c9 of the project's DATA/meta/classes.json); a class that is not listed is grey
 CLASS_COLORS = {"TUM": (215, 35, 55), "BEN": (240, 120, 30), "STR": (15, 155, 65), "LYM": (35, 95, 215), "NEC": (240, 180, 10),
                 "FAT": (40, 190, 230), "VES": (130, 60, 190), "BLD": (110, 20, 45), "SEC": (200, 50, 160), "OTH": (25, 30, 75)}
@@ -72,43 +75,50 @@ def caption(image: np.ndarray, text: str, unit: float) -> None:
 
 
 def dashed_line(image: np.ndarray, start: tuple[int, int], end: tuple[int, int], color: tuple[int, int, int], thickness: int) -> None:
-    """In place: a dashed line (dash 6 and gap 6 line widths, so that the slide stays visible between the dashes), with a dark
-    edge one pixel wide on each side, so that it stands out on a light and on a dark background alike."""
+    """In place: a dashed line (dash 4 and gap 4 line widths, so that the slide shows between the dashes), with a dark edge one
+    pixel wide on each side, so that it stands out on a light and on a dark background alike."""
 
     import cv2
 
     length = max(abs(end[0] - start[0]), abs(end[1] - start[1]))
-    period, dash = 12 * thickness, 6 * thickness
+    period, dash = 8 * thickness, 4 * thickness
     for t in range(0, length, period):
         a, b = t / length, min(t + dash, length) / length
-        p, q = ((round(start[0] + (end[0] - start[0]) * t), round(start[1] + (end[1] - start[1]) * t)) for t in (a, b))
+        p, q = ((round(start[0] + (end[0] - start[0]) * u), round(start[1] + (end[1] - start[1]) * u)) for u in (a, b))
         cv2.line(image, p, q, (0, 0, 0), thickness + 2)
         cv2.line(image, p, q, color, thickness)
 
 
-def draw_boxes(image: np.ndarray, boxes: Sequence[Sequence[int]], mpp0: tuple[float, float], mpp: float, thickness: int,
-               color: tuple[int, int, int] = BOX) -> None:
-    """In place: level-0 ``[x, y, w, h]`` boxes on an image of ``mpp`` um/px, as dashed rectangles."""
-
-    for x, y, w, h in boxes:
-        x0, y0 = round(x * mpp0[0] / mpp), round(y * mpp0[1] / mpp)
-        x1, y1 = round((x + w) * mpp0[0] / mpp), round((y + h) * mpp0[1] / mpp)
-        for start, end in (((x0, y0), (x1, y0)), ((x1, y0), (x1, y1)), ((x1, y1), (x0, y1)), ((x0, y1), (x0, y0))):
-            dashed_line(image, start, end, color, thickness)
-
-
-def mark_annotations(image: np.ndarray, boxes: Sequence[Sequence[int]], mpp0: tuple[float, float], mpp: float, unit: float) -> None:
-    """In place: a ring close around every annotation ROI, so that it is found at a glance in a zoomed-out figure.
-
-    The ring lies just outside the box (half the diagonal plus a small margin); the box itself stays a thin dashed line."""
+def label(image: np.ndarray, text: str, corner: tuple[int, int], height: int, color: tuple[int, int, int]) -> None:
+    """In place: ``text`` of about ``height`` px above the upper left corner of a box (below it at the top of the figure)."""
 
     import cv2
 
-    for x, y, w, h in boxes:
-        cx, cy = round((x + w / 2) * mpp0[0] / mpp), round((y + h / 2) * mpp0[1] / mpp)
-        radius = round((((w * mpp0[0]) ** 2 + (h * mpp0[1]) ** 2) ** 0.5 / 2) / mpp + 3 * unit)
-        cv2.circle(image, (cx, cy), radius, (0, 0, 0), max(3, int(1.2 * unit)) + 2)
-        cv2.circle(image, (cx, cy), radius, ANNOTATION, max(3, int(1.2 * unit)))
+    scale = height / 22
+    thick = max(1, round(scale * 2))
+    (width, text_height), base = cv2.getTextSize(text, cv2.FONT_HERSHEY_SIMPLEX, scale, thick)
+    x = min(max(corner[0], 0), max(image.shape[1] - width - 1, 0))
+    y = corner[1] - max(2, height // 4)
+    if y - text_height < 0:
+        y = corner[1] + text_height + max(2, height // 4)
+    cv2.putText(image, text, (x, y), cv2.FONT_HERSHEY_SIMPLEX, scale, (0, 0, 0), thick + 2 * max(1, round(scale)))
+    cv2.putText(image, text, (x, y), cv2.FONT_HERSHEY_SIMPLEX, scale, color, thick)
+
+
+def draw_boxes(image: np.ndarray, boxes: Sequence[Sequence[int]], mpp0: tuple[float, float], mpp: float, thickness: int,
+               color: tuple[int, int, int] = BOX, fill: float = 0.0, first: int = 0) -> None:
+    """In place: level-0 ``[x, y, w, h]`` boxes on an image of ``mpp`` um/px: a faint tint inside if ``fill`` > 0, a dashed
+    rectangle, and the number of the box (``first`` for the first one) above its upper left corner, as large as the box allows."""
+
+    for number, (x, y, w, h) in enumerate(boxes, first):
+        x0, y0 = round(x * mpp0[0] / mpp), round(y * mpp0[1] / mpp)
+        x1, y1 = round((x + w) * mpp0[0] / mpp), round((y + h) * mpp0[1] / mpp)
+        if fill:
+            inside = image[max(y0, 0):y1, max(x0, 0):x1]
+            inside[:] = (inside * (1 - fill) + np.array(color, dtype=np.float32) * fill).astype(np.uint8)
+        for start, end in (((x0, y0), (x1, y0)), ((x1, y0), (x1, y1)), ((x1, y1), (x0, y1)), ((x0, y1), (x0, y0))):
+            dashed_line(image, start, end, color, thickness)
+        label(image, str(number), (x0, y0), int(min(max(0.2 * min(x1 - x0, y1 - y0), 16), 120)), color)
 
 
 def write_jpeg(image: np.ndarray, path: Path, quality: int = QUALITY) -> str:
@@ -166,9 +176,8 @@ def save_figures(mpp0: tuple[float, float], mpp: float, stages: Mapping[str, Any
     directory.mkdir(parents=True, exist_ok=True)
     for stage in wanted:
         if stage == "boxes":
-            draw_boxes(images[stage], boxes, mpp0, fig_mpp, thickness, BOX)
-            draw_boxes(images[stage], annotations, mpp0, fig_mpp, thickness, ANNOTATION)
-            mark_annotations(images[stage], annotations, mpp0, fig_mpp, unit)
+            draw_boxes(images[stage], boxes, mpp0, fig_mpp, thickness, BOX)                      # numbered as local_idx of E
+            draw_boxes(images[stage], annotations, mpp0, fig_mpp, thickness, ANNOTATION, FILL, 1)
         if stage == "tissue":
             legend(images[stage], stages["classes"], counts[:len(stages["classes"])] > 0, unit)
         caption(images[stage], f"{name} {stage}" + (f" ({len(boxes)}" + (f", annotation {len(annotations)}" if len(annotations) else "") + ")" if stage == "boxes" else ""), unit)

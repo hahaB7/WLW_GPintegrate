@@ -43,7 +43,7 @@ The working MPP of `main_info` follows from the box area in level-0 pixels²: up
 | `figures.epithelium` | boolean | The epithelium mask the boxes are made from (`segnet.roi_classes`, holes filled). |
 | `figures.boxes` | boolean | The level-0 boxes of the ROIs over the epithelium; the title gives their number. |
 | `figures.dir` | path below `run/output` | Directory of the JPEGs, `<name>_<stage>.jpg` (`name`: the stem of the slide's file name); required when a switch is on. |
-| `figures.annotations` | path below `run/` (optional) | JSON `{stain_id: [[x, y, w, h], ...]}` of annotation ROIs in level-0 pixels. A stain with an entry gets them in green on the boxes figure; a stain without gets nothing. |
+| `figures.annotations` | path below `run/` (optional) | JSON `{stain_id: [[x, y, w, h], ...]}` of annotation ROIs in level-0 pixels. A stain with an entry gets them in yellow, numbered, on the boxes figure; a stain without gets nothing. |
 
 Look of the figures (optional; the values shown are the defaults; the colours are fixed):
 
@@ -51,7 +51,7 @@ Look of the figures (optional; the values shown are the defaults; the colours ar
 |---|---|---|
 | `figures.downscale` | integer 1..64 (1) | The figure is this many times smaller than the 1 µm/px stages (4: 4 µm/px, 16 times fewer pixels, a viewable overview). |
 | `figures.quality` | integer 1..100 (90) | JPEG quality. |
-| `figures.box_thickness` | integer 1..20 (4 at least, about 1 per 3200 px of figure width) | Line width of the boxes and annotation ROIs in pixels of the figure, without the dark edge of 1 px on each side. |
+| `figures.box_thickness` | integer 1..20 (4 at least, about 1 per 3200 px of figure width) | Line width of the boxes and annotation ROIs in pixels of the figure, without the dark edge of 1 px on each side. Colours are fixed (cyan boxes, yellow annotations). |
 
 All switches are off by default.
 
