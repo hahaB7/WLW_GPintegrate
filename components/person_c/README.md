@@ -70,7 +70,8 @@ change the ROIs. All are off by default; every key is in [configs/README.md](con
   pixels). It only shrinks the picture; the segmentation and the boxes are the same. `figures.quality` is the JPEG quality and
   `figures.box_thickness` the line width (default 2 px; the figure is meant to be zoomed into). Colours are fixed.
 - **Annotations.** If `figures.annotations` points to a JSON `{stain_id: [[x, y, w, h], ...]}` (level-0 pixels), the annotation
-  ROIs of that stain are drawn in green (dashed) on the boxes figure and counted in its caption. Without an entry nothing is drawn.
+  ROIs of that stain are drawn in green on the boxes figure and counted in its caption. Each has a dashed box, a green ring around
+  it and a number, so that it is found at a glance in a zoomed-out figure. Without an entry nothing is drawn.
 
 **Looking at a figure.** A full-size figure is too large for most viewers and for a web page. Either set `figures.downscale`, or
 copy the file to a computer (`scp`) and open it with a viewer for large images (Fiji / ImageJ, IrfanView, an image editor), or

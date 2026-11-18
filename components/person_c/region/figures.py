@@ -95,6 +95,26 @@ def draw_boxes(image: np.ndarray, boxes: Sequence[Sequence[int]], mpp0: tuple[fl
             dashed_line(image, start, end, color, thickness)
 
 
+def mark_annotations(image: np.ndarray, boxes: Sequence[Sequence[int]], mpp0: tuple[float, float], mpp: float, unit: float) -> None:
+    """In place: a ring and a number around every annotation ROI, so that it is found at a glance in a zoomed-out figure.
+
+    The ring lies outside the box (radius: half the diagonal plus a margin) and is as wide as the figure is large; the box
+    itself stays a thin dashed line."""
+
+    import cv2
+
+    for number, (x, y, w, h) in enumerate(boxes, 1):
+        cx, cy = round((x + w / 2) * mpp0[0] / mpp), round((y + h / 2) * mpp0[1] / mpp)
+        radius = round((((w * mpp0[0]) ** 2 + (h * mpp0[1]) ** 2) ** 0.5 / 2) / mpp + 25 * unit)
+        cv2.circle(image, (cx, cy), radius, ANNOTATION, max(2, int(2 * unit)))
+        label = str(number)
+        scale, width = 1.6 * unit, max(2, int(3 * unit))
+        (tw, th), _ = cv2.getTextSize(label, cv2.FONT_HERSHEY_SIMPLEX, scale, width)
+        origin = (min(max(cx + radius, 0), image.shape[1] - tw - 1), max(cy - radius, th + 1))   # above right of the ring, inside the figure
+        cv2.putText(image, label, origin, cv2.FONT_HERSHEY_SIMPLEX, scale, (0, 0, 0), width + 4 * max(1, int(unit)))
+        cv2.putText(image, label, origin, cv2.FONT_HERSHEY_SIMPLEX, scale, ANNOTATION, width)
+
+
 def write_jpeg(image: np.ndarray, path: Path, quality: int = QUALITY) -> str:
     """Atomic: the file appears whole or not at all."""
 
@@ -152,6 +172,7 @@ def save_figures(mpp0: tuple[float, float], mpp: float, stages: Mapping[str, Any
         if stage == "boxes":
             draw_boxes(images[stage], boxes, mpp0, fig_mpp, thickness, BOX)
             draw_boxes(images[stage], annotations, mpp0, fig_mpp, thickness, ANNOTATION)
+            mark_annotations(images[stage], annotations, mpp0, fig_mpp, unit)
         if stage == "tissue":
             legend(images[stage], stages["classes"], counts[:len(stages["classes"])] > 0, unit)
         caption(images[stage], f"{name} {stage}" + (f" ({len(boxes)}" + (f", annotation {len(annotations)}" if len(annotations) else "") + ")" if stage == "boxes" else ""), unit)
